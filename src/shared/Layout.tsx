@@ -1,0 +1,56 @@
+import { supabase } from '../lib/supabase'
+import { Sidebar } from '../components/layout/Sidebar'
+import { Footer } from '../components/layout/Footer'
+import { Header } from '../components/layout/Header'
+import { Icon } from '../components/ui/Icon'
+import { useState } from 'react'
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const nav = [
+    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { to: '/calendar', label: 'Calendário', icon: 'calendar' },
+    { to: '/schedules/control', label: 'Controle e Previsão', icon: 'reports' },
+    { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
+    { to: '/ledger', label: 'Livro Caixa', icon: 'ledger' },
+    {
+      to: '/cadastro', label: 'Cadastro', icon: 'settings', children: [
+        { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'accounts' },
+        { to: '/cadastro/grupo-compromisso', label: 'Grupo de Compromisso', icon: 'group' },
+        { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'commitment' },
+        { to: '/cadastro/clientes', label: 'Clientes', icon: 'clients' },
+      ]
+    },
+    { to: '/transfers', label: 'Transferências', icon: 'transfer' },
+    { to: '/reports', label: 'Relatórios', icon: 'reports' },
+    { to: '/settings', label: 'Configurações', icon: 'settings' },
+  ]
+  return (
+    <div className="min-h-screen flex bg-gray-50 text-gray-900">
+      <Header onMenuToggle={() => setMobileOpen(true)} />
+      <div className="hidden md:block">
+        <Sidebar items={nav} onLogout={() => supabase?.auth.signOut()} />
+      </div>
+      <main className="flex-1 p-6 pb-20 mt-12 md:mt-0 relative">
+        <div className="hidden md:flex items-center gap-2 absolute top-4 right-6 text-sm text-gray-700">
+          <Icon name="calendar-primary" className="w-5 h-5" />
+          <span>{(() => {
+            const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+            return dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
+          })()}</span>
+        </div>
+        {children}
+      </main>
+      <Footer />
+
+      {mobileOpen && (
+        <div className="md:hidden">
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMobileOpen(false)} aria-hidden="true"></div>
+          <div id="mobile-sidebar" className="fixed top-0 left-0 bottom-0 w-64 bg-white border-r z-50 transition-transform duration-300 overflow-y-auto sidebar-scroll" role="dialog" aria-label="Menu móvel">
+            <Sidebar items={nav} onLogout={() => { setMobileOpen(false); supabase?.auth.signOut() }} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
