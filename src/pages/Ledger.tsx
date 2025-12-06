@@ -283,6 +283,58 @@ export default function Ledger() {
     }
   }
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const filteredTxs = useMemo(() => {
+    return txs.filter(t => {
+      if (filterMode === 'simple') {
+        if (!t.data_lancamento.startsWith(selectedMonth)) return false
+      } else {
+        if (!startDate || !endDate) return true
+        const dateToCheck = dateFilterType === 'payment' ? (t.data_vencimento || t.data_lancamento) : t.data_lancamento
+        if (dateToCheck < startDate || dateToCheck > endDate) return false
+      }
+
+      if (!searchTerm) return true
+      const term = searchTerm.toLowerCase()
+      const valSearch = parseFloat(searchTerm.replace(',', '.'))
+      const matchText = (t.cliente?.toLowerCase() || '').includes(term) || (t.historico?.toLowerCase() || '').includes(term)
+      const matchValue = !isNaN(valSearch) && (Math.abs(t.valor_entrada - valSearch) < 0.01 || Math.abs(t.valor_saida - valSearch) < 0.01)
+
+      return matchText || matchValue
+    })
+  }, [txs, filterMode, selectedMonth, startDate, endDate, dateFilterType, searchTerm])
+
+  const selectionSum = useMemo(() => {
+    return filteredTxs.reduce((acc, t) => {
+      if (selectedIds.has(t.id)) {
+        return acc + (Number(t.valor_entrada || 0) - Number(t.valor_saida || 0))
+      }
+      return acc
+    }, 0)
+  }, [filteredTxs, selectedIds])
+
+  function handleSelect(e: React.MouseEvent, id: string) {
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) {
+          next.delete(id)
+          return next
+        } else {
+          return new Set([id])
+        }
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -317,6 +369,17 @@ export default function Ledger() {
             </button>
           </div>
         </div>
+
+        {selectedIds.size > 1 && (
+          <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
+            <div className="text-[10px] font-bold text-green-800 uppercase border-b border-green-300 leading-tight mb-0.5">
+              SOMA ITENS ({selectedIds.size})
+            </div>
+            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
+              {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
+            </div>
+          </div>
+        )}
 
         {filterMode === 'simple' ? (
           <div className="flex overflow-x-auto border-b">
@@ -371,26 +434,11 @@ export default function Ledger() {
             </tr>
           </thead>
           <tbody>
-            {txs.filter(t => {
-              if (filterMode === 'simple') {
-                if (!t.data_lancamento.startsWith(selectedMonth)) return false
-              } else {
-                if (!startDate || !endDate) return true
-                const dateToCheck = dateFilterType === 'payment' ? (t.data_vencimento || t.data_lancamento) : t.data_lancamento
-                if (dateToCheck < startDate || dateToCheck > endDate) return false
-              }
-
-              if (!searchTerm) return true
-              const term = searchTerm.toLowerCase()
-              const valSearch = parseFloat(searchTerm.replace(',', '.'))
-              const matchText = (t.cliente?.toLowerCase() || '').includes(term) || (t.historico?.toLowerCase() || '').includes(term)
-              const matchValue = !isNaN(valSearch) && (Math.abs(t.valor_entrada - valSearch) < 0.01 || Math.abs(t.valor_saida - valSearch) < 0.01)
-
-              return matchText || matchValue
-            }).map(tx => (
+            {filteredTxs.map(tx => (
               <tr
                 key={tx.id}
-                className="border-t hover:bg-gray-50 cursor-pointer"
+                className={`border-t cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`}
+                onClick={(e) => handleSelect(e, tx.id)}
                 onContextMenu={(e) => handleContextMenu(e, tx)}
               >
                 <td className="p-2">{toBr(tx.data_lancamento)}</td>
@@ -402,9 +450,9 @@ export default function Ledger() {
                 <td className="p-2 text-red-600 font-medium">R$ {Number(tx.valor_saida).toFixed(2)}</td>
                 <td className="p-2">
                   {tx.operacao === 'despesa' || tx.operacao === 'retirada' ? (
-                    <button className="px-3 py-1 bg-black text-white rounded" onClick={() => onPay(tx)}>Pagar</button>
+                    <button className="px-3 py-1 bg-black text-white rounded" onClick={(e) => { e.stopPropagation(); onPay(tx) }}>Pagar</button>
                   ) : tx.operacao === 'receita' || tx.operacao === 'aporte' ? (
-                    <button className="px-3 py-1 bg-green-600 text-white rounded" onClick={() => onReceive(tx)}>Receber</button>
+                    <button className="px-3 py-1 bg-green-600 text-white rounded" onClick={(e) => { e.stopPropagation(); onReceive(tx) }}>Receber</button>
                   ) : null}
                 </td>
               </tr>

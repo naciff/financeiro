@@ -54,10 +54,10 @@ export async function generateSchedule(scheduleId: string) {
   return supabase.rpc('fn_generate_schedule', { sched_id: scheduleId })
 }
 
-export async function listSchedules(limit = 200) {
+export async function listSchedules(limit = 200, options?: { includeConcluded?: boolean }) {
   if (!supabase) return { data: [], error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase
+  let query = supabase
     .from('schedules')
     .select(`
       *,
@@ -67,9 +67,12 @@ export async function listSchedules(limit = 200) {
       grupo_compromisso:grupo_compromisso_id(id,nome)
     `)
     .eq('user_id', userId as any)
-    .neq('situacao', 2 as any)
-    .order('created_at', { ascending: false })
-    .limit(limit)
+
+  if (!options?.includeConcluded) {
+    query = query.neq('situacao', 2 as any)
+  }
+
+  return query.order('created_at', { ascending: false }).limit(limit)
 }
 
 export async function updateSchedule(id: string, payload: any) {

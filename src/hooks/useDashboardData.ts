@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { listSchedules } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 
-export function useDashboardData() {
+export function useDashboardData(selectedMonth?: number, selectedYear?: number) {
     const [totais, setTotais] = useState<any | null>(null)
     const [totalDespesas, setTotalDespesas] = useState(0)
     const [totalReceitas, setTotalReceitas] = useState(0)
@@ -22,8 +22,8 @@ export function useDashboardData() {
             }
             try {
                 const now = new Date()
-                const year = now.getFullYear()
-                const month = now.getMonth()
+                const year = selectedYear || now.getFullYear()
+                const month = selectedMonth !== undefined ? selectedMonth : now.getMonth()
                 const from = new Date(year, month, 1)
                 const to = new Date(year, month + 1, 0)
                 const r = await supabase.from('monthly_totals_view').select('*').gte('mes', from.toISOString()).lte('mes', to.toISOString()).limit(1)
@@ -103,8 +103,8 @@ export function useDashboardData() {
                         }, 0)
                         setTotalReceitas(totalRec)
 
-                        // Calculate total receitas fixas (fixed monthly income)
-                        const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'receita' && s.tipo === 'fixo' && s.periodo === 'mensal')
+                        // Calculate total receitas fixas/mensal (fixed monthly income)
+                        const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'receita' && s.periodo === 'mensal')
                         const totalRecFixas = receitasFixas.reduce((sum: number, s: any) => {
                             return sum + Number(s.valor)
                         }, 0)
@@ -118,7 +118,7 @@ export function useDashboardData() {
                         const totalDivisaoLucro = divisaoLucroSchedules.reduce((sum: number, s: any) => sum + Number(s.valor), 0)
                         setTotalReceitasDivisaoLucro(totalDivisaoLucro)
 
-                        // Calculate total retirada fixa (fixed monthly withdrawal from fixed expenses)
+                        // Calculate total retirada fixa/mensal
                         const despesasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'despesa' && s.tipo === 'fixo')
                         const totalRetFixa = despesasFixas.reduce((sum: number, s: any) => {
                             return sum + Number(s.valor)
@@ -133,7 +133,7 @@ export function useDashboardData() {
             }
         }
         load()
-    }, [])
+    }, [selectedMonth, selectedYear])
 
     return {
         totais: {

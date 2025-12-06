@@ -3,8 +3,14 @@ import { useChartData } from '../hooks/useChartData'
 import { formatCurrency } from '../utils/formatCurrency'
 import { MonthlyEvolutionChart } from '../components/charts/MonthlyEvolutionChart'
 import { ExpensesPieChart } from '../components/charts/ExpensesPieChart'
+import { useState } from 'react'
 
 export default function Dashboard() {
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+
+  const year = parseInt(selectedMonth.split('-')[0])
+  const month = parseInt(selectedMonth.split('-')[1]) - 1
+
   const {
     totais,
     totalDespesas,
@@ -12,9 +18,9 @@ export default function Dashboard() {
     totalReceitasFixasMes,
     totalReceitasDivisaoLucro,
     totalRetiradaFixaMes,
-    totalDespesasGeral, // New field 
+    totalDespesasGeral,
     loading: metricsLoading
-  } = useDashboardData()
+  } = useDashboardData(month, year)
   const { monthlyData, expensesByGroup, loading: chartsLoading } = useChartData()
 
   if (metricsLoading) {
@@ -23,7 +29,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">Período:</label>
+        <input
+          type="month"
+          className="border rounded px-3 py-2 text-sm bg-white"
+          value={selectedMonth}
+          onChange={e => setSelectedMonth(e.target.value)}
+        />
+      </div>
 
       {/* Top Metrics - 4 columns */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -36,11 +54,11 @@ export default function Dashboard() {
           <div className="text-2xl font-bold text-red-600">R$ {formatCurrency(totalRetiradaFixaMes)}</div>
         </div>
         <div className="bg-white border rounded p-4">
-          <div className="text-sm text-gray-600 mb-1">Total de Despesas</div>
+          <div className="text-sm text-gray-600 mb-1">Total de despesas lançadas</div>
           <div className="text-2xl font-bold text-black">R$ {formatCurrency(totalDespesasGeral)}</div>
         </div>
         <div className="bg-white border rounded p-4">
-          <div className="text-sm text-gray-600 mb-1">Total Divisão de Lucro Anual</div>
+          <div className="text-sm text-gray-600 mb-1">Previsão divisão de lucro Anual</div>
           <div className="text-2xl font-bold text-green-600">R$ {formatCurrency(totalReceitasDivisaoLucro)}</div>
         </div>
       </div>

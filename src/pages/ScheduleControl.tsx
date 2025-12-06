@@ -168,21 +168,30 @@ export default function ScheduleControl() {
       }
     }
     const data = expandedSource.map((s: any) => {
-      const d = new Date(s.proxima_vencimento)
+      // Parse database date string (YYYY-MM-DD) directly to avoid timezone issues
+      const [y, m, d_str] = s.proxima_vencimento.split('T')[0].split('-').map(Number)
+
       const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const dueDate = new Date(d)
-      dueDate.setHours(0, 0, 0, 0)
+      // Create today UTC midnight
+      const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+
+      // Create due date UTC midnight using raw values (month is 0-indexed in Date.UTC)
+      const utcDue = Date.UTC(y, m - 1, d_str)
+
+      // Calculate difference in days
+      const msPerDay = 1000 * 60 * 60 * 24
+      const diffTime = utcToday - utcDue
+      const diffDays = Math.floor(diffTime / msPerDay)
+
+      // Construct local date object for display/sorting if needed (careful with display)
+      // For sorting/object, we can use the same parsing logic or keep ISO string
+      const d = new Date(y, m - 1, d_str) // Local date 00:00
 
       const qtd = s.parcelas || 1
       // Para itens variáveis, mostrar valor mensal (total / parcelas)
       // Para itens fixos, mostrar o valor total
       const valorParcela = s.tipo === 'fixo' ? Number(s.valor) : Number(s.valor) / qtd
       const isReceita = s.operacao === 'receita' || s.operacao === 'aporte'
-
-      // Calcular dias de atraso
-      const diffTime = today.getTime() - dueDate.getTime()
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
 
       let statusMessage = ''
       if (diffDays > 0) {
@@ -212,6 +221,21 @@ export default function ScheduleControl() {
         vencimentoDate: d,
         diasAtraso: diffDays,
         statusMessage: statusMessage,
+        tipo: s.tipo,
+        periodo: s.periodo,
+        // We already have 'parcela: qtd' (which is s.parcelas || 1), but let's keep original too if needed or rely on 'parcela'
+        // The modal uses 'modal.parcelas'. In map above: const qtd = s.parcelas || 1; return { ... parcela: qtd }
+        // The confirmation logic uses 'Number(modal.parcelas || 1)'.
+        // So 'parcelas' on modal comes from 'parcela' on this object if we passed it?
+        // Wait, openModal(item) sets modal to item.
+        // item has 'parcela'.
+        // logic uses 'modal.parcelas'.
+        // So we should map 'parcelas: s.parcelas' explicitly or ensure logic uses 'modal.parcela'.
+        // Logic: const parcelas = Number(modal.parcelas || 1)
+        // If modal has 'parcela' (from line 211) but not 'parcelas', then 'modal.parcelas' is undefined.
+        // So 'Number(undefined || 1)' is 1. This might be fine for calculation but avoiding confusion is better.
+        // Let's add 'parcelas' explicitly.
+        parcelas: s.parcelas
       }
     }).filter(r => within(new Date(r.vencimento)))
       .filter(r => !filterCaixa || r.caixaId === filterCaixa) // Filtro por Caixa
@@ -286,22 +310,24 @@ export default function ScheduleControl() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Controle e Previsão</h1>
 
-      {selectedIds.size > 0 && (
-        <div className="fixed top-20 right-10 z-50 bg-green-100 border border-green-300 shadow-lg rounded p-2 text-center">
-          <div className="text-xs font-bold text-green-800 uppercase border-b border-green-300 pb-1 mb-1">
-            SOMA ITENS SELECIONADOS
-          </div>
-          <div className={`text-xl font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
-          </div>
-        </div>
-      )}
+
 
       {msg && <div className="text-sm text-green-700">{msg}</div>}
-      <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto">
+
+      <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto items-center">
         {buttons.map(b => (
           <button key={b.id} className={`px-3 py-2 rounded border transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${filter === b.id ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'}`} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
         ))}
+        {selectedIds.size > 1 && (
+          <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
+            <div className="text-[10px] font-bold text-green-800 uppercase border-b border-green-300 leading-tight mb-0.5">
+              SOMA ITENS ({selectedIds.size})
+            </div>
+            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
+              {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-3 bg-white border rounded px-3 py-2">
         <input className="outline-none flex-1 min-w-[200px]" placeholder="Buscar cliente ou histórico" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
@@ -665,7 +691,7 @@ export default function ScheduleControl() {
                               })
                             } else {
                               // Variavel Único (ou última parcela): Finaliza
-                              await updateSchedule(modal.id, { situacao: 2 })
+                              await updateSchedule(modal.id, { situacao: 2, parcelas: 0 })
                             }
 
                             const r = await listSchedules()
@@ -683,7 +709,39 @@ export default function ScheduleControl() {
                           }
                         } else {
                           store.createTransaction(trx as any)
-                          store.updateSchedule(modal.id, { situacao: 2 })
+
+                          // Local store logic mirroring backend
+                          const isFixo = modal.tipo === 'fixo'
+                          const isVariavel = modal.tipo === 'variavel'
+                          const parcelas = Number(modal.parcelas || 1)
+
+                          const commonUpdates = {
+                            valor: modalValor,
+                            historico: modalHistorico,
+                            nota_fiscal: modalNotaFiscal,
+                            detalhes: modalDetalhes,
+                            caixa_id: modalContaId || undefined
+                          }
+
+                          if (isFixo) {
+                            const nextDate = new Date(modalData)
+                            const increment = modal.periodo === 'anual' ? 12 : (modal.periodo === 'semestral' ? 6 : 1)
+                            nextDate.setMonth(nextDate.getMonth() + increment)
+                            store.updateSchedule(modal.id, {
+                              ...commonUpdates,
+                              proxima_vencimento: nextDate.toISOString().split('T')[0]
+                            })
+                          } else if (isVariavel && parcelas > 1) {
+                            const nextDate = new Date(modalData)
+                            nextDate.setMonth(nextDate.getMonth() + 1)
+                            store.updateSchedule(modal.id, {
+                              ...commonUpdates,
+                              proxima_vencimento: nextDate.toISOString().split('T')[0],
+                              parcelas: parcelas - 1
+                            })
+                          } else {
+                            store.updateSchedule(modal.id, { situacao: 2, parcelas: 0 })
+                          }
 
                           setShowConfirmModal(false)
                           setModal(null)
