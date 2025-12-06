@@ -5,6 +5,7 @@ import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
 import { Tabs } from '../components/ui/Tabs'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
@@ -13,6 +14,7 @@ export default function Schedules() {
   const [activeTab, setActiveTab] = useState<'despesa' | 'receita' | 'retirada' | 'aporte' | 'concluidos'>('despesa')
   const [showForm, setShowForm] = useState<'none' | 'create' | 'edit'>('none')
   const [selectedId, setSelectedId] = useState<string>('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<Sort>({ key: 'ano_mes_inicial', dir: 'asc' })
   const [page, setPage] = useState(1)
@@ -105,6 +107,7 @@ export default function Schedules() {
       const start = new Date(s.ano_mes_inicial)
       const end = new Date(s.ano_mes_inicial)
       if (s.periodo === 'mensal') end.setMonth(end.getMonth() + (s.parcelas || 1))
+      else if (s.periodo === 'semestral') end.setMonth(end.getMonth() + (6 * (s.parcelas || 1)))
       else end.setFullYear(end.getFullYear() + (s.parcelas || 1))
       const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
       // Valor total deve ser o valor original da compra, não a soma das parcelas arredondadas
@@ -409,47 +412,35 @@ export default function Schedules() {
     setShowForm('edit')
   }
 
-  async function onDelete() {
-    console.log('onDelete called, selectedId:', selectedId)
+  function onDelete() {
     if (!selectedId) {
-      console.log('No selectedId, returning')
       setMsg('Selecione um agendamento para excluir')
       setMsgType('error')
       return
     }
+    setShowDeleteConfirm(true)
+  }
 
-    if (!confirm('Confirma a exclusão do agendamento selecionado?')) {
-      console.log('User cancelled deletion')
-      return
-    }
-
-    console.log('Attempting to delete...', { hasBackend, selectedId })
+  async function confirmDelete() {
+    setShowDeleteConfirm(false)
     try {
       if (hasBackend) {
-        console.log('Calling deleteSched with:', selectedId)
         const result = await deleteSched(selectedId)
-        console.log('Delete result:', result)
         if (result.error) {
-          console.error('Delete error:', result.error)
           setMsg(`Erro ao excluir: ${result.error.message}`)
           setMsgType('error')
           return
         }
         await reloadSchedules()
-        setMsg('Agendamento excluído com sucesso')
-        setMsgType('success')
       } else {
-        console.log('Calling store.deleteSchedule with:', selectedId)
         store.deleteSchedule(selectedId)
-        setMsg('Agendamento excluído com sucesso')
-        setMsgType('success')
       }
+      setMsg('Agendamento excluído com sucesso')
+      setMsgType('success')
       setSelectedId('')
       setTimeout(() => setMsg(''), 3000)
-      console.log('Delete completed successfully')
-    } catch (error) {
-      console.error('Erro ao excluir:', error)
-      setMsg(`Erro ao excluir agendamento: ${error}`)
+    } catch (error: any) {
+      setMsg(`Erro ao excluir agendamento: ${error.message || error}`)
       setMsgType('error')
     }
   }
@@ -747,6 +738,7 @@ export default function Schedules() {
                   ) : (
                     <select className="w-full border rounded px-3 py-2" value={periodoFix} onChange={e => { setPeriodoFix(e.target.value as any) }}>
                       <option value="mensal">Mensal</option>
+                      <option value="semestral">Semestral</option>
                       <option value="anual">Anual</option>
                     </select>
                   )}
@@ -1014,6 +1006,13 @@ export default function Schedules() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+        title="Excluir Agendamento"
+        message="Tem certeza que deseja excluir o agendamento selecionado?"
+      />
     </div >
   )
 }

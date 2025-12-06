@@ -14,7 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/ledger', label: 'Livro Caixa', icon: 'ledger' },
     { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
     { to: '/transfers', label: 'Transferências', icon: 'transfer' },
-    { to: '/reports', label: 'Relatórios', icon: 'reports' },
+    { to: '/reports', label: 'Relatórios', icon: 'file-text' },
     {
       to: '/cadastro', label: 'Cadastro', icon: 'settings', children: [
         { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'accounts' },

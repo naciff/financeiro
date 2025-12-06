@@ -55,10 +55,11 @@ export function useDashboardData() {
                     // Fetch ALL expenses for the "Valor Total de Despesas" card (General Total)
                     if (user) {
                         const { data: allExpenses } = await supabase
-                            .from('agendamentos')
+                            .from('schedules')
                             .select('valor')
                             .eq('user_id', user.id)
                             .eq('operacao', 'despesa')
+                            .neq('situacao', 2) // Filter out canceled/inactive
 
                         if (allExpenses) {
                             const totalGeral = allExpenses.reduce((sum, item) => sum + Number(item.valor || 0), 0)
