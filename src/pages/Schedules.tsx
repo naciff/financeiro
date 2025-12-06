@@ -62,6 +62,7 @@ export default function Schedules() {
   const [detalhes, setDetalhes] = useState('')
   const [refChoice, setRefChoice] = useState<'vencimento' | 'anterior'>('vencimento')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
 
   // Calculate sum of selected items
   const selectionSum = useMemo(() => {
@@ -485,8 +486,9 @@ export default function Schedules() {
     setShowForm('edit')
   }
 
-  function onDuplicate() {
-    const s = hasBackend ? remoteSchedules.find((x: any) => x.id === selectedId) : store.schedules.find(x => x.id === selectedId)
+  function onDuplicate(targetId: string | null = null) {
+    const idToUse = targetId || selectedId
+    const s = hasBackend ? remoteSchedules.find((x: any) => x.id === idToUse) : store.schedules.find(x => x.id === idToUse)
     if (!s) return
 
     // Copy data exactly like edit, but reset specific fields for creation
@@ -636,9 +638,7 @@ export default function Schedules() {
         <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onEditOpen} disabled={!selectedId} aria-label="Alterar">
           <Icon name="edit" className="w-4 h-4" /> Alterar
         </button>
-        <button className="flex items-center gap-2 bg-purple-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onDuplicate} disabled={!selectedId} aria-label="Duplicar">
-          <Icon name="copy" className="w-4 h-4" /> Duplicar
-        </button>
+
         <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
           <Icon name="trash" className="w-4 h-4" /> Excluir
         </button>
@@ -943,7 +943,7 @@ export default function Schedules() {
 
       <div className="bg-white border rounded">
         <div className="flex items-center justify-between p-2">
-          <div className="font-medium">Grupos</div>
+          <div className="font-medium">Caixas</div>
           <div className="flex gap-2">
             <button className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded p-2" onClick={() => {
               const groups = new Map<string, typeof data.data>()
@@ -1028,7 +1028,7 @@ export default function Schedules() {
                         </thead>
                         <tbody>
                           {list.map(r => (
-                            <tr key={r.id} className={`border-t cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} title="Selecione para alterar/excluir">
+                            <tr key={r.id} className={`border-t cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.pageX, y: e.pageY, id: r.id }) }} title="Clique com botão direito para opções">
                               <td className="p-2 w-[100px]">{r.data_referencia}</td>
                               <td className="p-2 w-[180px] break-words whitespace-normal" title={r.cliente}>{r.cliente}</td>
                               <td className="p-2 w-[200px] break-words whitespace-normal" title={r.historico}>{r.historico}</td>
@@ -1045,7 +1045,7 @@ export default function Schedules() {
                           <tr className="bg-gray-50 font-medium">
                             <td className="p-2 text-right" colSpan={6}>Total do Caixa</td>
                             <td className="p-2 text-right">R$ {formatMoneyBr(list.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}</td>
-                            <td className="p-2 text-right">{formatIntBr(list.reduce((sum, r) => sum + Number(r.qtd), 0))}</td>
+                            <td className="p-2 text-right"></td>
                             <td className="p-2 text-right">R$ {formatMoneyBr(totalCaixa)}</td>
                           </tr>
                         </tfoot>
@@ -1056,13 +1056,15 @@ export default function Schedules() {
               )
             })
           })()}
-          <div className="sticky bottom-0 bg-gradient-to-r from-blue-50 to-blue-100 border-t-2 border-blue-300 p-2">
-            <div className="flex justify-end">
-              <div className="text-sm font-semibold text-gray-700 mr-[230px] text-right">
-                Total Valor Parcela: <span className="text-blue-700">R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}</span>
+          <div className="sticky bottom-0 bg-gradient-to-r from-blue-50 to-blue-100 border-t-2 border-blue-300 text-xs font-bold">
+            <div className="flex justify-end p-2 items-center">
+              <div className="mr-2 text-gray-700 uppercase">Totais Gerais:</div>
+              <div className="w-[110px] text-right text-blue-700">
+                R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}
               </div>
-              <div className="text-sm font-semibold text-gray-700 mr-3 text-right">
-                Total Geral: <span className="text-green-700">R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_total), 0))}</span>
+              <div className="w-[60px]"></div>
+              <div className="w-[110px] text-right text-green-700">
+                R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_total), 0))}
               </div>
             </div>
           </div>
@@ -1156,6 +1158,16 @@ export default function Schedules() {
         title="Excluir Agendamento"
         message="Tem certeza que deseja excluir o agendamento selecionado?"
       />
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+          <div className="fixed z-50 bg-white border rounded shadow-lg py-1 text-sm font-medium" style={{ top: contextMenu.y, left: contextMenu.x }}>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
+              <Icon name="copy" className="w-4 h-4" /> Duplicar
+            </button>
+          </div>
+        </>
+      )}
     </div >
   )
 }
