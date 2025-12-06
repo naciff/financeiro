@@ -32,12 +32,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <Sidebar items={nav} onLogout={() => supabase?.auth.signOut()} />
       </div>
       <main className="flex-1 p-6 pb-20 mt-12 md:mt-0 relative">
-        <div className="hidden md:flex items-center gap-2 absolute top-4 right-6 text-sm text-gray-700">
-          <Icon name="calendar-primary" className="w-5 h-5" />
-          <span>{(() => {
-            const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-            return dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
-          })()}</span>
+        <div className="hidden md:flex items-center gap-4 absolute top-4 right-6 text-sm text-gray-700">
+          <div className="flex items-center gap-2">
+            <Icon name="calendar-primary" className="w-5 h-5" />
+            <span>{(() => {
+              const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+              return dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
+            })()}</span>
+          </div>
+          <button
+            onClick={() => supabase?.auth.signOut()}
+            className="flex items-center gap-1 hover:text-red-600 transition-colors font-medium border-l border-gray-300 pl-4"
+          >
+            Sair
+          </button>
         </div>
         {children}
       </main>

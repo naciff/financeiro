@@ -18,31 +18,31 @@ export default function Login() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    
+
     if (!email || !password) {
       setError('Por favor, preencha todos os campos')
       return
     }
-    
+
     if (!validateEmail(email)) {
       setError('Por favor, insira um email válido')
       return
     }
-    
+
     if (password.length < 6) {
       setError('A senha deve ter pelo menos 6 caracteres')
       return
     }
-    
-    if (!supabase) { 
+
+    if (!supabase) {
       setError('Configuração do Supabase ausente')
-      return 
+      return
     }
-    
+
     setLoading(true)
     const { data, error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     setLoading(false)
-    
+
     if (err) {
       setError(err.message === 'Invalid login credentials' ? 'Credenciais inválidas. Verifique o email e a senha.' : err.message)
       return
@@ -53,14 +53,14 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scale-in">
         {/* Header with FourTek Logo */}
         <div className="p-8 text-center border-b border-gray-100">
           <div className="flex items-center justify-center mb-4">
-            <img 
-              src="/logo.svg" 
-              alt="FourTek Logo" 
+            <img
+              src="/logo.svg"
+              alt="FourTek Logo"
               className="h-16 w-auto object-contain"
               loading="eager"
             />
@@ -132,7 +132,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-fourtek-green hover:bg-fourtek-green-hover disabled:bg-neutral-400 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-400 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
@@ -148,28 +148,34 @@ export default function Login() {
         </form>
 
         {/* Footer with Social Icons and Quote */}
-        <div className="p-8 border-t border-gray-100">
+        <div className="px-8 pb-8 pt-4 border-t border-gray-100">
           <div className="flex justify-center space-x-4 mb-6">
-            <a href="#" className="w-10 h-10 bg-neutral-200 rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-fourtek-blue transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-fourtek-blue transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/site.svg" alt="Website" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-neutral-200 rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/instagram.svg" alt="Instagram" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-neutral-200 rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/facebook.svg" alt="Facebook" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-neutral-200 rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/linkedin.svg" alt="LinkedIn" className="w-5 h-5" />
             </a>
           </div>
-          
+
           <div className="text-center">
-            <p className="text-gray-500 italic text-sm">
+            <p className="text-gray-500 italic text-sm mb-4">
               "Se quer ter sucesso completo em sua vida, você tem que ser foda."
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8 text-center max-w-md px-4">
+        <p className="text-xs text-gray-400">
+          Ao continuar, você concorda com nossos Termos de Serviços e Politica de Privacidade
+        </p>
       </div>
     </div>
   )

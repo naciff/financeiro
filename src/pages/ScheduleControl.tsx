@@ -96,7 +96,7 @@ export default function ScheduleControl() {
       const filterEndDate = getFilterEndDate()
 
       schedules.forEach((s: any) => {
-        // Apenas expandir se for tipo 'fixo' e situacao !== 2 (não confirmado)
+        // Logica para itens fixos (mantida)
         if (s.tipo === 'fixo' && s.situacao !== 2) {
           const baseDate = new Date(s.proxima_vencimento)
           const incrementMonths = s.periodo === 'mensal' ? 1 : 12
@@ -104,25 +104,45 @@ export default function ScheduleControl() {
           let occurrence = 0
           let currentDate = new Date(baseDate)
 
-          // Gerar ocorrências até a data limite do filtro
           while (currentDate <= filterEndDate) {
-            // Criar cópia do agendamento com data ajustada
             expanded.push({
               ...s,
-              id: occurrence === 0 ? s.id : `${s.id}_${occurrence}`, // ID único para cada ocorrência
+              id: occurrence === 0 ? s.id : `${s.id}_${occurrence}`,
               proxima_vencimento: currentDate.toISOString().split('T')[0],
-              _isExpanded: occurrence > 0, // Marca ocorrências expandidas
-              _originalId: s.id, // Mantém referência ao ID original
+              _isExpanded: occurrence > 0,
+              _originalId: s.id,
               _occurrence: occurrence
             })
-
-            // Próxima ocorrência
             occurrence++
             currentDate = new Date(baseDate)
             currentDate.setMonth(currentDate.getMonth() + (incrementMonths * occurrence))
           }
-        } else {
-          // Agendamentos não-fixos ou já confirmados: adicionar sem expansão
+        }
+        // Logica para itens variáveis com parcelas > 1
+        else if (s.tipo === 'variavel' && (s.parcelas || 1) > 1 && s.situacao !== 2) {
+          const baseDate = new Date(s.proxima_vencimento)
+          const totalParcelas = s.parcelas
+
+          for (let i = 0; i < totalParcelas; i++) {
+            const currentDate = new Date(baseDate)
+            currentDate.setMonth(currentDate.getMonth() + i)
+
+            // Só adiciona se estiver dentro do range de interesse (opcional, mas bom para performance)
+            // Mas como é um array finito, podemos adicionar tudo ou filtrar depois. 
+            // O filtro 'within' depois vai limpar. 
+            // Mas para garantir que apareça nos filtros de longo prazo ("12 meses"), geramos todos.
+
+            expanded.push({
+              ...s,
+              id: i === 0 ? s.id : `${s.id}_p${i}`,
+              proxima_vencimento: currentDate.toISOString().split('T')[0],
+              _isExpanded: i > 0,
+              _originalId: s.id,
+              _parcelaIndex: i + 1 // Para mostrar 1/3, 2/3 se quisermos no futuro
+            })
+          }
+        }
+        else {
           expanded.push(s)
         }
       })
@@ -269,6 +289,19 @@ export default function ScheduleControl() {
             <option key={g.id} value={g.id}>{g.nome}</option>
           ))}
         </select>
+
+        <button
+          onClick={() => {
+            setSearch('')
+            setFilterCaixa('')
+            setFilterGrupo('')
+            setPage(1)
+          }}
+          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-sm transition-colors"
+          title="Limpar todos os filtros"
+        >
+          Limpar filtros
+        </button>
       </div>
 
 
@@ -341,7 +374,7 @@ export default function ScheduleControl() {
                               <td className="p-2">{r.historico}</td>
                               <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)}` : '-'}</td>
                               <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)}` : '-'}</td>
-                              <td className="p-2 text-center">{r.parcela}</td>
+                              <td className="p-2 text-center">{r.parcela > 1 ? r.parcela : ''}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -398,7 +431,7 @@ export default function ScheduleControl() {
                       <td className="p-2">{r.historico}</td>
                       <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)}` : '-'}</td>
                       <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)}` : '-'}</td>
-                      <td className="p-2 text-center">{r.parcela}</td>
+                      <td className="p-2 text-center">{r.parcela > 1 ? r.parcela : ''}</td>
                     </tr>
                   ))}
                 </tbody>
