@@ -454,7 +454,7 @@ export default function ScheduleControl() {
           <div className="fixed inset-0 z-50">
             <div className="absolute inset-0 bg-black/40" onClick={() => setModal(null)} aria-hidden="true"></div>
             <div className="absolute left-1/2 top-10 -translate-x-1/2 bg-white border rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto text-xs">
-              <div className="font-medium mb-4 text-lg border-b pb-2">Detalhes do Lançamento</div>
+              <div className="font-medium mb-4 text-lg border-b pb-2">Lançamento para o Livro Caixa</div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 {/* Row 1: Operação | Cliente */}
@@ -523,29 +523,6 @@ export default function ScheduleControl() {
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => setModal(null)}>Cancelar</button>
-                <button className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700" onClick={() => {
-                  if (hasBackend) {
-                    updateSchedule(modal.id, {
-                      historico: modalHistorico,
-                      proxima_vencimento: modalData,
-                      valor: modalValor,
-                      caixa_id: modalContaId || null
-                    }).then(() => {
-                      setMsg('Alterações salvas com sucesso')
-                      setTimeout(() => setMsg(''), 2500)
-                      listSchedules().then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                      setModal(null)
-                    })
-                  } else {
-                    store.updateSchedule(modal.id, {
-                      historico: modalHistorico,
-                      proxima_vencimento: modalData,
-                      valor: modalValor,
-                      caixa_id: modalContaId || undefined
-                    })
-                    setModal(null)
-                  }
-                }}>Salvar Alterações</button>
                 <button className="bg-black text-white rounded px-4 py-2 hover:bg-gray-800" onClick={() => {
                   if (!modalContaId) { alert('Selecione uma conta'); return }
                   if (!window.confirm("Confirmar Lançamento no Livro Caixa?")) return
