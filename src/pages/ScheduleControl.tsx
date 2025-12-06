@@ -41,6 +41,7 @@ export default function ScheduleControl() {
   const [modalHistorico, setModalHistorico] = useState('')
   const [modalNotaFiscal, setModalNotaFiscal] = useState('')
   const [modalDetalhes, setModalDetalhes] = useState('')
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   // Carregar caixas e grupos
@@ -525,94 +526,141 @@ export default function ScheduleControl() {
                 <button className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => setModal(null)}>Cancelar</button>
                 <button className="bg-black text-white rounded px-4 py-2 hover:bg-gray-800" onClick={() => {
                   if (!modalContaId) { alert('Selecione uma conta'); return }
-                  if (!window.confirm("Confirmar Lançamento no Livro Caixa?")) return
-
-                  const oper = modal.operacao || 'despesa'
-                  const isDespesa = oper === 'despesa' || oper === 'retirada'
-
-                  const trx = isDespesa
-                    ? {
-                      conta_id: modalContaId,
-                      operacao: oper as any,
-                      historico: modalHistorico,
-                      nota_fiscal: modalNotaFiscal,
-                      detalhes: modalDetalhes,
-                      data_lancamento: modalDataLancamento,
-                      data_vencimento: modalData,
-                      valor_entrada: 0,
-                      valor_saida: modalValor,
-                      status: 'pago' as const,
-                      cliente: modal.cliente,
-                      compromisso: modal.compromisso
-                    }
-                    : {
-                      conta_id: modalContaId,
-                      operacao: oper as any,
-                      historico: modalHistorico,
-                      nota_fiscal: modalNotaFiscal,
-                      detalhes: modalDetalhes,
-                      data_lancamento: modalDataLancamento,
-                      data_vencimento: modalData,
-                      valor_entrada: modalValor,
-                      valor_saida: 0,
-                      status: 'recebido' as const,
-                      cliente: modal.cliente,
-                      compromisso: modal.compromisso
-                    }
-
-                  if (hasBackend) {
-                    (async () => {
-                      await createTransaction(trx)
-
-                      const isFixo = modal.tipo === 'fixo'
-                      const isVariavel = modal.tipo === 'variavel'
-                      const parcelas = Number(modal.parcelas || 1)
-
-                      // Update comum para preservar alterações de valor/histórico/detalhes no agendamento futuro
-                      const commonUpdates = {
-                        valor: modalValor,
-                        historico: modalHistorico,
-                        nota_fiscal: modalNotaFiscal,
-                        detalhes: modalDetalhes,
-                        caixa_id: modalContaId || null
-                      }
-
-                      if (isFixo) {
-                        // Fixo: Mantém, joga para próximo mês e atualiza dados
-                        const nextDate = new Date(modalData)
-                        const increment = modal.periodo === 'anual' ? 12 : 1
-                        nextDate.setMonth(nextDate.getMonth() + increment)
-                        await updateSchedule(modal.id, {
-                          ...commonUpdates,
-                          proxima_vencimento: nextDate.toISOString().split('T')[0]
-                        })
-                      } else if (isVariavel && parcelas > 1) {
-                        // Variavel Parcelado: Decrementa parcela, joga para próximo mês e atualiza dados
-                        const nextDate = new Date(modalData)
-                        nextDate.setMonth(nextDate.getMonth() + 1)
-                        await updateSchedule(modal.id, {
-                          ...commonUpdates,
-                          proxima_vencimento: nextDate.toISOString().split('T')[0],
-                          parcelas: parcelas - 1
-                        })
-                      } else {
-                        // Variavel Único (ou última parcela): Finaliza
-                        await updateSchedule(modal.id, { situacao: 2 })
-                      }
-
-                      listSchedules().then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                    })()
-                  } else {
-                    store.createTransaction(trx as any)
-                    // Mock logic for local store would go here if needed, but assuming Backend usage primarily
-                    store.updateSchedule(modal.id, { situacao: 2 })
-                  }
-                  setModal(null)
-                  setMsg('Lançamento confirmado com sucesso')
-                  setTimeout(() => setMsg(''), 2500)
+                  setShowConfirmModal(true)
                 }}>Confirmar Lançamento</button>
               </div>
             </div>
+            {/* Custom Confirmation Modal */}
+            {showConfirmModal && (
+              <div className="absolute inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
+                <div className="bg-white border rounded shadow-lg p-6 w-[300px] text-center">
+                  <h3 className="font-semibold text-lg mb-4 text-gray-800">Confirmação</h3>
+                  <p className="text-sm text-gray-600 mb-6">Deseja confirmar o lançamento deste item no Livro Caixa?</p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                      onClick={() => setShowConfirmModal(false)}
+                    >
+                      Não
+                    </button>
+                    <button
+                      className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 text-sm"
+                      onClick={async () => {
+                        console.log('Botão Sim clicado')
+                        const oper = modal.operacao || 'despesa'
+                        const isDespesa = oper === 'despesa' || oper === 'retirada'
+                        console.log('Operação:', oper, 'IsDespesa:', isDespesa)
+
+                        const trx = isDespesa
+                          ? {
+                            conta_id: modalContaId,
+                            operacao: oper as any,
+                            historico: modalHistorico,
+                            nota_fiscal: modalNotaFiscal,
+                            detalhes: modalDetalhes,
+                            data_lancamento: modalDataLancamento,
+                            data_vencimento: modalData,
+                            valor_entrada: 0,
+                            valor_saida: modalValor,
+                            status: 'pago' as const,
+                            cliente: modal.cliente,
+                            compromisso: modal.compromisso
+                          }
+                          : {
+                            conta_id: modalContaId,
+                            operacao: oper as any,
+                            historico: modalHistorico,
+                            nota_fiscal: modalNotaFiscal,
+                            detalhes: modalDetalhes,
+                            data_lancamento: modalDataLancamento,
+                            data_vencimento: modalData,
+                            valor_entrada: modalValor,
+                            valor_saida: 0,
+                            status: 'recebido' as const,
+                            cliente: modal.cliente,
+                            compromisso: modal.compromisso
+                          }
+
+                        console.log('Transaction payload:', trx)
+
+                        if (hasBackend) {
+                          try {
+                            console.log('Enviando para backend...')
+                            const { data, error } = await createTransaction(trx)
+                            console.log('Resultado createTransaction:', { data, error })
+
+                            if (error) {
+                              alert('Erro ao criar lançamento: ' + error.message)
+                              console.error('Erro transaction:', error)
+                              return
+                            }
+
+                            const isFixo = modal.tipo === 'fixo'
+                            const isVariavel = modal.tipo === 'variavel'
+                            const parcelas = Number(modal.parcelas || 1)
+
+                            // Update comum para preservar alterações de valor/histórico/detalhes no agendamento futuro
+                            const commonUpdates = {
+                              valor: modalValor,
+                              historico: modalHistorico,
+                              nota_fiscal: modalNotaFiscal,
+                              detalhes: modalDetalhes,
+                              caixa_id: modalContaId || null
+                            }
+
+                            if (isFixo) {
+                              // Fixo: Mantém, joga para próximo mês e atualiza dados
+                              const nextDate = new Date(modalData)
+                              const increment = modal.periodo === 'anual' ? 12 : 1
+                              nextDate.setMonth(nextDate.getMonth() + increment)
+                              await updateSchedule(modal.id, {
+                                ...commonUpdates,
+                                proxima_vencimento: nextDate.toISOString().split('T')[0]
+                              })
+                            } else if (isVariavel && parcelas > 1) {
+                              // Variavel Parcelado: Decrementa parcela, joga para próximo mês e atualiza dados
+                              const nextDate = new Date(modalData)
+                              nextDate.setMonth(nextDate.getMonth() + 1)
+                              await updateSchedule(modal.id, {
+                                ...commonUpdates,
+                                proxima_vencimento: nextDate.toISOString().split('T')[0],
+                                parcelas: parcelas - 1
+                              })
+                            } else {
+                              // Variavel Único (ou última parcela): Finaliza
+                              await updateSchedule(modal.id, { situacao: 2 })
+                            }
+
+                            const r = await listSchedules()
+                            if (!r.error && r.data) setRemote(r.data as any)
+
+                            // Success only after await completes validation
+                            setShowConfirmModal(false)
+                            setModal(null)
+                            setMsg('Lançamento confirmado com sucesso')
+                            setTimeout(() => setMsg(''), 2500)
+
+                          } catch (err: any) {
+                            alert('Erro inesperado: ' + err.message)
+                            console.error(err)
+                          }
+                        } else {
+                          store.createTransaction(trx as any)
+                          store.updateSchedule(modal.id, { situacao: 2 })
+
+                          setShowConfirmModal(false)
+                          setModal(null)
+                          setMsg('Lançamento confirmado com sucesso')
+                          setTimeout(() => setMsg(''), 2500)
+                        }
+                      }}
+                    >
+                      Sim
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
       }
