@@ -68,7 +68,7 @@ export function ExpensesPieChart({ data }: ExpensesPieChartProps) {
     if (data.length === 0) {
         return (
             <div className="bg-white border rounded-lg p-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Despesas por Grupo de Compromisso</h2>
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Despesas por Compromisso</h2>
                 <div className="flex items-center justify-center h-64 text-gray-500">
                     Nenhuma despesa encontrada
                 </div>
@@ -78,7 +78,7 @@ export function ExpensesPieChart({ data }: ExpensesPieChartProps) {
 
     return (
         <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Despesas por Grupo de Compromisso</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Despesas por Compromisso</h2>
             <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                     <Pie

@@ -68,44 +68,49 @@ export function useChartData() {
                     setMonthlyData(monthlyChartData)
                 }
 
-                // Fetch expenses by commitment group
-                const { data: schedules } = await supabase
-                    .from('agendamentos')
-                    .select(`
-            *,
-            grupo_compromisso:grupo_compromisso_id (
-              id,
-              nome
-            )
-          `)
-                    .eq('operacao', 'despesa')
+                // Fetch expenses by commitment from AGENDAMENTOS (Scheduled)
+                const user = (await supabase.auth.getUser()).data.user
 
-                if (schedules) {
-                    // Group expenses by commitment group
-                    const groupMap = new Map<string, number>()
+                if (user) {
+                    const { data: schedules } = await supabase
+                        .from('agendamentos')
+                        .select(`
+                valor,
+                compromisso:compromisso_id (
+                  id,
+                  nome
+                )
+              `)
+                        .eq('user_id', user.id)
+                        .eq('operacao', 'despesa')
 
-                    schedules.forEach((schedule: any) => {
-                        const groupName = schedule.grupo_compromisso?.nome || 'Sem Grupo'
-                        const valor = Number(schedule.valor || 0)
+                    if (schedules) {
+                        // Group expenses by commitment
+                        const groupMap = new Map<string, number>()
 
-                        const current = groupMap.get(groupName) || 0
-                        groupMap.set(groupName, current + valor)
-                    })
+                        schedules.forEach((item: any) => {
+                            const groupName = item.compromisso?.nome || 'Sem Compromisso'
+                            const valor = Number(item.valor || 0)
 
-                    // Calculate total to get percentages
-                    const total = Array.from(groupMap.values()).reduce((sum, val) => sum + val, 0)
+                            const current = groupMap.get(groupName) || 0
+                            groupMap.set(groupName, current + valor)
+                        })
 
-                    // Convert to array and add percentages
-                    const expensesData: ExpenseByGroup[] = Array.from(groupMap.entries())
-                        .map(([grupo, valor], index) => ({
-                            grupo,
-                            valor,
-                            percentual: total > 0 ? Math.round((valor / total) * 100) : 0,
-                            cor: COLORS[index % COLORS.length]
-                        }))
-                        .sort((a, b) => b.valor - a.valor) // Sort by value descending
+                        // Calculate total to get percentages
+                        const total = Array.from(groupMap.values()).reduce((sum, val) => sum + val, 0)
 
-                    setExpensesByGroup(expensesData)
+                        // Convert to array and add percentages
+                        const expensesData: ExpenseByGroup[] = Array.from(groupMap.entries())
+                            .map(([grupo, valor], index) => ({
+                                grupo,
+                                valor,
+                                percentual: total > 0 ? Math.round((valor / total) * 100) : 0,
+                                cor: COLORS[index % COLORS.length]
+                            }))
+                            .sort((a, b) => b.valor - a.valor) // Sort by value descending
+
+                        setExpensesByGroup(expensesData)
+                    }
                 }
             } catch (error) {
                 console.error('Error loading chart data:', error)

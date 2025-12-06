@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { getRandomMessage } from '../services/db'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -8,7 +9,18 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('Se quer ter sucesso completo em sua vida, você tem que ser foda.')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    async function fetchMessage() {
+      const { data } = await getRandomMessage()
+      if (data?.content) {
+        setMessage(data.content)
+      }
+    }
+    fetchMessage()
+  }, [])
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -56,19 +68,19 @@ export default function Login() {
     <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scale-in">
         {/* Header with FourTek Logo */}
-        <div className="p-8 text-center border-b border-gray-100">
-          <div className="flex items-center justify-center mb-4">
+        <div className="p-6 text-center border-b border-gray-100">
+          <div className="flex items-center justify-center mb-2">
             <img
-              src="/logo.svg"
-              alt="FourTek Logo"
-              className="h-16 w-auto object-contain"
+              src="/logo-new.png"
+              alt="Conta Mestre Logo"
+              className="h-24 w-auto object-contain"
               loading="eager"
             />
           </div>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={onSubmit} className="p-8 space-y-6">
+        <form onSubmit={onSubmit} className="p-6 space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
               Email
@@ -76,7 +88,7 @@ export default function Login() {
             <input
               id="email"
               type="email"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-fourtek-green focus:border-transparent transition-all duration-200"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
               placeholder="Digite seu email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -92,7 +104,7 @@ export default function Login() {
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-fourtek-green focus:border-transparent transition-all duration-200"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
                 placeholder="Digite sua senha"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -124,7 +136,7 @@ export default function Login() {
           )}
 
           <div className="flex justify-end">
-            <Link to="/forgot-password" className="text-sm text-fourtek-blue hover:text-fourtek-blue-hover transition-colors duration-200 font-medium">
+            <Link to="/forgot-password" className="text-sm text-[#014d6d] hover:text-[#013c55] transition-colors duration-200 font-medium">
               Esqueceu a senha?
             </Link>
           </div>
@@ -132,7 +144,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-400 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
+            className="w-full bg-[#014d6d] hover:bg-[#013c55] disabled:bg-neutral-400 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
@@ -140,7 +152,7 @@ export default function Login() {
           <div className="text-center">
             <span className="text-sm text-neutral-600">
               Não tem uma conta?{' '}
-              <Link to="/register" className="text-fourtek-blue hover:text-fourtek-blue-hover font-medium transition-colors duration-200">
+              <Link to="/register" className="text-[#014d6d] hover:text-[#013c55] font-medium transition-colors duration-200">
                 Cadastre-se
               </Link>
             </span>
@@ -148,25 +160,25 @@ export default function Login() {
         </form>
 
         {/* Footer with Social Icons and Quote */}
-        <div className="px-8 pb-8 pt-4 border-t border-gray-100">
-          <div className="flex justify-center space-x-4 mb-6">
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-fourtek-blue transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+        <div className="px-6 pb-6 pt-4 border-t border-gray-100">
+          <div className="flex justify-center space-x-4 mb-4">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-[#014d6d] transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/site.svg" alt="Website" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/instagram.svg" alt="Instagram" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/facebook.svg" alt="Facebook" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:bg-neutral-300 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/linkedin.svg" alt="LinkedIn" className="w-5 h-5" />
             </a>
           </div>
 
           <div className="text-center">
             <p className="text-gray-500 italic text-sm mb-4">
-              "Se quer ter sucesso completo em sua vida, você tem que ser foda."
+              "{message}"
             </p>
           </div>
         </div>

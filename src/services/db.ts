@@ -208,3 +208,17 @@ export async function setAccountPrincipal(id: string, principal: boolean) {
 
   return supabase.from('accounts').update({ principal }).eq('id', id).eq('user_id', userId as any)
 }
+
+export async function getRandomMessage() {
+  if (!supabase) return { data: null, error: null }
+  const { data, error } = await supabase
+    .from('messages')
+    .select('content')
+    .eq('active', true)
+
+  if (error) return { data: null, error }
+  if (!data || data.length === 0) return { data: { content: 'Se quer ter sucesso completo em sua vida, você tem que ser foda.' }, error: null }
+
+  const randomIndex = Math.floor(Math.random() * data.length)
+  return { data: data[randomIndex], error: null }
+}

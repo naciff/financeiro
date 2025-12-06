@@ -48,9 +48,9 @@ export function Sidebar({ items, onLogout }: { items: Item[]; onLogout?: () => v
           onClick={() => setCollapsed(v => !v)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) } }}
         >
-          <Icon name={collapsed ? 'reports' : 'reports'} className="w-5 h-5" title="Menu" />
+          <img src="/favicon.png" alt="Menu" className="w-8 h-8 object-contain" />
         </button>
-        {!collapsed && <div className="font-semibold">Financeiro</div>}
+        {!collapsed && <div className="font-semibold">ContaMestre</div>}
       </div>
       <ul id="sidebar-items" className="flex-1 space-y-1 sidebar-scroll pr-2">
         {items.map((i, pi) => {

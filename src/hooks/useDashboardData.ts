@@ -10,6 +10,7 @@ export function useDashboardData() {
     const [totalReceitasFixasMes, setTotalReceitasFixasMes] = useState(0)
     const [totalReceitasDivisaoLucro, setTotalReceitasDivisaoLucro] = useState(0)
     const [totalRetiradaFixaMes, setTotalRetiradaFixaMes] = useState(0)
+    const [totalDespesasGeral, setTotalDespesasGeral] = useState(0)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -27,8 +28,44 @@ export function useDashboardData() {
                 const r = await supabase.from('monthly_totals_view').select('*').gte('mes', from.toISOString()).lte('mes', to.toISOString()).limit(1)
                 setTotais(r.data && r.data[0] ? r.data[0] : null)
 
+                // Fetch transactions for the current month to calculate realized totals (Livro Caixa)
+                if (hasBackend) {
+                    const { data: txsData, error: txsError } = await supabase
+                        .from('transactions')
+                        .select('valor_entrada, valor_saida, data_lancamento')
+                        .gte('data_lancamento', from.toISOString())
+                        .lte('data_lancamento', to.toISOString())
+
+                    if (!txsError && txsData) {
+                        const realTotalPago = txsData.reduce((sum, tx) => sum + Number(tx.valor_saida || 0), 0)
+                        const realTotalRecebido = txsData.reduce((sum, tx) => sum + Number(tx.valor_entrada || 0), 0)
+
+                        setTotais((prev: any) => ({
+                            ...prev,
+                            real_total_pago: realTotalPago,
+                            real_total_recebido: realTotalRecebido
+                        }))
+                    }
+                }
+
                 // Fetch schedules to calculate despesas and receitas totals
                 if (hasBackend) {
+                    const user = (await supabase.auth.getUser()).data.user
+
+                    // Fetch ALL expenses for the "Valor Total de Despesas" card (General Total)
+                    if (user) {
+                        const { data: allExpenses } = await supabase
+                            .from('agendamentos')
+                            .select('valor')
+                            .eq('user_id', user.id)
+                            .eq('operacao', 'despesa')
+
+                        if (allExpenses) {
+                            const totalGeral = allExpenses.reduce((sum, item) => sum + Number(item.valor || 0), 0)
+                            setTotalDespesasGeral(totalGeral)
+                        }
+                    }
+
                     const schedulesResult = await listSchedules()
                     if (!schedulesResult.error && schedulesResult.data) {
                         const schedules = schedulesResult.data as any[]
@@ -59,16 +96,20 @@ export function useDashboardData() {
                         }, 0)
                         setTotalReceitas(totalRec)
 
-                        // Calculate total receitas fixas (fixed monthly income) - using all schedules or current month? 
-                        // Usually "Fixas Mês" implies what is expected for the month, so filtering by month makes sense too.
+                        // Calculate total receitas fixas (fixed monthly income)
                         const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'receita' && s.tipo === 'fixo')
                         const totalRecFixas = receitasFixas.reduce((sum: number, s: any) => {
                             return sum + Number(s.valor)
                         }, 0)
                         setTotalReceitasFixasMes(totalRecFixas)
 
-                        // Total Receitas Divisão Lucro (Backup Cloud) - keeping as 0 for now
-                        setTotalReceitasDivisaoLucro(0)
+                        // Total Receitas Divisão Lucro (schedules where operacao='receita' and compromisso name contains 'Divisão de Lucro')
+                        const divisaoLucroSchedules = schedules.filter((s: any) =>
+                            s.operacao === 'receita' &&
+                            s.compromisso?.nome?.toLowerCase().includes('divisão de lucro')
+                        )
+                        const totalDivisaoLucro = divisaoLucroSchedules.reduce((sum: number, s: any) => sum + Number(s.valor), 0)
+                        setTotalReceitasDivisaoLucro(totalDivisaoLucro)
 
                         // Calculate total retirada fixa (fixed monthly withdrawal from fixed expenses)
                         const despesasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'despesa' && s.tipo === 'fixo')
@@ -87,5 +128,18 @@ export function useDashboardData() {
         load()
     }, [])
 
-    return { totais, totalDespesas, totalReceitas, totalReceitasFixasMes, totalReceitasDivisaoLucro, totalRetiradaFixaMes, loading }
+    return {
+        totais: {
+            ...totais,
+            saldo_atual: (totais?.real_total_recebido || 0) - (totais?.real_total_pago || 0),
+            previsao_saldo: totalReceitas - totalDespesas
+        },
+        totalDespesas,
+        totalReceitas,
+        totalReceitasFixasMes,
+        totalReceitasDivisaoLucro,
+        totalRetiradaFixaMes,
+        totalDespesasGeral,
+        loading
+    }
 }

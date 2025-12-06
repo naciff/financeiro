@@ -11,8 +11,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/calendar', label: 'Calendário', icon: 'calendar' },
     { to: '/schedules/control', label: 'Controle e Previsão', icon: 'reports' },
-    { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
     { to: '/ledger', label: 'Livro Caixa', icon: 'ledger' },
+    { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
+    { to: '/transfers', label: 'Transferências', icon: 'transfer' },
+    { to: '/reports', label: 'Relatórios', icon: 'reports' },
     {
       to: '/cadastro', label: 'Cadastro', icon: 'settings', children: [
         { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'accounts' },
@@ -21,8 +23,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { to: '/cadastro/clientes', label: 'Clientes', icon: 'clients' },
       ]
     },
-    { to: '/transfers', label: 'Transferências', icon: 'transfer' },
-    { to: '/reports', label: 'Relatórios', icon: 'reports' },
     { to: '/settings', label: 'Configurações', icon: 'settings' },
   ]
   return (
