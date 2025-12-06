@@ -73,9 +73,10 @@ export function useChartData() {
 
                 if (user) {
                     const { data: schedules } = await supabase
-                        .from('agendamentos')
+                        .from('schedules')
                         .select(`
                 valor,
+                parcelas,
                 compromisso:compromisso_id (
                   id,
                   nome
@@ -83,6 +84,7 @@ export function useChartData() {
               `)
                         .eq('user_id', user.id)
                         .eq('operacao', 'despesa')
+                        .neq('situacao', 2)
 
                     if (schedules) {
                         // Group expenses by commitment
@@ -90,7 +92,10 @@ export function useChartData() {
 
                         schedules.forEach((item: any) => {
                             const groupName = item.compromisso?.nome || 'Sem Compromisso'
-                            const valor = Number(item.valor || 0)
+                            // Calculate monthly installment value if applicable
+                            const rawVal = Number(item.valor || 0)
+                            const qtd = Number(item.parcelas || 1)
+                            const valor = qtd > 1 ? rawVal / qtd : rawVal
 
                             const current = groupMap.get(groupName) || 0
                             groupMap.set(groupName, current + valor)

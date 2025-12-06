@@ -20,7 +20,7 @@ export default function ScheduleControl() {
   const store = useAppStore()
   const [remote, setRemote] = useState<any[]>([])
   const [modal, setModal] = useState<any | null>(null)
-  const [selectedId, setSelectedId] = useState<string>('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<Filter>('mesAtual')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -101,7 +101,7 @@ export default function ScheduleControl() {
         // Logica para itens fixos (mantida)
         if (s.tipo === 'fixo' && s.situacao !== 2) {
           const baseDate = new Date(s.proxima_vencimento)
-          const incrementMonths = s.periodo === 'mensal' ? 1 : 12
+          const incrementMonths = s.periodo === 'mensal' ? 1 : (s.periodo === 'semestral' ? 6 : 12)
 
           let occurrence = 0
           let currentDate = new Date(baseDate)
@@ -246,6 +246,31 @@ export default function ScheduleControl() {
     { id: 'fimAno', label: 'Até Final do Ano' },
   ]
 
+  const selectionSum = useMemo(() => {
+    let sum = 0
+    selectedIds.forEach(id => {
+      const item = rows.allData.find(r => r.id === id)
+      if (item) {
+        if (item.receita > 0) sum += item.receita
+        if (item.despesa > 0) sum -= item.despesa
+      }
+    })
+    return sum
+  }, [selectedIds, rows])
+
+  function handleSelect(e: React.MouseEvent, id: string) {
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    } else {
+      setSelectedIds(new Set([id]))
+    }
+  }
+
   function openModal(item: any) {
     setModal(item)
     setModalContaId(item.caixaId || '')
@@ -260,6 +285,18 @@ export default function ScheduleControl() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Controle e Previsão</h1>
+
+      {selectedIds.size > 0 && (
+        <div className="fixed top-20 right-10 z-50 bg-green-100 border border-green-300 shadow-lg rounded p-2 text-center">
+          <div className="text-xs font-bold text-green-800 uppercase border-b border-green-300 pb-1 mb-1">
+            SOMA ITENS SELECIONADOS
+          </div>
+          <div className={`text-xl font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
+          </div>
+        </div>
+      )}
+
       {msg && <div className="text-sm text-green-700">{msg}</div>}
       <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto">
         {buttons.map(b => (
@@ -357,8 +394,8 @@ export default function ScheduleControl() {
                           {groupItems.map(r => (
                             <tr
                               key={r.id}
-                              className={`border-t hover:bg-gray-50 cursor-pointer ${selectedId === r.id ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
-                              onClick={() => setSelectedId(r.id)}
+                              className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                              onClick={(e) => handleSelect(e, r.id)}
                               onDoubleClick={() => openModal(r)}
                             >
                               <td className="p-2 truncate">
@@ -414,8 +451,8 @@ export default function ScheduleControl() {
                   {rows.data.map(r => (
                     <tr
                       key={r.id}
-                      className={`border-t hover:bg-gray-50 cursor-pointer ${selectedId === r.id ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
-                      onClick={() => setSelectedId(r.id)}
+                      className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                      onClick={(e) => handleSelect(e, r.id)}
                       onDoubleClick={() => openModal(r)}
                     >
                       <td className="p-2 truncate">
@@ -611,7 +648,7 @@ export default function ScheduleControl() {
                             if (isFixo) {
                               // Fixo: Mantém, joga para próximo mês e atualiza dados
                               const nextDate = new Date(modalData)
-                              const increment = modal.periodo === 'anual' ? 12 : 1
+                              const increment = modal.periodo === 'anual' ? 12 : (modal.periodo === 'semestral' ? 6 : 1)
                               nextDate.setMonth(nextDate.getMonth() + increment)
                               await updateSchedule(modal.id, {
                                 ...commonUpdates,

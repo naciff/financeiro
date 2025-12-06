@@ -20,6 +20,7 @@ type Transaction = {
   grupo_compromisso?: string
   nota_fiscal?: string
   detalhes?: string
+  schedule_id?: string
 }
 type Client = { id: string; nome: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string }
 type CommitmentGroup = { id: string; nome: string }
@@ -37,7 +38,7 @@ type Schedule = {
   detalhes?: string
   valor: number
   proxima_vencimento: string
-  periodo: 'mensal' | 'anual'
+  periodo: 'mensal' | 'semestral' | 'anual'
   parcelas: number
   grupo_compromisso_id?: string
   compromisso_id?: string
@@ -67,10 +68,13 @@ type AppStoreState = {
   updateClient: (id: string, patch: Partial<Client>) => void
   deleteClient: (id: string) => void
   createCommitmentGroup: (g: Omit<CommitmentGroup, 'id'>) => string
+  updateCommitmentGroup: (id: string, patch: Partial<CommitmentGroup>) => void
+  deleteCommitmentGroup: (id: string) => void
   createCommitment: (c: Omit<Commitment, 'id'>) => string
   updateCommitment: (id: string, patch: Partial<Commitment>) => void
   deleteCommitment: (id: string) => void
   createTransaction: (t: Omit<Transaction, 'id'>) => string
+  deleteTransaction: (id: string) => void
 }
 
 const AppStoreCtx = createContext<AppStoreState | null>(null)
@@ -159,6 +163,9 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       const id = uid()
       setTransactions(prev => [{ id, ...t }, ...prev])
       return id
+    },
+    deleteTransaction: id => {
+      setTransactions(prev => prev.filter(t => t.id !== id))
     },
     updateSchedule: (id, patch) => {
       setSchedules(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s))

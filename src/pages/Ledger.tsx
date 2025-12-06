@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
+import { Icon } from '../components/ui/Icon'
+import { formatMoneyBr } from '../utils/format'
 
 export default function Ledger() {
   const store = useAppStore()
@@ -13,6 +15,12 @@ export default function Ledger() {
   const [msg, setMsg] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tx: any } | null>(null)
+  const [showReverseConfirm, setShowReverseConfirm] = useState(false)
+  const [pendingTx, setPendingTx] = useState<any>(null)
+  const [modalTitle, setModalTitle] = useState('Incluir Nova Transação')
 
   // Filtros Avançados
   const [filterMode, setFilterMode] = useState<'simple' | 'custom'>('simple')
@@ -54,10 +62,16 @@ export default function Ledger() {
   }, [])
   const [selectedMonth, setSelectedMonth] = useState(months[0].toISOString().slice(0, 7)) // YYYY-MM
 
+  // Close context menu on click elsewhere
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null)
+    window.addEventListener('click', handleClick)
+    return () => window.removeEventListener('click', handleClick)
+  }, [])
+
   function toBr(iso: string) {
     if (!iso) return ''
-    // Fix: Parse date without timezone conversion
-    const dateStr = iso.split('T')[0] // Get YYYY-MM-DD
+    const dateStr = iso.split('T')[0]
     if (!dateStr) return ''
     const [yyyy, mm, dd] = dateStr.split('-')
     if (!yyyy || !mm || !dd) return ''
@@ -123,16 +137,16 @@ export default function Ledger() {
   }
 
   async function handleCreateTransaction() {
-    if (!formContaId || !formValor || !formDataLancamento) {
+    if (!formContaId || !formValor || !formDataLancamento || !formOperacao || !formCliente || !formGrupoCompromisso || !formCompromisso || !formHistorico) {
       setMsg('Preencha todos os campos obrigatórios')
       return
     }
 
     const isEntrada = formOperacao === 'receita' || formOperacao === 'aporte'
-    const newTransaction = {
+    const newTransaction: any = {
       conta_id: formContaId,
       operacao: formOperacao,
-      especie: formEspecie,
+      // especie: formEspecie, // Removed because column missing in DB
       historico: formHistorico,
       data_vencimento: formDataVencimento || formDataLancamento,
       data_lancamento: formDataLancamento,
@@ -144,6 +158,11 @@ export default function Ledger() {
       compromisso: formCompromisso,
       nota_fiscal: formNotaFiscal,
       detalhes: formDetalhes
+    }
+
+    // Only add especie if local store (or if we fix db schema later)
+    if (!hasBackend) {
+      newTransaction.especie = formEspecie
     }
 
     if (hasBackend && supabase) {
@@ -184,13 +203,84 @@ export default function Ledger() {
 
   function openModal() {
     resetForm()
-    setFormDataLancamento(new Date().toISOString().split('T')[0])
+    setModalTitle('Incluir Nova Transação')
+    const today = new Date().toISOString().split('T')[0]
+    setFormDataLancamento(today)
+    setFormDataVencimento(today)
     setShowModal(true)
   }
 
   function labelAccount(id: string) {
     const a = accounts.find(x => x.id === id)
     return a ? a.nome : id
+  }
+
+  function handleContextMenu(e: React.MouseEvent, tx: any) {
+    e.preventDefault()
+    setContextMenu({ x: e.pageX, y: e.pageY, tx })
+  }
+
+  function handleDuplicate() {
+    if (!contextMenu) return
+    const { tx } = contextMenu
+
+    setFormOperacao(tx.operacao)
+    setFormContaId(tx.conta_id || tx.caixa_id || '')
+    setFormEspecie(tx.especie || 'dinheiro')
+    setFormHistorico(tx.historico + ' (Cópia)')
+    setFormValor(Number(tx.valor_saida || tx.valor_entrada || 0))
+    const today = new Date().toISOString().split('T')[0]
+    setFormDataVencimento(today)
+    setFormDataLancamento(today)
+    setFormCliente(tx.cliente || '')
+    setFormGrupoCompromisso(tx.grupo_compromisso || '')
+    setFormCompromisso(tx.compromisso || '')
+    setFormNotaFiscal(tx.nota_fiscal || '')
+    setFormDetalhes(tx.detalhes ? (typeof tx.detalhes === 'string' ? tx.detalhes : JSON.stringify(tx.detalhes)) : '')
+
+    setModalTitle('Duplicando Lançamento')
+    setShowModal(true)
+  }
+
+  function handleReverse() {
+    if (!contextMenu) return
+    setPendingTx(contextMenu.tx)
+    setShowReverseConfirm(true)
+    setContextMenu(null)
+  }
+
+  async function confirmReverse() {
+    if (!pendingTx) return
+    const tx = pendingTx
+    setShowReverseConfirm(false)
+
+    // Ensure schedule_id or agendamento_id is used
+    const scheduleId = tx.schedule_id || tx.agendamento_id
+
+    try {
+      if (hasBackend && supabase) {
+        if (scheduleId) {
+          await updateSchedule(scheduleId, { situacao: 1 })
+        }
+        const { error } = await supabase.from('transactions').delete().eq('id', tx.id)
+        if (error) throw error
+
+        await load()
+        setMsg('Transação estornada com sucesso')
+      } else {
+        if (scheduleId) {
+          store.updateSchedule(scheduleId, { situacao: 1 })
+        }
+        store.deleteTransaction(tx.id)
+        await load()
+        setMsg('Transação estornada com sucesso')
+      }
+      setTimeout(() => setMsg(''), 3000)
+    } catch (error: any) {
+      alert('Erro ao estornar: ' + error.message)
+    } finally {
+      setPendingTx(null)
+    }
   }
 
   return (
@@ -214,13 +304,13 @@ export default function Ledger() {
         <div className="flex items-center gap-4">
           <div className="flex border rounded overflow-hidden">
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'simple' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-3 py-1 text-sm ${filterMode === 'simple' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
               onClick={() => setFilterMode('simple')}
             >
               Simplificada
             </button>
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'custom' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-3 py-1 text-sm ${filterMode === 'custom' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
               onClick={() => setFilterMode('custom')}
             >
               Personalizada
@@ -282,16 +372,14 @@ export default function Ledger() {
           </thead>
           <tbody>
             {txs.filter(t => {
-              // Filtro de Data
               if (filterMode === 'simple') {
                 if (!t.data_lancamento.startsWith(selectedMonth)) return false
               } else {
-                if (!startDate || !endDate) return true // Se não tiver datas, mostra tudo (ou nada? melhor tudo por enquanto)
+                if (!startDate || !endDate) return true
                 const dateToCheck = dateFilterType === 'payment' ? (t.data_vencimento || t.data_lancamento) : t.data_lancamento
                 if (dateToCheck < startDate || dateToCheck > endDate) return false
               }
 
-              // Filtro de Texto e Valor
               if (!searchTerm) return true
               const term = searchTerm.toLowerCase()
               const valSearch = parseFloat(searchTerm.replace(',', '.'))
@@ -300,7 +388,11 @@ export default function Ledger() {
 
               return matchText || matchValue
             }).map(tx => (
-              <tr key={tx.id} className="border-t">
+              <tr
+                key={tx.id}
+                className="border-t hover:bg-gray-50 cursor-pointer"
+                onContextMenu={(e) => handleContextMenu(e, tx)}
+              >
                 <td className="p-2">{toBr(tx.data_lancamento)}</td>
                 <td className="p-2">{labelAccount(tx.conta_id)}</td>
                 <td className="p-2">{tx.cliente || '-'}</td>
@@ -321,15 +413,56 @@ export default function Ledger() {
         </table>
       </div>
 
-      {/* Modal de Inclusão */}
+      {contextMenu && (
+        <div
+          className="fixed bg-white border rounded shadow-xl z-50 py-1"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          <button
+            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2"
+            onClick={handleDuplicate}
+          >
+            <Icon name="copy" className="w-4 h-4" /> Duplicar
+          </button>
+          <button
+            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 text-red-600"
+            onClick={handleReverse}
+          >
+            <Icon name="undo" className="w-4 h-4" /> Estornar (Voltar)
+          </button>
+        </div>
+      )}
+
+      {showReverseConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
+          <div className="bg-white border rounded shadow-lg p-6 w-[300px] text-center">
+            <h3 className="font-semibold text-lg mb-4 text-gray-800">Estornar Lançamento</h3>
+            <p className="text-sm text-gray-600 mb-6">Deseja realmente estornar este lançamento? A ação será desfeita.</p>
+            <div className="flex justify-center gap-3">
+              <button
+                className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                onClick={() => setShowReverseConfirm(false)}
+              >
+                Não
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+                onClick={confirmReverse}
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} aria-hidden="true"></div>
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">Incluir Nova Transação</h2>
+            <h2 className="text-lg font-semibold mb-4">{modalTitle}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Row 1: Operação | Cliente */}
               <div>
                 <label className="block text-sm font-medium mb-1">Operação *</label>
                 <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => setFormOperacao(e.target.value as any)}>
@@ -340,32 +473,30 @@ export default function Ledger() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Cliente</label>
+                <label className="block text-sm font-medium mb-1">Cliente *</label>
                 <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
                   <option value="">Selecione...</option>
                   {clients.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </div>
 
-              {/* Row 2: Grupo Compromisso | Compromisso */}
               <div>
-                <label className="block text-sm font-medium mb-1">Grupo Compromisso</label>
+                <label className="block text-sm font-medium mb-1">Grupo Compromisso *</label>
                 <select className="w-full border rounded px-3 py-2" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
                   <option value="">Selecione...</option>
                   {groups.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Compromisso</label>
+                <label className="block text-sm font-medium mb-1">Compromisso *</label>
                 <select className="w-full border rounded px-3 py-2" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
                   <option value="">Selecione...</option>
                   {commitments.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </div>
 
-              {/* Row 3: Histórico | Nota Fiscal */}
               <div>
-                <label className="block text-sm font-medium mb-1">Histórico</label>
+                <label className="block text-sm font-medium mb-1">Histórico *</label>
                 <input className="w-full border rounded px-3 py-2" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
               </div>
               <div>
@@ -373,20 +504,19 @@ export default function Ledger() {
                 <input className="w-full border rounded px-3 py-2" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
               </div>
 
-              {/* Row 4: Detalhe */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Detalhe</label>
                 <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
               </div>
 
-              {/* Row 5: Data Vencimento */}
               <div>
                 <label className="block text-sm font-medium mb-1">Data Vencimento</label>
-                <input type="date" className="w-full border rounded px-3 py-2" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
+                <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
               </div>
-              <div className="hidden md:block"></div>
-
-              {/* Row 6: Valor | Espécie | Caixa Lançamento */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Data Pagamento</label>
+                <input type="date" className="w-full border rounded px-3 py-2" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Valor *</label>
                 <input type="number" step="0.01" className="w-full border rounded px-3 py-2" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
@@ -413,7 +543,6 @@ export default function Ledger() {
               </div>
             </div>
 
-            {/* Botões */}
             <div className="flex justify-end gap-2 mt-6">
               <button
                 className="px-4 py-2 border rounded hover:bg-gray-50"
