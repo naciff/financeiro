@@ -11,6 +11,7 @@ export function useDashboardData() {
     const [totalReceitasDivisaoLucro, setTotalReceitasDivisaoLucro] = useState(0)
     const [totalRetiradaFixaMes, setTotalRetiradaFixaMes] = useState(0)
     const [totalDespesasGeral, setTotalDespesasGeral] = useState(0)
+    const [saldoAtualGeral, setSaldoAtualGeral] = useState(0)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -46,6 +47,11 @@ export function useDashboardData() {
                             real_total_recebido: realTotalRecebido
                         }))
                     }
+
+                    // Calculate Saldo Atual from account_balances_view
+                    const { data: accountsData } = await supabase.from('account_balances_view').select('saldo_atual')
+                    const saldoGeral = accountsData?.reduce((sum, acc) => sum + Number(acc.saldo_atual || 0), 0) || 0
+                    setSaldoAtualGeral(saldoGeral)
                 }
 
                 // Fetch schedules to calculate despesas and receitas totals
@@ -98,7 +104,7 @@ export function useDashboardData() {
                         setTotalReceitas(totalRec)
 
                         // Calculate total receitas fixas (fixed monthly income)
-                        const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'receita' && s.tipo === 'fixo')
+                        const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao === 'receita' && s.tipo === 'fixo' && s.periodo === 'mensal')
                         const totalRecFixas = receitasFixas.reduce((sum: number, s: any) => {
                             return sum + Number(s.valor)
                         }, 0)
@@ -132,8 +138,8 @@ export function useDashboardData() {
     return {
         totais: {
             ...totais,
-            saldo_atual: (totais?.real_total_recebido || 0) - (totais?.real_total_pago || 0),
-            previsao_saldo: totalReceitas - totalDespesas
+            saldo_atual: saldoAtualGeral,
+            previsao_saldo: saldoAtualGeral + totalReceitas - totalDespesas
         },
         totalDespesas,
         totalReceitas,

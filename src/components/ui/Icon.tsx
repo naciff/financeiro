@@ -55,6 +55,22 @@ export function Icon({ name, className, title }: Props) {
       return (<svg {...common} className={className}><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5S5 6.34 5 8s1.34 3 3 3zm0 2c-2.67 0-8 1.34-8 4v2h10v-2c0-2.66-5.33-4-8-4zm8 0c-.29 0-.62.02-.97.06c1.61.9 2.97 2.3 2.97 3.94V19h6v-2c0-2.66-5.33-4-8-4z" /></svg>)
     case 'file-text':
       return (<svg {...common} className={className}><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z" /></svg>)
+    case 'excel':
+      return (
+        <svg {...common} className={className}>
+          <path fill="currentColor" fillOpacity="0.2" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z" />
+          <path fill="currentColor" d="M14 2V8h6M6 20V4h7v5h5v11H6z" />
+          <text x="12" y="17" fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="bold" fontFamily="sans-serif">CSV</text>
+        </svg>
+      )
+    case 'pdf':
+      return (
+        <svg {...common} className={className}>
+          <path fill="currentColor" fillOpacity="0.2" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z" />
+          <path fill="currentColor" d="M14 2V8h6M6 20V4h7v5h5v11H6z" />
+          <text x="12" y="17" fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="bold" fontFamily="sans-serif">PDF</text>
+        </svg>
+      )
     default:
       return (<svg {...common} className={className}><circle cx="12" cy="12" r="10" fill="currentColor" /></svg>)
   }

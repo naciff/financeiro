@@ -515,7 +515,7 @@ export default function Schedules() {
         <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
           <Icon name="trash" className="w-4 h-4" /> Excluir
         </button>
-        <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2" onClick={() => {
+        <button className="flex items-center justify-center bg-white border border-gray-300 rounded p-2 text-gray-700 hover:bg-gray-50" onClick={() => {
           // Export CSV
           const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
           const rows = data.rows.map(r => [
@@ -537,11 +537,11 @@ export default function Schedules() {
           a.download = `agendamentos_${new Date().toISOString().split('T')[0]}.csv`
           a.click()
           URL.revokeObjectURL(url)
-        }} aria-label="Exportar CSV">
-          <Icon name="download" className="w-4 h-4" /> Exportar CSV
+        }} title="Exportar CSV" aria-label="Exportar CSV">
+          <Icon name="excel" className="w-5 h-5" />
         </button>
-        <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2" onClick={() => window.print()} aria-label="Exportar PDF">
-          <Icon name="print" className="w-4 h-4" /> Exportar PDF
+        <button className="flex items-center justify-center bg-white border border-gray-300 rounded p-2 text-gray-700 hover:bg-gray-50" onClick={() => window.print()} title="Exportar PDF" aria-label="Exportar PDF">
+          <Icon name="pdf" className="w-5 h-5" />
         </button>
       </div>
 
