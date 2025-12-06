@@ -302,9 +302,6 @@ export default function ScheduleControl() {
                       <span className="text-lg font-bold">{isExpanded ? '-' : '+'}</span>
                       Situação : {groupTitle}
                     </div>
-                    <div className="ml-auto text-sm">
-                      Rec: R$ {formatMoneyBr(totalRec)} | Desp: R$ {formatMoneyBr(totalDesp)}
-                    </div>
                   </div>
 
                   {isExpanded && (

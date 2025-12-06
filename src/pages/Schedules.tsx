@@ -50,12 +50,12 @@ export default function Schedules() {
   const [notaFiscal, setNotaFiscal] = useState<string>('')
   const [tipoPessoa, setTipoPessoa] = useState<'pf' | 'pj'>('pf')
   const [grupoId, setGrupoId] = useState('')
-  const [grupos, setGrupos] = useState<{ id: string; nome: string }[]>([])
+  const [grupos, setGrupos] = useState<{ id: string; nome: string; operacao?: string }[]>([])
   const [compromissoId, setCompromissoId] = useState('')
   const [compromissos, setCompromissos] = useState<{ id: string; nome: string; grupo_id?: string }[]>([])
   const [caixaId, setCaixaId] = useState('')
   const [caixas, setCaixas] = useState<{ id: string; nome: string }[]>([])
-  const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean }[]>([])
+  const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean; principal?: boolean; tipo?: string; dia_vencimento?: number }[]>([])
   const [contaBusca, setContaBusca] = useState('')
   const [detalhes, setDetalhes] = useState('')
   const [refChoice, setRefChoice] = useState<'vencimento' | 'anterior'>('vencimento')
@@ -165,10 +165,8 @@ export default function Schedules() {
       const bv = (b as any)[sort.key]
       return (sort.dir === 'asc' ? 1 : -1) * (av > bv ? 1 : av < bv ? -1 : 0)
     })
-    const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
-    const current = Math.min(page, totalPages)
-    const rows = sorted.slice((current - 1) * pageSize, current * pageSize)
-    return { rows, totalPages, current }
+    const rows = sorted
+    return { rows, totalPages: 1, current: 1 }
   }, [store.schedules, remoteSchedules, search, sort, page, contas, typeFilter, periodFilter, activeTab, clientes])
 
   function toggleSort(key: string) {
