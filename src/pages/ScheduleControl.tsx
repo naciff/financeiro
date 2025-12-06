@@ -39,7 +39,8 @@ export default function ScheduleControl() {
   const [modalDataLancamento, setModalDataLancamento] = useState('')
   const [modalValor, setModalValor] = useState(0)
   const [modalHistorico, setModalHistorico] = useState('')
-
+  const [modalNotaFiscal, setModalNotaFiscal] = useState('')
+  const [modalDetalhes, setModalDetalhes] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   // Carregar caixas e grupos
@@ -220,18 +221,15 @@ export default function ScheduleControl() {
     // Calcular totais
     const totalReceitas = data.reduce((sum, r) => sum + r.receita, 0)
     const totalDespesas = data.reduce((sum, r) => sum + r.despesa, 0)
-
-    const totalPages = Math.max(1, Math.ceil(data.length / pageSize))
-    const current = Math.min(page, totalPages)
-    const paginatedData = data.slice((current - 1) * pageSize, current * pageSize)
+    const totalRecords = data.length
 
     return {
-      data: paginatedData,
-      current,
-      totalPages,
+      data: data,
+      current: 1,
+      totalPages: 1,
       totalReceitas,
       totalDespesas,
-      totalRecords: data.length,
+      totalRecords,
       allData: data
     }
   }, [remote, store.schedules, filter, search, page, filterCaixa, filterGrupo])
@@ -254,6 +252,8 @@ export default function ScheduleControl() {
     setModalDataLancamento(new Date().toISOString().split('T')[0])
     setModalValor(item.despesa || item.receita)
     setModalHistorico(item.historico)
+    setModalNotaFiscal(item.notaFiscal || '')
+    setModalDetalhes(item.detalhes || '')
   }
 
   return (
@@ -339,17 +339,17 @@ export default function ScheduleControl() {
 
                   {isExpanded && (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs table-fixed">
                         <thead>
                           <tr className="text-left bg-gray-50 border-b">
-                            <th className="p-2">Data Vencimento</th>
-                            <th className="p-2">Caixa de Lançamento</th>
-                            <th className="p-2">Cliente</th>
-                            <th className="p-2">Compromisso</th>
-                            <th className="p-2">Histórico</th>
-                            <th className="p-2 text-right">Receita</th>
-                            <th className="p-2 text-right">Despesa</th>
-                            <th className="p-2 text-center">Parcela</th>
+                            <th className="p-2 w-[10%]">Data Vencimento</th>
+                            <th className="p-2 w-[15%]">Caixa de Lançamento</th>
+                            <th className="p-2 w-[20%]">Cliente</th>
+                            <th className="p-2 w-[20%]">Compromisso</th>
+                            <th className="p-2 w-[15%]">Histórico</th>
+                            <th className="p-2 text-right w-[8%]">Receita</th>
+                            <th className="p-2 text-right w-[8%]">Despesa</th>
+                            <th className="p-2 text-center w-[4%]">Parcela</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -360,7 +360,7 @@ export default function ScheduleControl() {
                               onClick={() => setSelectedId(r.id)}
                               onDoubleClick={() => openModal(r)}
                             >
-                              <td className="p-2">
+                              <td className="p-2 truncate">
                                 <div>{r.vencimentoBr}</div>
                                 {r.statusMessage && (
                                   <div className={`text-xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font-medium`}>
@@ -368,10 +368,10 @@ export default function ScheduleControl() {
                                   </div>
                                 )}
                               </td>
-                              <td className="p-2">{r.caixa}</td>
-                              <td className="p-2">{r.cliente}</td>
-                              <td className="p-2">{r.compromisso}</td>
-                              <td className="p-2">{r.historico}</td>
+                              <td className="p-2 truncate" title={r.caixa}>{r.caixa}</td>
+                              <td className="p-2 truncate" title={r.cliente}>{r.cliente}</td>
+                              <td className="p-2 truncate" title={r.compromisso}>{r.compromisso}</td>
+                              <td className="p-2 truncate" title={r.historico}>{r.historico}</td>
                               <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)}` : '-'}</td>
                               <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)}` : '-'}</td>
                               <td className="p-2 text-center">{r.parcela > 1 ? r.parcela : ''}</td>
@@ -396,17 +396,17 @@ export default function ScheduleControl() {
         ) : (
           <div className="bg-white border rounded">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-xs table-fixed">
                 <thead>
                   <tr className="text-left">
-                    <th className="p-2">Data Vencimento</th>
-                    <th className="p-2">Caixa de Lançamento</th>
-                    <th className="p-2">Cliente</th>
-                    <th className="p-2">Compromisso</th>
-                    <th className="p-2">Histórico</th>
-                    <th className="p-2 text-right">Receita</th>
-                    <th className="p-2 text-right">Despesa</th>
-                    <th className="p-2 text-center">Parcela</th>
+                    <th className="p-2 w-[10%]">Data Vencimento</th>
+                    <th className="p-2 w-[15%]">Caixa de Lançamento</th>
+                    <th className="p-2 w-[20%]">Cliente</th>
+                    <th className="p-2 w-[20%]">Compromisso</th>
+                    <th className="p-2 w-[15%]">Histórico</th>
+                    <th className="p-2 text-right w-[8%]">Receita</th>
+                    <th className="p-2 text-right w-[8%]">Despesa</th>
+                    <th className="p-2 text-center w-[4%]">Parcela</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -417,7 +417,7 @@ export default function ScheduleControl() {
                       onClick={() => setSelectedId(r.id)}
                       onDoubleClick={() => openModal(r)}
                     >
-                      <td className="p-2">
+                      <td className="p-2 truncate">
                         <div>{r.vencimentoBr}</div>
                         {r.statusMessage && (
                           <div className={`text-xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font-medium`}>
@@ -425,10 +425,10 @@ export default function ScheduleControl() {
                           </div>
                         )}
                       </td>
-                      <td className="p-2">{r.caixa}</td>
-                      <td className="p-2">{r.cliente}</td>
-                      <td className="p-2">{r.compromisso}</td>
-                      <td className="p-2">{r.historico}</td>
+                      <td className="p-2 truncate" title={r.caixa}>{r.caixa}</td>
+                      <td className="p-2 truncate" title={r.cliente}>{r.cliente}</td>
+                      <td className="p-2 truncate" title={r.compromisso}>{r.compromisso}</td>
+                      <td className="p-2 truncate" title={r.historico}>{r.historico}</td>
                       <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)}` : '-'}</td>
                       <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)}` : '-'}</td>
                       <td className="p-2 text-center">{r.parcela > 1 ? r.parcela : ''}</td>
@@ -444,11 +444,6 @@ export default function ScheduleControl() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
-            <div className="flex items-center justify-end gap-2 p-2">
-              <button className="px-3 py-1 rounded border" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={rows.current === 1}>Anterior</button>
-              <span>Página {rows.current} de {rows.totalPages}</span>
-              <button className="px-3 py-1 rounded border" onClick={() => setPage(p => Math.min(rows.totalPages, p + 1))} disabled={rows.current === rows.totalPages}>Próxima</button>
             </div>
           </div>
         )
@@ -489,13 +484,13 @@ export default function ScheduleControl() {
                 </div>
                 <div>
                   <label className="text-xs block text-gray-600 font-medium">Nota Fiscal</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.notaFiscal} disabled />
+                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalNotaFiscal} onChange={e => setModalNotaFiscal(e.target.value)} />
                 </div>
 
                 {/* Row 4: Detalhe */}
                 <div className="md:col-span-2">
                   <label className="text-xs block text-gray-600 font-medium">Detalhe</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.detalhes} disabled />
+                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalDetalhes} onChange={e => setModalDetalhes(e.target.value)} />
                 </div>
 
                 {/* Row 5: Data Vencimento | Data Lançamento */}
@@ -553,26 +548,90 @@ export default function ScheduleControl() {
                 }}>Salvar Alterações</button>
                 <button className="bg-black text-white rounded px-4 py-2 hover:bg-gray-800" onClick={() => {
                   if (!modalContaId) { alert('Selecione uma conta'); return }
+                  if (!window.confirm("Confirmar Lançamento no Livro Caixa?")) return
 
                   const oper = modal.operacao || 'despesa'
                   const isDespesa = oper === 'despesa' || oper === 'retirada'
 
                   const trx = isDespesa
-                    ? { conta_id: modalContaId, operacao: oper as any, historico: modalHistorico, data_lancamento: modalDataLancamento, data_vencimento: modalData, valor_entrada: 0, valor_saida: modalValor, status: 'pago' as const, cliente: modal.cliente, compromisso: modal.compromisso }
-                    : { conta_id: modalContaId, operacao: oper as any, historico: modalHistorico, data_lancamento: modalDataLancamento, data_vencimento: modalData, valor_entrada: modalValor, valor_saida: 0, status: 'recebido' as const, cliente: modal.cliente, compromisso: modal.compromisso }
+                    ? {
+                      conta_id: modalContaId,
+                      operacao: oper as any,
+                      historico: modalHistorico,
+                      nota_fiscal: modalNotaFiscal,
+                      detalhes: modalDetalhes,
+                      data_lancamento: modalDataLancamento,
+                      data_vencimento: modalData,
+                      valor_entrada: 0,
+                      valor_saida: modalValor,
+                      status: 'pago' as const,
+                      cliente: modal.cliente,
+                      compromisso: modal.compromisso
+                    }
+                    : {
+                      conta_id: modalContaId,
+                      operacao: oper as any,
+                      historico: modalHistorico,
+                      nota_fiscal: modalNotaFiscal,
+                      detalhes: modalDetalhes,
+                      data_lancamento: modalDataLancamento,
+                      data_vencimento: modalData,
+                      valor_entrada: modalValor,
+                      valor_saida: 0,
+                      status: 'recebido' as const,
+                      cliente: modal.cliente,
+                      compromisso: modal.compromisso
+                    }
 
                   if (hasBackend) {
                     (async () => {
                       await createTransaction(trx)
-                      await (await import('../services/db')).updateSchedule(modal.id, { situacao: 2 })
+
+                      const isFixo = modal.tipo === 'fixo'
+                      const isVariavel = modal.tipo === 'variavel'
+                      const parcelas = Number(modal.parcelas || 1)
+
+                      // Update comum para preservar alterações de valor/histórico/detalhes no agendamento futuro
+                      const commonUpdates = {
+                        valor: modalValor,
+                        historico: modalHistorico,
+                        nota_fiscal: modalNotaFiscal,
+                        detalhes: modalDetalhes,
+                        caixa_id: modalContaId || null
+                      }
+
+                      if (isFixo) {
+                        // Fixo: Mantém, joga para próximo mês e atualiza dados
+                        const nextDate = new Date(modalData)
+                        const increment = modal.periodo === 'anual' ? 12 : 1
+                        nextDate.setMonth(nextDate.getMonth() + increment)
+                        await updateSchedule(modal.id, {
+                          ...commonUpdates,
+                          proxima_vencimento: nextDate.toISOString().split('T')[0]
+                        })
+                      } else if (isVariavel && parcelas > 1) {
+                        // Variavel Parcelado: Decrementa parcela, joga para próximo mês e atualiza dados
+                        const nextDate = new Date(modalData)
+                        nextDate.setMonth(nextDate.getMonth() + 1)
+                        await updateSchedule(modal.id, {
+                          ...commonUpdates,
+                          proxima_vencimento: nextDate.toISOString().split('T')[0],
+                          parcelas: parcelas - 1
+                        })
+                      } else {
+                        // Variavel Único (ou última parcela): Finaliza
+                        await updateSchedule(modal.id, { situacao: 2 })
+                      }
+
                       listSchedules().then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                     })()
                   } else {
                     store.createTransaction(trx as any)
+                    // Mock logic for local store would go here if needed, but assuming Backend usage primarily
                     store.updateSchedule(modal.id, { situacao: 2 })
                   }
                   setModal(null)
-                  setMsg('Item confirmado com sucesso')
+                  setMsg('Lançamento confirmado com sucesso')
                   setTimeout(() => setMsg(''), 2500)
                 }}>Confirmar Lançamento</button>
               </div>
