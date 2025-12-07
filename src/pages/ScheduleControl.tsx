@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { Icon } from '../components/ui/Icon'
 import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 
@@ -13,7 +15,7 @@ function toBr(iso: string) {
   if (!dateStr) return ''
   const [yyyy, mm, dd] = dateStr.split('-')
   if (!yyyy || !mm || !dd) return ''
-  return `${dd}/${mm}/${yyyy}`
+  return `${dd} /${mm}/${yyyy} `
 }
 
 export default function ScheduleControl() {
@@ -160,7 +162,8 @@ export default function ScheduleControl() {
         especie: s.especie || '',
         receita: isReceita ? valor : 0,
         despesa: !isReceita ? valor : 0,
-        parcela: 1, // Já está expandido
+        parcela: s.parcela_atual || 1,
+        totalParcelas: s.total_parcelas || 1,
         vencimentoDate: d,
         diasAtraso: diffDays,
         statusMessage: statusMessage,
@@ -171,7 +174,7 @@ export default function ScheduleControl() {
       .filter(r => within(new Date(r.vencimento)))
       .filter(r => !filterCaixa || r.caixaId === filterCaixa)
       .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo)
-      .filter(r => [r.cliente, r.historico, r.compromisso].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
+      .filter(r => [r.cliente, r.historico, r.compromisso, String(r.receita), String(r.despesa)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
       .sort((a, b) => a.vencimentoDate.getTime() - b.vencimentoDate.getTime())
 
     // Calcular totais
@@ -247,21 +250,29 @@ export default function ScheduleControl() {
 
       <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto items-center">
         {buttons.map(b => (
-          <button key={b.id} className={`px-3 py-2 rounded border transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${filter === b.id ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'}`} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
+          <button key={b.id} className={`px - 3 py - 2 rounded border transition - colors duration - 300 text - xs md: text - sm whitespace - nowrap ${filter === b.id ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'} `} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
         ))}
         {selectedIds.size > 1 && (
           <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
             <div className="text-[10px] font-bold text-green-800 uppercase border-b border-green-300 leading-tight mb-0.5">
               SOMA ITENS ({selectedIds.size})
             </div>
-            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
+            <div className={`text - sm font - bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading - tight`}>
               {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
             </div>
           </div>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-3 bg-white border rounded px-3 py-2">
-        <input className="outline-none flex-1 min-w-[200px]" placeholder="Buscar cliente ou histórico" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
+        <div className="flex items-center gap-2 border rounded px-3 py-2">
+          <Icon name="search" className="w-4 h-4" />
+          <input className="outline-none w-64" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+        </div>
+        {(filterCaixa || filterGrupo || search) && (
+          <button className="text-sm bg-gray-100 hover:bg-gray-200 border rounded px-3 py-2 text-gray-700" onClick={() => { setFilterCaixa(''); setFilterGrupo(''); setSearch('') }}>
+            Limpar filtros
+          </button>
+        )}
 
         <select
           className="border rounded px-3 py-2 text-sm"
@@ -285,18 +296,7 @@ export default function ScheduleControl() {
           ))}
         </select>
 
-        <button
-          onClick={() => {
-            setSearch('')
-            setFilterCaixa('')
-            setFilterGrupo('')
-            setPage(1)
-          }}
-          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-sm transition-colors"
-          title="Limpar todos os filtros"
-        >
-          Limpar filtros
-        </button>
+
       </div>
 
 
@@ -351,14 +351,14 @@ export default function ScheduleControl() {
                           {groupItems.map(r => (
                             <tr
                               key={r.id}
-                              className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                              className={`border - t hover: bg - gray - 50 cursor - pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''} `}
                               onClick={(e) => handleSelect(e, r.id)}
                               onDoubleClick={() => openModal(r)}
                             >
                               <td className="p-2 truncate">
                                 <div>{r.vencimentoBr}</div>
                                 {r.statusMessage && (
-                                  <div className={`text-xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font-medium`}>
+                                  <div className={`text - xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font - medium`}>
                                     {r.statusMessage}
                                   </div>
                                 )}
@@ -367,9 +367,9 @@ export default function ScheduleControl() {
                               <td className="p-2 truncate" title={r.cliente}>{r.cliente}</td>
                               <td className="p-2 truncate" title={r.compromisso}>{r.compromisso}</td>
                               <td className="p-2 truncate" title={r.historico}>{r.historico}</td>
-                              <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)}` : '-'}</td>
-                              <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)}` : '-'}</td>
-                              <td className="p-2 text-center">{r.parcela > 1 ? r.parcela : ''}</td>
+                              <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)} ` : '-'}</td>
+                              <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)} ` : '-'}</td>
+                              <td className="p-2 text-center">{r.totalParcelas > 1 ? `${r.parcela}/${r.totalParcelas}` : ''}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -408,14 +408,14 @@ export default function ScheduleControl() {
                   {rows.data.map(r => (
                     <tr
                       key={r.id}
-                      className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                      className={`border - t hover: bg - gray - 50 cursor - pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''} `}
                       onClick={(e) => handleSelect(e, r.id)}
                       onDoubleClick={() => openModal(r)}
                     >
                       <td className="p-2 truncate">
                         <div>{r.vencimentoBr}</div>
                         {r.statusMessage && (
-                          <div className={`text-xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font-medium`}>
+                          <div className={`text - xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font - medium`}>
                             {r.statusMessage}
                           </div>
                         )}
@@ -424,9 +424,9 @@ export default function ScheduleControl() {
                       <td className="p-2 truncate" title={r.cliente}>{r.cliente}</td>
                       <td className="p-2 truncate" title={r.compromisso}>{r.compromisso}</td>
                       <td className="p-2 truncate" title={r.historico}>{r.historico}</td>
-                      <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)}` : '-'}</td>
-                      <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)}` : '-'}</td>
-                      <td className="p-2 text-center">{r.parcela > 1 ? r.parcela : ''}</td>
+                      <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)} ` : '-'}</td>
+                      <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)} ` : '-'}</td>
+                      <td className="p-2 text-center">{r.totalParcelas > 1 ? `${r.parcela}/${r.totalParcelas}` : ''}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -432,9 +432,10 @@ export default function Ledger() {
             {filteredTxs.map(tx => (
               <tr
                 key={tx.id}
-                className={`border-t cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`}
+                className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
                 onClick={(e) => handleSelect(e, tx.id)}
-                onContextMenu={(e) => handleContextMenu(e, tx)}
+                onDoubleClick={() => openModal(tx)}
+                onContextMenu={(e) => { handleContextMenu(e, tx) }}
               >
                 <td className="p-2">{toBr(tx.data_lancamento)}</td>
                 <td className="p-2">{labelAccount(tx.conta_id)}</td>
@@ -455,17 +456,22 @@ export default function Ledger() {
           className="fixed bg-white border rounded shadow-xl z-50 py-1"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <button
-            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2"
-            onClick={handleDuplicate}
-          >
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+            const item = txs.find(t => t.id === contextMenu.id)
+            if (item) openModal(item)
+            setContextMenu(null)
+          }}>
+            <Icon name="edit" className="w-4 h-4" /> Alterar
+          </button>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { onDelete(); setContextMenu(null) }}>
+            <Icon name="trash" className="w-4 h-4" /> Excluir
+          </button>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
             <Icon name="copy" className="w-4 h-4" /> Duplicar
           </button>
-          <button
-            className="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 text-red-600"
-            onClick={handleReverse}
-          >
-            <Icon name="undo" className="w-4 h-4" /> Estornar (Voltar)
+          <div className="border-t my-1"></div>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-600" onClick={() => { handleReverse(); setContextMenu(null) }}>
+            <Icon name="undo" className="w-4 h-4" /> Estornar
           </button>
         </div>
       )}

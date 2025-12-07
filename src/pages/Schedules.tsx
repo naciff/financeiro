@@ -208,7 +208,7 @@ export default function Schedules() {
     })
     const byType = typeFilter ? byTab.filter(r => r.tipo === typeFilter) : byTab
     const byPeriod = periodFilter ? byType.filter(r => (r.tipo === 'variavel' ? 'determinado' : r.periodo) === periodFilter) : byType
-    const filt = byPeriod.filter(r => [r.cliente, r.historico, r.especie, r.caixa].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
+    const filt = byPeriod.filter(r => [r.cliente, r.historico, r.especie, r.caixa, String(r.valor_total), String(r.valor_parcela)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
     const sorted = [...filt].sort((a, b) => {
       const av = (a as any)[sort.key]
       const bv = (b as any)[sort.key]
@@ -642,7 +642,7 @@ export default function Schedules() {
       <div role="toolbar" aria-label="Ações" className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 bg-white border rounded px-3 py-2">
           <Icon name="search" className="w-4 h-4" />
-          <input className="outline-none" placeholder="Busca rápida" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+          <input className="outline-none w-64" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
         </div>
         <div className="flex items-center gap-2 bg-white border rounded px-3 py-2">
           <label className="text-sm" htmlFor="typeFilter">Tipo</label>
@@ -1223,13 +1223,13 @@ export default function Schedules() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
           <div className="fixed z-50 bg-white border rounded shadow-lg py-1 text-sm font-medium" style={{ top: contextMenu.y, left: contextMenu.x }}>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2" onClick={() => { onEditOpen(); setContextMenu(null) }}>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => { onEditOpen(); setContextMenu(null) }}>
               <Icon name="edit" className="w-4 h-4" /> Alterar
             </button>
             <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { onDelete(); setContextMenu(null) }}>
               <Icon name="trash" className="w-4 h-4" /> Excluir
             </button>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
               <Icon name="copy" className="w-4 h-4" /> Duplicar
             </button>
             <div className="border-t my-1"></div>
