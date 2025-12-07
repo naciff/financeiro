@@ -93,7 +93,26 @@ export async function checkScheduleDependencies(scheduleId: string) {
 export async function updateSchedule(id: string, payload: any) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('schedules').delete().eq('id', id).eq('user_id', userId as any)
+  return supabase.from('schedules').update(payload).eq('id', id).eq('user_id', userId as any)
+}
+
+export async function updateScheduleAndFutureFinancials(scheduleId: string, newValue: number) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  // 1. Update Master Schedule
+  const { error: err1 } = await supabase.from('schedules').update({ valor: newValue }).eq('id', scheduleId).eq('user_id', userId as any)
+  if (err1) return { error: err1 }
+
+  // 2. Update Future Financials (Pending = 1)
+  const { error: err2 } = await supabase
+    .from('financials')
+    .update({ valor: newValue }) // Only update 'valor', as 'valor_parcela'/'valor_total' do not exist in financials table
+    .eq('id_agendamento', scheduleId)
+    .eq('situacao', 1) // Only pending
+    .eq('user_id', userId as any)
+
+  return { error: err2 }
 }
 
 export async function deleteSchedule(id: string) {
@@ -123,10 +142,11 @@ export async function listFinancials(options?: { status?: number }) {
     cliente: favorecido_id(id, nome),
     agendamento: id_agendamento(
       id,
+      tipo,
       compromisso: compromisso_id(id, nome),
       grupo: grupo_compromisso_id(id, nome)
     )
-      `)
+  `)
     .eq('user_id', userId as any)
 
   if (options?.status) {
@@ -135,6 +155,28 @@ export async function listFinancials(options?: { status?: number }) {
 
   // Order by due date asc (oldest first)
   return query.order('data_vencimento', { ascending: true })
+}
+
+export async function getFinancialItemByScheduleAndDate(scheduleId: string, dateIso: string) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('financials')
+    .select('id')
+    .eq('id_agendamento', scheduleId)
+    .eq('data_vencimento', dateIso)
+    .eq('situacao', 1)
+    .maybeSingle()
+}
+
+export async function deleteFinancial(id: string) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('financials').delete().eq('id', id).eq('user_id', userId as any)
+}
+
+export async function updateFinancial(id: string, payload: any) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('financials').update(payload).eq('id', id).eq('user_id', userId as any)
 }
 
 export async function confirmProvision(itemId: string, info: { valor: number, data: string, cuentaId: string }) {

@@ -15,6 +15,8 @@ export default function Ledger() {
   const [msg, setMsg] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [opFilter, setOpFilter] = useState('Todas')
+  const [accountFilter, setAccountFilter] = useState('')
 
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tx: any } | null>(null)
@@ -156,7 +158,9 @@ export default function Ledger() {
       status: formStatus,
       cliente: formCliente,
       grupo_compromisso: formGrupoCompromisso,
-      compromisso: formCompromisso,
+      grupo_id: formGrupoCompromisso, // Ensure we send this standard key
+      compromisso: commitments.find(c => c.id === formCompromisso)?.nome || formCompromisso, // Fallback to name if ID lookup fails (legacy)
+      compromisso_id: formCompromisso, // Send ID
       nota_fiscal: formNotaFiscal,
       detalhes: formDetalhes
     }
@@ -225,8 +229,10 @@ export default function Ledger() {
       setFormDataLancamento(tx.data_lancamento ? tx.data_lancamento.split('T')[0] : today)
       setFormStatus(tx.status || 'pendente')
       setFormCliente(tx.cliente || '')
-      setFormGrupoCompromisso(tx.grupo_compromisso || '')
-      setFormCompromisso(tx.compromisso || '')
+      setFormCliente(tx.cliente || '')
+      // Fix: Check various likely column names (schedule uses grupo_id)
+      setFormGrupoCompromisso(tx.grupo_compromisso || tx.grupo_compromisso_id || tx.grupo_id || '')
+      setFormCompromisso(tx.compromisso || tx.compromisso_id || '')
       setFormNotaFiscal(tx.nota_fiscal || '')
       setFormDetalhes(tx.detalhes ? (typeof tx.detalhes === 'string' ? tx.detalhes : JSON.stringify(tx.detalhes)) : '')
     } else {
@@ -260,8 +266,9 @@ export default function Ledger() {
     const today = new Date().toISOString().split('T')[0]
     setFormDataVencimento(today)
     setFormDataLancamento(today)
+    setFormDataLancamento(today)
     setFormCliente(tx.cliente || '')
-    setFormGrupoCompromisso(tx.grupo_compromisso || '')
+    setFormGrupoCompromisso(tx.grupo_compromisso || tx.grupo_compromisso_id || '')
     setFormCompromisso(tx.compromisso || '')
     setFormNotaFiscal(tx.nota_fiscal || '')
     setFormDetalhes(tx.detalhes ? (typeof tx.detalhes === 'string' ? tx.detalhes : JSON.stringify(tx.detalhes)) : '')
@@ -329,9 +336,30 @@ export default function Ledger() {
       const matchText = (t.cliente?.toLowerCase() || '').includes(term) || (t.historico?.toLowerCase() || '').includes(term)
       const matchValue = !isNaN(valSearch) && (Math.abs(t.valor_entrada - valSearch) < 0.01 || Math.abs(t.valor_saida - valSearch) < 0.01)
 
-      return matchText || matchValue
+
+
+      const matchesSearch = matchText || matchValue
+      if (!matchesSearch) return false
+
+      // Operation Filter Logic
+      // console.log('Filter Check:', { op: t.operacao, filter: opFilter })
+      const op = (t.operacao || '').toLowerCase()
+
+      // Account Filter Logic
+      if (accountFilter && t.conta_id !== accountFilter) return false
+
+      if (opFilter === 'Todas') return true
+      if (opFilter === 'Somente Receitas') return op === 'receita'
+      if (opFilter === 'Somente Despesas') return op === 'despesa'
+      if (opFilter === 'Somente Aporte/Ret./Transf.') return ['aporte', 'retirada', 'transferencia'].includes(op)
+      if (opFilter === 'Despesas e Retiradas') return ['despesa', 'retirada'].includes(op)
+      if (opFilter === 'Receitas e Aportes') return ['receita', 'aporte'].includes(op)
+      if (opFilter === 'Somente Aporte') return op === 'aporte'
+      if (opFilter === 'Somente Retiradas') return op === 'retirada'
+
+      return true
     })
-  }, [txs, filterMode, selectedMonth, startDate, endDate, dateFilterType, searchTerm])
+  }, [txs, filterMode, selectedMonth, startDate, endDate, dateFilterType, searchTerm, opFilter])
 
   const selectionSum = useMemo(() => {
     return filteredTxs.reduce((acc, t) => {
@@ -341,6 +369,15 @@ export default function Ledger() {
       return acc
     }, 0)
   }, [filteredTxs, selectedIds])
+
+  const filteredTotals = useMemo(() => {
+    return filteredTxs.reduce((acc, t) => {
+      return {
+        receitas: acc.receitas + (Number(t.valor_entrada) || 0),
+        despesas: acc.despesas + (Number(t.valor_saida) || 0)
+      }
+    }, { receitas: 0, despesas: 0 })
+  }, [filteredTxs])
 
   function handleSelect(e: React.MouseEvent, id: string) {
     if (e.ctrlKey || e.metaKey) {
@@ -370,13 +407,60 @@ export default function Ledger() {
       </div>
 
       <div className="flex gap-3">
-        <input className="border rounded px-3 py-2 flex-1" type="text" placeholder="Buscar cliente, histórico ou valor" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-        <button
-          className="px-4 py-2 bg-fourtek-blue text-white rounded hover:bg-blue-700 transition-colors whitespace-nowrap"
-          onClick={openModal}
-        >
-          + Incluir
-        </button>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700">Caixa</label>
+          <div className="relative">
+            <select
+              className="border rounded px-3 py-2 appearance-none pr-8 bg-white hover:bg-gray-50 cursor-pointer min-w-[150px]"
+              value={accountFilter}
+              onChange={e => setAccountFilter(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>{acc.nome}</option>
+              ))}
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700">Tipo Operação</label>
+          <div className="relative">
+            <select
+              className="border rounded px-3 py-2 appearance-none pr-8 bg-white hover:bg-gray-50 cursor-pointer min-w-[200px]"
+              value={opFilter}
+              onChange={e => setOpFilter(e.target.value)}
+            >
+              <option>Todas</option>
+              <option>Somente Receitas</option>
+              <option>Somente Despesas</option>
+              <option>Somente Aporte/Ret./Transf.</option>
+              <option>Despesas e Retiradas</option>
+              <option>Receitas e Aportes</option>
+              <option>Somente Aporte</option>
+              <option>Somente Retiradas</option>
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1 flex-1">
+          <label className="text-xs font-medium text-gray-700 invisible">Busca</label>
+          <input className="border rounded px-3 py-2 w-full" type="text" placeholder="Buscar cliente, histórico ou valor" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700 invisible">Ação</label>
+          <button
+            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors whitespace-nowrap"
+            onClick={openModal}
+          >
+            + Incluir
+          </button>
+        </div>
       </div>
 
       {/* Filtros e Abas */}
@@ -456,8 +540,8 @@ export default function Ledger() {
               <th className="p-2">Cliente</th>
               <th className="p-2">Compromisso</th>
               <th className="p-2">Histórico</th>
-              <th className="p-2">Receitas</th>
-              <th className="p-2">Despesas</th>
+              <th className="p-2 text-right">Receitas</th>
+              <th className="p-2 text-right">Despesas</th>
               <th className="p-2">Espécie</th>
             </tr>
           </thead>
@@ -481,6 +565,14 @@ export default function Ledger() {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="bg-gray-100 font-bold border-t-2">
+              <td className="p-2" colSpan={5}>TOTAIS ({filteredTxs.length} registros)</td>
+              <td className="p-2 text-right text-green-700">R$ {formatMoneyBr(filteredTotals.receitas)}</td>
+              <td className="p-2 text-right text-red-700">R$ {formatMoneyBr(filteredTotals.despesas)}</td>
+              <td className="p-2"></td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -539,6 +631,7 @@ export default function Ledger() {
             <h2 className="text-lg font-semibold mb-4">{modalTitle}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 1. Operação | Espécie */}
               <div>
                 <label className="block text-sm font-medium mb-1">Operação *</label>
                 <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => setFormOperacao(e.target.value as any)}>
@@ -549,6 +642,19 @@ export default function Ledger() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium mb-1">Espécie</label>
+                <select className="w-full border rounded px-3 py-2" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
+                  <option value="dinheiro">Dinheiro</option>
+                  <option value="pix">PIX</option>
+                  <option value="cartao">Cartão</option>
+                  <option value="boleto">Boleto</option>
+                  <option value="transferencia">Transferência</option>
+                  <option value="debito_automatico">Débito Automático</option>
+                </select>
+              </div>
+
+              {/* 2. Cliente */}
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Cliente *</label>
                 <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
                   <option value="">Selecione...</option>
@@ -556,6 +662,7 @@ export default function Ledger() {
                 </select>
               </div>
 
+              {/* 3. Grupo Compromisso | Compromisso */}
               <div>
                 <label className="block text-sm font-medium mb-1">Grupo Compromisso *</label>
                 <select className="w-full border rounded px-3 py-2" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
@@ -567,24 +674,27 @@ export default function Ledger() {
                 <label className="block text-sm font-medium mb-1">Compromisso *</label>
                 <select className="w-full border rounded px-3 py-2" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
                   <option value="">Selecione...</option>
-                  {commitments.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                  {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>
 
-              <div>
+              {/* 4. Histórico */}
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Histórico *</label>
                 <input className="w-full border rounded px-3 py-2" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
+              </div>
+
+              {/* 5. Detalhe | Nota Fiscal */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Detalhe</label>
+                <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Nota Fiscal</label>
                 <input className="w-full border rounded px-3 py-2" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Detalhe</label>
-                <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
-              </div>
-
+              {/* 6. Data Vencimento | Data Pagamento */}
               <div>
                 <label className="block text-sm font-medium mb-1">Data Vencimento</label>
                 <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
@@ -593,24 +703,13 @@ export default function Ledger() {
                 <label className="block text-sm font-medium mb-1">Data Pagamento</label>
                 <input type="date" className="w-full border rounded px-3 py-2" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
               </div>
+
+              {/* 7. Valor | Caixa */}
               <div>
                 <label className="block text-sm font-medium mb-1">Valor *</label>
                 <input type="number" step="0.01" className="w-full border rounded px-3 py-2" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Espécie</label>
-                <select className="w-full border rounded px-3 py-2" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="pix">PIX</option>
-                  <option value="transferencia">Transferência</option>
-                  <option value="deposito">Depósito</option>
-                  <option value="boleto">Boleto</option>
-                  <option value="cartao_credito">Cartão de Crédito</option>
-                  <option value="cartao_debito">Cartão de Débito</option>
-                  <option value="debito_automatico">Débito Automático</option>
-                </select>
-              </div>
-              <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Caixa Lançamento *</label>
                 <select className="w-full border rounded px-3 py-2" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
                   <option value="">Selecione...</option>

@@ -4,7 +4,7 @@ import { hasBackend } from '../lib/runtime'
 
 
 import { Icon } from '../components/ui/Icon'
-import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
@@ -46,6 +46,11 @@ export default function ScheduleControl() {
   const [modalDetalhes, setModalDetalhes] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item: any } | null>(null)
+  const [editValueModal, setEditValueModal] = useState<{ open: boolean, item: any, value: number } | null>(null)
+  const [editDateModal, setEditDateModal] = useState<{ open: boolean, item: any, date: string } | null>(null)
+  const [showUpdateScheduleModal, setShowUpdateScheduleModal] = useState(false)
+  const [pendingConfirmation, setPendingConfirmation] = useState<any>(null)
 
   // Carregar caixas e grupos
   useEffect(() => {
@@ -54,6 +59,16 @@ export default function ScheduleControl() {
       listCommitmentGroups().then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
     }
   }, [])
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (modal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'auto'
+    }
+    return () => { document.body.style.overflow = 'auto' }
+  }, [modal])
 
   // Carregar dados do Livro Financeiro (apenas Ativos/Agendados)
   useMemo(() => {
@@ -178,7 +193,8 @@ export default function ScheduleControl() {
         vencimentoDate: d,
         diasAtraso: diffDays,
         statusMessage: statusMessage,
-        tipo: s.agendamento?.tipo, // Opcional, se precisarmos saber
+        agendamento: s.agendamento, // Pass full object for modal checks
+        tipo: s.agendamento?.tipo,
         periodo: s.agendamento?.periodo
       }
     }).filter((r): r is NonNullable<typeof r> => r !== null)
@@ -365,6 +381,10 @@ export default function ScheduleControl() {
                               className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
                               onClick={(e) => handleSelect(e, r.id)}
                               onDoubleClick={() => openModal(r)}
+                              onContextMenu={(e) => {
+                                e.preventDefault()
+                                setContextMenu({ x: e.clientX, y: e.clientY, item: r })
+                              }}
                             >
                               <td className="p-2 truncate">
                                 <div>{r.vencimentoBr}</div>
@@ -422,6 +442,10 @@ export default function ScheduleControl() {
                       className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
                       onClick={(e) => handleSelect(e, r.id)}
                       onDoubleClick={() => openModal(r)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setContextMenu({ x: e.pageX, y: e.pageY, item: r })
+                      }}
                     >
                       <td className="p-2 truncate">
                         <div>{r.vencimentoBr}</div>
@@ -463,17 +487,23 @@ export default function ScheduleControl() {
               <div className="font-medium mb-4 text-lg border-b pb-2">Lançamento para o Livro Caixa</div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Row 1: Operação | Cliente */}
+                {/* Row 1: Operação | Espécie */}
                 <div>
                   <label className="text-xs block text-gray-600 font-medium">Operação</label>
                   <input className="w-full border rounded px-3 py-2 bg-gray-50 capitalize text-xs" value={modal.operacao} disabled />
                 </div>
                 <div>
+                  <label className="text-xs block text-gray-600 font-medium">Espécie</label>
+                  <input className="w-full border rounded px-3 py-2 bg-gray-50 capitalize text-xs" value={modal.especie} disabled />
+                </div>
+
+                {/* Row 2: Cliente (Full) */}
+                <div className="md:col-span-2">
                   <label className="text-xs block text-gray-600 font-medium">Cliente</label>
                   <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.cliente} disabled />
                 </div>
 
-                {/* Row 2: Grupo Compromisso | Compromisso */}
+                {/* Row 3: Grupo Compromisso | Compromisso */}
                 <div>
                   <label className="text-xs block text-gray-600 font-medium">Grupo Compromisso</label>
                   <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.grupoCompromisso} disabled />
@@ -483,42 +513,38 @@ export default function ScheduleControl() {
                   <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.compromisso} disabled />
                 </div>
 
-                {/* Row 3: Histórico | Nota Fiscal */}
-                <div>
+                {/* Row 4: Histórico (Full) */}
+                <div className="md:col-span-2">
                   <label className="text-xs block text-gray-600 font-medium">Histórico</label>
                   <input className="w-full border rounded px-3 py-2 text-xs" value={modalHistorico} onChange={e => setModalHistorico(e.target.value)} />
+                </div>
+
+                {/* Row 5: Detalhe | Nota Fiscal */}
+                <div>
+                  <label className="text-xs block text-gray-600 font-medium">Detalhe</label>
+                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalDetalhes} onChange={e => setModalDetalhes(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-xs block text-gray-600 font-medium">Nota Fiscal</label>
                   <input className="w-full border rounded px-3 py-2 text-xs" value={modalNotaFiscal} onChange={e => setModalNotaFiscal(e.target.value)} />
                 </div>
 
-                {/* Row 4: Detalhe */}
-                <div className="md:col-span-2">
-                  <label className="text-xs block text-gray-600 font-medium">Detalhe</label>
-                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalDetalhes} onChange={e => setModalDetalhes(e.target.value)} />
-                </div>
-
-                {/* Row 5: Data Vencimento | Data Lançamento */}
+                {/* Row 6: Data Vencimento | Data Lançamento */}
                 <div>
                   <label className="text-xs block text-gray-600 font-medium">Data Vencimento</label>
                   <input type="date" className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modalData} disabled />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Data Lançamento</label>
+                  <label className="text-xs block text-gray-600 font-medium">Data Pagamento</label>
                   <input type="date" className="w-full border rounded px-3 py-2 text-xs" value={modalDataLancamento} onChange={e => setModalDataLancamento(e.target.value)} />
                 </div>
 
-                {/* Row 6: Valor | Espécie | Caixa Lançamento */}
+                {/* Row 7: Valor | Caixa Lançamento */}
                 <div>
                   <label className="text-xs block text-gray-600 font-medium">Valor (R$)</label>
                   <input type="number" step="0.01" className="w-full border rounded px-3 py-2 font-semibold text-xs" value={modalValor} onChange={e => setModalValor(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Espécie</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 capitalize text-xs" value={modal.especie} disabled />
-                </div>
-                <div className="md:col-span-2">
                   <label className="text-xs block text-gray-600 font-medium">Caixa Lançamento</label>
                   <select className="w-full border rounded px-3 py-2 text-xs" value={modalContaId} onChange={e => setModalContaId(e.target.value)}>
                     <option value="">Selecione...</option>
@@ -551,6 +577,25 @@ export default function ScheduleControl() {
                     <button
                       className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 text-sm"
                       onClick={async () => {
+                        const originalValue = modal.despesa || modal.receita || 0
+
+                        // Check if value changed AND it is a fixed schedule (tipo === 'fixo')
+                        if (Math.abs(modalValor - originalValue) > 0.01 && modal.agendamento?.id && modal.agendamento?.tipo === 'fixo') {
+                          // Diferente do original e tem agendamento pai do tipo FIXO
+                          setPendingConfirmation({
+                            id: modal.id,
+                            valor: modalValor,
+                            data: modalDataLancamento,
+                            cuentaId: modalContaId,
+                            scheduleId: modal.agendamento.id,
+                            vencimento: modal.vencimento // Capture original due date
+                          })
+                          setShowConfirmModal(false)
+                          setShowUpdateScheduleModal(true)
+                          return
+                        }
+
+                        // Normal flow
                         if (hasBackend) {
                           try {
                             const { data, error } = await confirmProvision(modal.id, {
@@ -589,9 +634,200 @@ export default function ScheduleControl() {
                 </div>
               </div>
             )}
+
+            {/* Update Schedule Confirmation Modal */}
+            {showUpdateScheduleModal && (
+              <div className="absolute inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
+                <div className="bg-white border rounded shadow-lg p-6 w-[350px] text-center">
+                  <h3 className="font-semibold text-lg mb-4 text-gray-800">Atualizar Agendamento?</h3>
+                  <p className="text-sm text-gray-600 mb-6">O valor informado é diferente do previsto. Deseja atualizar o valor fixo para os próximos lançamentos deste agendamento?</p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                      onClick={async () => {
+                        // NÃO: Confirma apenas este, mantendo agendamento igual
+                        if (!pendingConfirmation) return
+
+                        // 1. Update this item's value first to ensure consistency/RPC success
+                        await updateFinancial(pendingConfirmation.id, { valor: pendingConfirmation.valor })
+
+                        // 2. Confirm
+                        const { data, error } = await confirmProvision(pendingConfirmation.id, {
+                          valor: pendingConfirmation.valor,
+                          data: pendingConfirmation.data,
+                          cuentaId: pendingConfirmation.cuentaId
+                        })
+
+                        if (error || (data && !data.success)) {
+                          alert('Erro ao confirmar: ' + (error?.message || data?.message))
+                        } else {
+                          setMsg('Lançamento confirmado (Agendamento mantido).')
+                        }
+                        setModal(null)
+                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                        setShowUpdateScheduleModal(false)
+                        setPendingConfirmation(null)
+                      }}
+                    >
+                      Não
+                    </button>
+                    <button
+                      className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 text-sm"
+                      onClick={async () => {
+                        // SIM: Atualiza agendamento e confirma este
+                        if (!pendingConfirmation) return
+
+                        const originalId = pendingConfirmation.id
+                        const originalDate = pendingConfirmation.vencimento
+                        const scheduleId = pendingConfirmation.scheduleId
+                        const newVal = pendingConfirmation.valor
+
+                        // 1. Update this item's value first (ensure consistent value for history)
+                        await updateFinancial(originalId, { valor: newVal })
+
+                        // 2. Confirm this provision (Status -> 2)
+                        const { data, error } = await confirmProvision(originalId, {
+                          valor: newVal,
+                          data: pendingConfirmation.data,
+                          cuentaId: pendingConfirmation.cuentaId
+                        })
+
+                        if (error || (data && !data.success)) {
+                          alert('Erro ao confirmar: ' + (error?.message || data?.message))
+                          return
+                        }
+
+                        // 3. Update Master Schedule (triggers DB regeneration)
+                        // We use updateSchedule directly to just update 'valor' on master.
+                        // Expectation: Trigger will regenerate future pending items.
+                        // Risk: Trigger might create a DUPLICATE pending item for the CURRENT month (originalDate).
+                        const { error: upErr } = await updateSchedule(scheduleId, { valor: newVal })
+
+                        if (upErr) {
+                          console.error('Erro ao atualizar agendamento:', upErr)
+                          alert('Lançamento confirmado, mas erro ao atualizar agendamento mestre: ' + upErr.message)
+                        } else {
+                          // 4. CLEANUP: Check if a duplicate pending item was created for the confirmed date
+                          const { data: dupItem } = await getFinancialItemByScheduleAndDate(scheduleId, originalDate)
+                          if (dupItem && dupItem.id !== originalId) {
+                            console.log('Detected duplicate pending item created by trigger. Deleting:', dupItem.id)
+                            await deleteFinancial(dupItem.id)
+                          }
+
+                          setMsg('Lançamento confirmado e Agendamento atualizado!')
+                        }
+
+                        setModal(null)
+                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                        setShowUpdateScheduleModal(false)
+                        setPendingConfirmation(null)
+                      }}
+                    >
+                      Sim
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
       }
-    </div >
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+          <div
+            className="fixed z-50 bg-white border rounded shadow-lg py-1 text-xs font-medium w-48"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
+              if (hasBackend) {
+                await updateFinancial(contextMenu.item.id, { situacao: 4 }) // 4 = Saltado/Cancelado
+                setContextMenu(null)
+                // Refresh
+                listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+              } else {
+                alert('Disponível apenas com backend')
+              }
+            }}>
+              <Icon name="skip" className="w-4 h-4 text-gray-500" />
+              Saltar Lançamento
+            </button>
+            <div className="border-t my-1"></div>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+              const val = contextMenu.item.valor_parcela ? Number(contextMenu.item.valor_parcela) : (contextMenu.item.receita || contextMenu.item.despesa || 0)
+              setEditValueModal({ open: true, item: contextMenu.item, value: val })
+              setContextMenu(null)
+            }}>
+              <Icon name="edit" className="w-4 h-4" />
+              Alterar Valor Previsto
+            </button>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+              const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
+              setEditDateModal({ open: true, item: contextMenu.item, date: d })
+              setContextMenu(null)
+            }}>
+              <Icon name="edit" className="w-4 h-4" />
+              Alterar Data Vencimento
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Edit Value Modal */}
+      {editValueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+            <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
+            <input
+              type="number"
+              className="w-full border rounded px-3 py-2 mb-4"
+              value={editValueModal.value}
+              onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
+            />
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
+              <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                if (hasBackend) {
+                  await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
+                  setEditValueModal(null)
+                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                } else {
+                  alert('Backend required')
+                }
+              }}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Date Modal */}
+      {editDateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+            <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
+            <input
+              type="date"
+              className="w-full border rounded px-3 py-2 mb-4"
+              value={editDateModal.date}
+              onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
+            />
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
+              <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                if (hasBackend) {
+                  await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
+                  setEditDateModal(null)
+                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                } else {
+                  alert('Backend required')
+                }
+              }}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

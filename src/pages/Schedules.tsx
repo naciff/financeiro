@@ -157,7 +157,13 @@ export default function Schedules() {
       const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
       // Valor total deve ser o valor original da compra, não a soma das parcelas arredondadas
       const valorTotal = Number(s.valor)
-      const concluido = new Date() > end
+
+      // Fix: Fixed schedules (recurrent) should VALIDATE TIME (never auto-conclude by date), only by status=2
+      // Variable schedules (installments) auto-conclude when the end date passes.
+      const isFixed = s.tipo === 'fixo'
+      const timeConcluded = new Date() > end
+      const concluido = isFixed ? false : timeConcluded
+
       const clienteNome = (typeof s.cliente === 'object' ? s.cliente?.nome : s.cliente) || (clientes.find(c => c.id === (s.favorecido_id || s.cliente_id))?.nome) || ''
       const caixaNome = (typeof s.caixa === 'object' ? s.caixa?.nome : s.caixa) || (contas.find(c => c.id === s.caixa_id)?.nome) || ''
       const caixaCor = (typeof s.caixa === 'object' ? s.caixa?.cor : null) || (contas.find(c => c.id === s.caixa_id) as any)?.cor || '#3b82f6'
@@ -194,7 +200,7 @@ export default function Schedules() {
         valor_total: valorTotal,
         valor_parcela: valorParcela,
         especie: s.especie,
-        status: s.situacao === 2 ? 'Concluído' : (concluido ? 'Concluído' : 'Ativo'),
+        status: (s.situacao === 2 || s.situacao === 3) ? 'Concluído' : (concluido ? 'Concluído' : 'Ativo'),
         operacao: s.operacao,
         tipo: s.tipo,
         caixa: caixaNome,
@@ -202,10 +208,12 @@ export default function Schedules() {
       }
     })
     const byTab = arr.filter(r => {
-      if (activeTab === 'concluidos') return r.status === 'Concluído'
+      const isConcluido = r.status === 'Concluído'
+      if (activeTab === 'concluidos') return isConcluido
       // Active tabs should NOT show concluded items
-      return r.operacao === activeTab && r.status !== 'Concluído'
+      return r.operacao === activeTab && !isConcluido
     })
+    // Debug log removed
     const byType = typeFilter ? byTab.filter(r => r.tipo === typeFilter) : byTab
     const byPeriod = periodFilter ? byType.filter(r => (r.tipo === 'variavel' ? 'determinado' : r.periodo) === periodFilter) : byType
     const filt = byPeriod.filter(r => [r.cliente, r.historico, r.especie, r.caixa, String(r.valor_total), String(r.valor_parcela)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
@@ -314,7 +322,7 @@ export default function Schedules() {
       }
     }
     load()
-  }, [])
+  }, [activeTab])
 
   useEffect(() => {
     const map: any = { despesa: 'despesa', receita: 'receita', retirada: 'retirada', aporte: 'aporte' }
@@ -616,6 +624,36 @@ export default function Schedules() {
     setShowForm('none'); resetForm()
   }
 
+  async function onReactivate(targetId?: string) {
+    const idToUse = typeof targetId === 'string' ? targetId : selectedId
+    if (!idToUse) return
+    const s = hasBackend ? remoteSchedules.find((x: any) => x.id === idToUse) : store.schedules.find(x => x.id === idToUse)
+    // Only reactivate if status is 2 (manually concluded/deactivated)
+    if (!s || s.situacao !== 2) {
+      setMsg('Apenas agendamentos cancelados/desativados manualmente podem ser reativados.')
+      setMsgType('error')
+      return // Don't proceed if it's auto-concluded by date
+    }
+
+    if (hasBackend) {
+      const { error } = await updateSched(selectedId, { situacao: 1 })
+      if (error) {
+        setMsg(`Erro ao reativar: ${error.message}`)
+        setMsgType('error')
+      } else {
+        setMsg('Agendamento reativado com sucesso')
+        setMsgType('success')
+        fetchRemoteSchedules()
+      }
+    } else {
+      // local store handling if needed
+      if (s) { s.situacao = 1; store.updateSchedule(s.id, s); }
+      setMsg('Agendamento reativado com sucesso')
+      setMsgType('success')
+    }
+    setTimeout(() => setMsg(''), 3000)
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Agendamentos</h1>
@@ -661,6 +699,11 @@ export default function Schedules() {
             <option value="determinado">Prazo Determinado</option>
           </select>
         </div>
+        {(search || typeFilter || periodFilter) && (
+          <button className="text-sm bg-gray-100 hover:bg-gray-200 border rounded px-3 py-2 text-gray-700" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter(''); setPage(1) }}>
+            Limpar filtros
+          </button>
+        )}
 
         {selectedIds.size > 1 && (
           <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
@@ -678,6 +721,12 @@ export default function Schedules() {
         <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onEditOpen} disabled={!selectedId} aria-label="Alterar">
           <Icon name="edit" className="w-4 h-4" /> Alterar
         </button>
+
+        {activeTab === 'concluidos' && selectedId && (
+          <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2" onClick={onReactivate} aria-label="Reativar">
+            <Icon name="undo" className="w-4 h-4" /> Reativar
+          </button>
+        )}
 
         <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
           <Icon name="trash" className="w-4 h-4" /> Excluir
@@ -1230,10 +1279,22 @@ export default function Schedules() {
             <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
               <Icon name="copy" className="w-4 h-4" /> Duplicar
             </button>
-            <div className="border-t my-1"></div>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => { onDeactivate(contextMenu.id); setContextMenu(null) }}>
-              <Icon name="x" className="w-4 h-4" /> Desativar Agendamento Selecionado
-            </button>
+            {activeTab !== 'concluidos' && (
+              <>
+                <div className="border-t my-1"></div>
+                <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => { onDeactivate(contextMenu.id); setContextMenu(null) }}>
+                  <Icon name="x" className="w-4 h-4" /> Desativar Agendamento Selecionado
+                </button>
+              </>
+            )}
+            {activeTab === 'concluidos' && (
+              <>
+                <div className="border-t my-1"></div>
+                <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onReactivate(contextMenu.id); setContextMenu(null) }}>
+                  <Icon name="undo" className="w-4 h-4" /> Reativar Agendamento Selecionado
+                </button>
+              </>
+            )}
           </div>
         </>
       )}

@@ -36,6 +36,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number) 
                         .select('valor_entrada, valor_saida, data_lancamento')
                         .gte('data_lancamento', from.toISOString())
                         .lte('data_lancamento', to.toISOString())
+                        .neq('operacao', 'transferencia') // Exclude transfers
 
                     if (!txsError && txsData) {
                         const realTotalPago = txsData.reduce((sum, tx) => sum + Number(tx.valor_saida || 0), 0)

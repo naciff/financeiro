@@ -9,7 +9,7 @@ export function Footer() {
     >
       <div className="mx-auto w-full max-w-6xl flex items-center justify-center relative">
         <span>@2026 ContaMestre</span>
-        <span className="absolute right-0">Versão 1.0.0</span>
+        <span className="absolute right-0">Versão {__APP_VERSION__}</span>
       </div>
     </footer>
   )
