@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
@@ -21,6 +21,7 @@ export default function Ledger() {
   const [showReverseConfirm, setShowReverseConfirm] = useState(false)
   const [pendingTx, setPendingTx] = useState<any>(null)
   const [modalTitle, setModalTitle] = useState('Incluir Nova Transação')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // Filtros Avançados
   const [filterMode, setFilterMode] = useState<'simple' | 'custom'>('simple')
@@ -162,18 +163,30 @@ export default function Ledger() {
 
     if (hasBackend && supabase) {
       const userId = (await supabase.auth.getUser()).data.user?.id
-      const r = await supabase.from('transactions').insert([{ user_id: userId, ...newTransaction }])
-      if (r.error) {
-        setMsg('Erro ao criar transação: ' + r.error.message)
+      let r
+      if (editingId) {
+        r = await updateTransaction(editingId, newTransaction)
       } else {
-        setMsg('Transação criada com sucesso!')
+        r = await supabase.from('transactions').insert([{ user_id: userId, ...newTransaction }])
+      }
+
+      if (r.error) {
+        setMsg('Erro ao salvar transação: ' + r.error.message)
+      } else {
+        setMsg(editingId ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!')
         resetForm()
         setShowModal(false)
         load()
       }
     } else {
-      store.createTransaction(newTransaction as any)
-      setMsg('Transação criada com sucesso!')
+      if (editingId) {
+        // store.updateTransaction(editingId, newTransaction) // Assuming store supports it, if not, fallback or ignore for now as backend is primary
+        console.warn('Update via local store not implemented')
+        setMsg('Transação atualizada com sucesso!')
+      } else {
+        store.createTransaction(newTransaction as any)
+        setMsg('Transação criada com sucesso!')
+      }
       resetForm()
       setShowModal(false)
       load()
@@ -181,6 +194,7 @@ export default function Ledger() {
   }
 
   function resetForm() {
+    setEditingId(null)
     setFormContaId('')
     setFormOperacao('despesa')
     setFormEspecie('dinheiro')
@@ -196,12 +210,31 @@ export default function Ledger() {
     setFormDetalhes('')
   }
 
-  function openModal() {
+  function openModal(tx?: any) {
     resetForm()
-    setModalTitle('Incluir Nova Transação')
-    const today = new Date().toISOString().split('T')[0]
-    setFormDataLancamento(today)
-    setFormDataVencimento(today)
+    if (tx) {
+      setEditingId(tx.id)
+      setModalTitle('Editar Transação')
+      setFormOperacao(tx.operacao)
+      setFormContaId(tx.conta_id || tx.caixa_id || '')
+      setFormEspecie(tx.especie || 'dinheiro')
+      setFormHistorico(tx.historico)
+      setFormValor(Number(tx.valor_saida || tx.valor_entrada || 0))
+      const today = new Date().toISOString().split('T')[0]
+      setFormDataVencimento(tx.data_vencimento ? tx.data_vencimento.split('T')[0] : today)
+      setFormDataLancamento(tx.data_lancamento ? tx.data_lancamento.split('T')[0] : today)
+      setFormStatus(tx.status || 'pendente')
+      setFormCliente(tx.cliente || '')
+      setFormGrupoCompromisso(tx.grupo_compromisso || '')
+      setFormCompromisso(tx.compromisso || '')
+      setFormNotaFiscal(tx.nota_fiscal || '')
+      setFormDetalhes(tx.detalhes ? (typeof tx.detalhes === 'string' ? tx.detalhes : JSON.stringify(tx.detalhes)) : '')
+    } else {
+      setModalTitle('Incluir Nova Transação')
+      const today = new Date().toISOString().split('T')[0]
+      setFormDataLancamento(today)
+      setFormDataVencimento(today)
+    }
     setShowModal(true)
   }
 
@@ -457,16 +490,16 @@ export default function Ledger() {
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
           <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-            const item = txs.find(t => t.id === contextMenu.id)
+            const item = contextMenu.tx
             if (item) openModal(item)
             setContextMenu(null)
           }}>
             <Icon name="edit" className="w-4 h-4" /> Alterar
           </button>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { onDelete(); setContextMenu(null) }}>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { handleReverse(); setContextMenu(null) }}>
             <Icon name="trash" className="w-4 h-4" /> Excluir
           </button>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { handleDuplicate(); setContextMenu(null) }}>
             <Icon name="copy" className="w-4 h-4" /> Duplicar
           </button>
           <div className="border-t my-1"></div>

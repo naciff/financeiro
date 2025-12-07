@@ -773,7 +773,7 @@ export default function Schedules() {
                             const r = await (await import('../services/db')).searchClients(v)
                             if (!r.error && r.data) setClientes(r.data as any)
                           } else {
-                            setClients(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
+                            setClientes(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
                           }
                         }
                       }} />
@@ -1196,10 +1196,9 @@ export default function Schedules() {
           isOpen={showDeleteConfirm}
           title="Excluir Agendamento"
           onConfirm={confirmDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
-        >
-          Tem certeza que deseja excluir este agendamento?
-        </ConfirmModal>
+          onClose={() => setShowDeleteConfirm(false)}
+          message="Tem certeza que deseja excluir este agendamento?"
+        />
       )}
 
       {showDeactivateConfirm && (
@@ -1207,10 +1206,9 @@ export default function Schedules() {
           isOpen={showDeactivateConfirm}
           title="Desativar Agendamento"
           onConfirm={confirmDeactivate}
-          onCancel={() => { setShowDeactivateConfirm(false); setDeactivateId(null) }}
-        >
-          Tem certeza que deseja desativar este agendamento? Os lançamentos futuros serão cancelados.
-        </ConfirmModal>
+          onClose={() => { setShowDeactivateConfirm(false); setDeactivateId(null) }}
+          message="Tem certeza que deseja desativar este agendamento? Os lançamentos futuros serão cancelados."
+        />
       )}
 
       <AlertModal

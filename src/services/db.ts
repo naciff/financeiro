@@ -172,6 +172,13 @@ export async function createTransaction(payload: any) {
   return supabase.from('transactions').insert([{ user_id: userId, ...payload }]).select('id').single()
 }
 
+export async function updateTransaction(id: string, payload: any) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  const { id: _, ...rest } = payload // Ensure ID is not in payload
+  return supabase.from('transactions').update(rest).eq('id', id).eq('user_id', userId as any).select('id').single()
+}
+
 export async function listClients() {
   if (!supabase) return { data: [], error: null }
   return supabase.from('clients').select('id,nome,documento').order('nome', { ascending: true })

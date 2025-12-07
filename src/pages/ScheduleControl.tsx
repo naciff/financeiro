@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
-import { ConfirmModal } from '../components/ui/ConfirmModal'
+
+
 import { Icon } from '../components/ui/Icon'
 import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
@@ -145,6 +146,16 @@ export default function ScheduleControl() {
 
       // Mapeamento de campos
       // id_livro é a PK, usamos como id
+
+      // Parse installment info from historico if available "Description (1/3)"
+      const match = (s.historico || '').match(/\((\d+)\/(\d+)\)/)
+      let parcela = 1
+      let totalParcelas = 1
+      if (match) {
+        parcela = parseInt(match[1], 10)
+        totalParcelas = parseInt(match[2], 10)
+      }
+
       return {
         id: s.id,
         operacao: s.operacao,
@@ -162,8 +173,8 @@ export default function ScheduleControl() {
         especie: s.especie || '',
         receita: isReceita ? valor : 0,
         despesa: !isReceita ? valor : 0,
-        parcela: s.parcela_atual || 1,
-        totalParcelas: s.total_parcelas || 1,
+        parcela: parcela,
+        totalParcelas: totalParcelas,
         vencimentoDate: d,
         diasAtraso: diffDays,
         statusMessage: statusMessage,
@@ -250,14 +261,14 @@ export default function ScheduleControl() {
 
       <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto items-center">
         {buttons.map(b => (
-          <button key={b.id} className={`px - 3 py - 2 rounded border transition - colors duration - 300 text - xs md: text - sm whitespace - nowrap ${filter === b.id ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'} `} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
+          <button key={b.id} className={`px-3 py-2 rounded border transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${filter === b.id ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'}`} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
         ))}
         {selectedIds.size > 1 && (
           <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
             <div className="text-[10px] font-bold text-green-800 uppercase border-b border-green-300 leading-tight mb-0.5">
               SOMA ITENS ({selectedIds.size})
             </div>
-            <div className={`text - sm font - bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading - tight`}>
+            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
               {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
             </div>
           </div>
@@ -351,14 +362,14 @@ export default function ScheduleControl() {
                           {groupItems.map(r => (
                             <tr
                               key={r.id}
-                              className={`border - t hover: bg - gray - 50 cursor - pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''} `}
+                              className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
                               onClick={(e) => handleSelect(e, r.id)}
                               onDoubleClick={() => openModal(r)}
                             >
                               <td className="p-2 truncate">
                                 <div>{r.vencimentoBr}</div>
                                 {r.statusMessage && (
-                                  <div className={`text - xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font - medium`}>
+                                  <div className={`text-xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font-medium`}>
                                     {r.statusMessage}
                                   </div>
                                 )}
@@ -408,14 +419,14 @@ export default function ScheduleControl() {
                   {rows.data.map(r => (
                     <tr
                       key={r.id}
-                      className={`border - t hover: bg - gray - 50 cursor - pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''} `}
+                      className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
                       onClick={(e) => handleSelect(e, r.id)}
                       onDoubleClick={() => openModal(r)}
                     >
                       <td className="p-2 truncate">
                         <div>{r.vencimentoBr}</div>
                         {r.statusMessage && (
-                          <div className={`text - xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font - medium`}>
+                          <div className={`text-xs ${r.diasAtraso > 0 ? 'text-red-600' : 'text-orange-600'} font-medium`}>
                             {r.statusMessage}
                           </div>
                         )}
