@@ -250,7 +250,7 @@ export default function Accounts() {
             {accounts
               .sort((a, b) => a.nome.localeCompare(b.nome))
               .map(a => (
-                <tr key={a.id} className={`border-t ${a.ativo === false ? 'text-gray-400' : 'text-black'}`}>
+                <tr key={a.id} className={`border-t cursor-pointer hover:bg-gray-50 ${a.ativo === false ? 'text-gray-400' : 'text-black'}`} onDoubleClick={() => openEdit(a)}>
                   <td className="p-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: a.cor || '#000000' }}></div>

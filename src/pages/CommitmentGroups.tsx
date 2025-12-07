@@ -129,7 +129,7 @@ export default function CommitmentGroups() {
                     </thead>
                     <tbody>
                       {pageItems.map(g => (
-                        <tr key={g.id} className="border-t">
+                        <tr key={g.id} className="border-t cursor-pointer hover:bg-gray-50" onDoubleClick={() => { setEditId(g.id); setNome(g.nome); setTipo((g.operacao as any) || 'despesa'); setShowForm(true) }}>
                           <td className="p-2"><input type="checkbox" checked={!!selected[g.id]} onChange={e => setSelected(s => ({ ...s, [g.id]: e.target.checked }))} aria-label={`Selecionar ${g.nome}`} /></td>
                           <td className="p-2">{g.nome}</td>
                           <td className="p-2">

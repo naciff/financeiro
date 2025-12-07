@@ -161,7 +161,7 @@ export default function Commitments() {
                     </thead>
                     <tbody>
                       {groupItems.map(c => (
-                        <tr key={c.id} className="border-t hover:bg-gray-50">
+                        <tr key={c.id} className="border-t hover:bg-gray-50 cursor-pointer" onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setGrupoId(c.grupo_id); setIr((c as any).ir || false); setShowForm(true) }}>
                           <td className="p-2 pl-8">{c.nome}</td>
                           <td className="p-2 text-center">{(c as any).ir ? 'Sim' : ''}</td>
                           <td className="p-2">

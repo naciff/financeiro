@@ -4,9 +4,16 @@ import { Footer } from '../components/layout/Footer'
 import { Header } from '../components/layout/Header'
 import { Icon } from '../components/ui/Icon'
 import { useState } from 'react'
+import { CalculatorModal } from '../components/modals/CalculatorModal'
+import { TransferModal } from '../components/modals/TransferModal'
+import { TransactionModal } from '../components/modals/TransactionModal'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showCalculator, setShowCalculator] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
+  const [showTransaction, setShowTransaction] = useState(false)
+
   const nav = [
     { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
     { to: '/calendar', label: 'Calendário', icon: 'calendar' },
@@ -33,6 +40,31 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
       <main className="flex-1 p-6 pb-20 mt-12 md:mt-0 relative">
         <div className="hidden md:flex items-center gap-4 absolute top-4 right-6 text-sm text-gray-700">
+
+          <div className="flex items-center gap-2 border-r pr-4 mr-2">
+            <button
+              className="p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors"
+              title="Calculadora"
+              onClick={() => setShowCalculator(true)}
+            >
+              <Icon name="calculator" className="w-5 h-5" />
+            </button>
+            <button
+              className="p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors"
+              title="Incluir Lançamento (Livro Caixa)"
+              onClick={() => setShowTransaction(true)}
+            >
+              <Icon name="add" className="w-5 h-5" />
+            </button>
+            <button
+              className="p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors"
+              title="Transferência"
+              onClick={() => setShowTransfer(true)}
+            >
+              <Icon name="transfer" className="w-5 h-5" />
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
             <Icon name="calendar-primary" className="w-5 h-5" />
             <span>{(() => {
@@ -59,6 +91,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+
+      {showCalculator && <CalculatorModal onClose={() => setShowCalculator(false)} />}
+      {showTransfer && <TransferModal onClose={() => setShowTransfer(false)} />}
+      {showTransaction && <TransactionModal onClose={() => setShowTransaction(false)} />}
     </div>
   )
 }

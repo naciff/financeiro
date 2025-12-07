@@ -75,10 +75,25 @@ export async function listSchedules(limit = 200, options?: { includeConcluded?: 
   return query.order('created_at', { ascending: false }).limit(limit)
 }
 
+export async function checkScheduleDependencies(scheduleId: string) {
+  if (!supabase) return { count: 0 }
+  const { count, error } = await supabase
+    .from('financials')
+    .select('*', { count: 'exact', head: true })
+    .eq('id_agendamento', scheduleId)
+    .eq('situacao', 2) // 2 = Confirmado/Pago
+
+  if (error) {
+    console.error('Error checking dependencies:', error)
+    return { count: 0 }
+  }
+  return { count: count || 0 }
+}
+
 export async function updateSchedule(id: string, payload: any) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('schedules').update({ ...payload }).eq('id', id).eq('user_id', userId as any).select('id').single()
+  return supabase.from('schedules').delete().eq('id', id).eq('user_id', userId as any)
 }
 
 export async function deleteSchedule(id: string) {
@@ -87,9 +102,52 @@ export async function deleteSchedule(id: string) {
   return supabase.from('schedules').delete().eq('id', id).eq('user_id', userId as any)
 }
 
+export async function deactivateSchedule(id: string) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.rpc('fn_deactivate_schedule', { p_schedule_id: id })
+}
+
 export async function listTransactions(limit = 50) {
   if (!supabase) return { data: [], error: null }
   return supabase.from('transactions').select('*').order('data_lancamento', { ascending: false }).limit(limit)
+}
+
+export async function listFinancials(options?: { status?: number }) {
+  if (!supabase) return { data: [], error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  let query = supabase.from('financials')
+    .select(`
+    *,
+    caixa: caixa_id(id, nome, cor),
+    cliente: favorecido_id(id, nome),
+    agendamento: id_agendamento(
+      id,
+      compromisso: compromisso_id(id, nome),
+      grupo: grupo_compromisso_id(id, nome)
+    )
+      `)
+    .eq('user_id', userId as any)
+
+  if (options?.status) {
+    query = query.eq('situacao', options.status)
+  }
+
+  // Order by due date asc (oldest first)
+  return query.order('data_vencimento', { ascending: true })
+}
+
+export async function confirmProvision(itemId: string, info: { valor: number, data: string, cuentaId: string }) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  return supabase.rpc('fn_confirm_ledger_item', {
+    p_item_id: itemId,
+    p_user_id: userId,
+    p_valor_pago: info.valor,
+    p_data_pagamento: info.data,
+    p_conta_id: info.cuentaId
+  })
 }
 
 export async function payTransaction(txId: string, contaId: string, amount: number, date?: string) {
@@ -100,6 +158,12 @@ export async function payTransaction(txId: string, contaId: string, amount: numb
 export async function receiveTransaction(txId: string, contaId: string, amount: number, date?: string) {
   if (!supabase) return { data: null, error: null }
   return supabase.rpc('fn_receive', { tx_id: txId, conta: contaId, amount, d: date ?? null })
+}
+
+export async function reverseTransaction(txId: string) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.rpc('fn_reverse_ledger_item', { p_tx_id: txId, p_user_id: userId })
 }
 
 export async function createTransaction(payload: any) {
@@ -115,7 +179,7 @@ export async function listClients() {
 
 export async function searchClients(term: string, limit = 10) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('clients').select('id,nome').ilike('nome', `%${term}%`).order('nome').limit(limit)
+  return supabase.from('clients').select('id,nome').ilike('nome', `% ${term} % `).order('nome').limit(limit)
 }
 
 export async function createClient(payload: { nome: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string }) {

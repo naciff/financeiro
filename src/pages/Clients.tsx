@@ -5,7 +5,7 @@ import { useAppStore } from '../store/AppStore'
 
 export default function Clients() {
   const store = useAppStore()
-  const [items, setItems] = useState<Array<{id:string;nome:string}>>([])
+  const [items, setItems] = useState<Array<{ id: string; nome: string }>>([])
   const [showForm, setShowForm] = useState(false)
   const [nome, setNome] = useState('')
   const [doc, setDoc] = useState('')
@@ -79,12 +79,12 @@ export default function Clients() {
             </thead>
             <tbody>
               {items.map((c: any) => (
-                <tr key={c.id} className="border-t">
+                <tr key={c.id} className="border-t cursor-pointer hover:bg-gray-50" onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }}>
                   <td className="p-2">{c.nome}</td>
                   <td className="p-2">{c.documento || ''}</td>
                   <td className="p-2">
                     <button className="px-2 py-1 rounded border hover:bg-gray-50 mr-2" onClick={() => { setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }} aria-label={`Editar ${c.nome}`}>Editar</button>
-                    <button className="px-2 py-1 rounded border hover:bg-gray-50" onClick={async () => { if (!confirm('Confirma exclusão?')) return; if (hasBackend) await deleteClient(c.id); else setItems(prev => prev.filter((x:any)=>x.id!==c.id)); load() }} aria-label={`Excluir ${c.nome}`}>Excluir</button>
+                    <button className="px-2 py-1 rounded border hover:bg-gray-50" onClick={async () => { if (!confirm('Confirma exclusão?')) return; if (hasBackend) await deleteClient(c.id); else setItems(prev => prev.filter((x: any) => x.id !== c.id)); load() }} aria-label={`Excluir ${c.nome}`}>Excluir</button>
                   </td>
                 </tr>
               ))}

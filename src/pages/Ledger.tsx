@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
@@ -146,7 +146,7 @@ export default function Ledger() {
     const newTransaction: any = {
       conta_id: formContaId,
       operacao: formOperacao,
-      // especie: formEspecie, // Removed because column missing in DB
+      especie: formEspecie,
       historico: formHistorico,
       data_vencimento: formDataVencimento || formDataLancamento,
       data_lancamento: formDataLancamento,
@@ -158,11 +158,6 @@ export default function Ledger() {
       compromisso: formCompromisso,
       nota_fiscal: formNotaFiscal,
       detalhes: formDetalhes
-    }
-
-    // Only add especie if local store (or if we fix db schema later)
-    if (!hasBackend) {
-      newTransaction.especie = formEspecie
     }
 
     if (hasBackend && supabase) {
@@ -259,11 +254,11 @@ export default function Ledger() {
 
     try {
       if (hasBackend && supabase) {
-        if (scheduleId) {
-          await updateSchedule(scheduleId, { situacao: 1 })
-        }
-        const { error } = await supabase.from('transactions').delete().eq('id', tx.id)
+        // Use RPC for safe reversal (handles livro_financeiro)
+        const { data, error } = await reverseTransaction(tx.id)
+
         if (error) throw error
+        if (data && !data.success) throw new Error(data.message)
 
         await load()
         setMsg('Transação estornada com sucesso')
@@ -430,7 +425,7 @@ export default function Ledger() {
               <th className="p-2">Histórico</th>
               <th className="p-2">Receitas</th>
               <th className="p-2">Despesas</th>
-              <th className="p-2">Ações</th>
+              <th className="p-2">Espécie</th>
             </tr>
           </thead>
           <tbody>
@@ -446,15 +441,9 @@ export default function Ledger() {
                 <td className="p-2">{tx.cliente || '-'}</td>
                 <td className="p-2">{tx.compromisso || '-'}</td>
                 <td className="p-2">{tx.historico}</td>
-                <td className="p-2 text-green-600 font-medium">R$ {Number(tx.valor_entrada).toFixed(2)}</td>
-                <td className="p-2 text-red-600 font-medium">R$ {Number(tx.valor_saida).toFixed(2)}</td>
-                <td className="p-2">
-                  {tx.operacao === 'despesa' || tx.operacao === 'retirada' ? (
-                    <button className="px-3 py-1 bg-black text-white rounded" onClick={(e) => { e.stopPropagation(); onPay(tx) }}>Pagar</button>
-                  ) : tx.operacao === 'receita' || tx.operacao === 'aporte' ? (
-                    <button className="px-3 py-1 bg-green-600 text-white rounded" onClick={(e) => { e.stopPropagation(); onReceive(tx) }}>Receber</button>
-                  ) : null}
-                </td>
+                <td className="p-2 text-green-600 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${Number(tx.valor_entrada).toFixed(2)}` : ''}</td>
+                <td className="p-2 text-red-600 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${Number(tx.valor_saida).toFixed(2)}` : ''}</td>
+                <td className="p-2">{tx.especie ? (tx.especie.charAt(0).toUpperCase() + tx.especie.slice(1).replace('_', ' ')) : '-'}</td>
               </tr>
             ))}
           </tbody>

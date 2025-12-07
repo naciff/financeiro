@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
-import { listSchedules, listAccounts, listCommitmentGroups, createTransaction, updateSchedule } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
@@ -52,9 +52,10 @@ export default function ScheduleControl() {
     }
   }, [])
 
+  // Carregar dados do Livro Financeiro (apenas Ativos/Agendados)
   useMemo(() => {
     if (hasBackend) {
-      listSchedules().then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+      listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
     }
   }, [])
 
@@ -62,7 +63,7 @@ export default function ScheduleControl() {
   useMemo(() => {
     function refresh() {
       if (hasBackend) {
-        listSchedules().then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
       }
     }
     refresh()
@@ -72,7 +73,11 @@ export default function ScheduleControl() {
 
 
   const rows = useMemo(() => {
-    const src = hasBackend ? remote : store.schedules
+    // Se estiver usando store local, não temos tabela livro_financeiro, então fallback ou vazio?
+    // User pediu para usar a tabela nova. Vamos assumir backend apenas para essa feature ou adaptar.
+    // Como a migration é backend only, store.schedules não vai funcionar aqui.
+    // Vamos usar 'remote' apenas.
+    const src = remote
     const now = new Date()
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
@@ -92,69 +97,7 @@ export default function ScheduleControl() {
       }
     }
 
-    // Função para expandir agendamentos fixos em múltiplas ocorrências
-    function expandFixedSchedules(schedules: any[]): any[] {
-      const expanded: any[] = []
-      const filterEndDate = getFilterEndDate()
-
-      schedules.forEach((s: any) => {
-        // Logica para itens fixos (mantida)
-        if (s.tipo === 'fixo' && s.situacao !== 2) {
-          const baseDate = new Date(s.proxima_vencimento)
-          const incrementMonths = s.periodo === 'mensal' ? 1 : (s.periodo === 'semestral' ? 6 : 12)
-
-          let occurrence = 0
-          let currentDate = new Date(baseDate)
-
-          while (currentDate <= filterEndDate) {
-            expanded.push({
-              ...s,
-              id: occurrence === 0 ? s.id : `${s.id}_${occurrence}`,
-              proxima_vencimento: currentDate.toISOString().split('T')[0],
-              _isExpanded: occurrence > 0,
-              _originalId: s.id,
-              _occurrence: occurrence
-            })
-            occurrence++
-            currentDate = new Date(baseDate)
-            currentDate.setMonth(currentDate.getMonth() + (incrementMonths * occurrence))
-          }
-        }
-        // Logica para itens variáveis com parcelas > 1
-        else if (s.tipo === 'variavel' && (s.parcelas || 1) > 1 && s.situacao !== 2) {
-          const baseDate = new Date(s.proxima_vencimento)
-          const totalParcelas = s.parcelas
-
-          for (let i = 0; i < totalParcelas; i++) {
-            const currentDate = new Date(baseDate)
-            currentDate.setMonth(currentDate.getMonth() + i)
-
-            // Só adiciona se estiver dentro do range de interesse (opcional, mas bom para performance)
-            // Mas como é um array finito, podemos adicionar tudo ou filtrar depois. 
-            // O filtro 'within' depois vai limpar. 
-            // Mas para garantir que apareça nos filtros de longo prazo ("12 meses"), geramos todos.
-
-            expanded.push({
-              ...s,
-              id: i === 0 ? s.id : `${s.id}_p${i}`,
-              proxima_vencimento: currentDate.toISOString().split('T')[0],
-              _isExpanded: i > 0,
-              _originalId: s.id,
-              _parcelaIndex: i + 1 // Para mostrar 1/3, 2/3 se quisermos no futuro
-            })
-          }
-        }
-        else {
-          expanded.push(s)
-        }
-      })
-
-      return expanded
-    }
-
-    // Expandir agendamentos fixos ANTES de processar
-    const expandedSource = expandFixedSchedules(src)
-
+    // Filtro de data
     function within(d: Date) {
       switch (filter) {
         case 'vencidos': return d <= now
@@ -167,30 +110,28 @@ export default function ScheduleControl() {
         case 'fimAno': { const e = new Date(now.getFullYear(), 11, 31); return d > now && d <= e }
       }
     }
-    const data = expandedSource.map((s: any) => {
-      // Parse database date string (YYYY-MM-DD) directly to avoid timezone issues
-      const [y, m, d_str] = s.proxima_vencimento.split('T')[0].split('-').map(Number)
+
+    const data = src.map((s: any) => {
+      // Usar data_vencimento do livro financeiro
+      const vencimentoIso = s.data_vencimento
+      if (!vencimentoIso) return null; // Skip invalid rows
+
+      const parts = vencimentoIso.split('T')[0].split('-')
+      if (parts.length < 3) return null;
+
+      const [y, m, d_str] = parts.map(Number)
 
       const today = new Date()
-      // Create today UTC midnight
       const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
-
-      // Create due date UTC midnight using raw values (month is 0-indexed in Date.UTC)
       const utcDue = Date.UTC(y, m - 1, d_str)
-
-      // Calculate difference in days
       const msPerDay = 1000 * 60 * 60 * 24
       const diffTime = utcToday - utcDue
       const diffDays = Math.floor(diffTime / msPerDay)
 
-      // Construct local date object for display/sorting if needed (careful with display)
-      // For sorting/object, we can use the same parsing logic or keep ISO string
-      const d = new Date(y, m - 1, d_str) // Local date 00:00
+      const d = new Date(y, m - 1, d_str)
 
-      const qtd = s.parcelas || 1
-      // Para itens variáveis, mostrar valor mensal (total / parcelas)
-      // Para itens fixos, mostrar o valor total
-      const valorParcela = s.tipo === 'fixo' ? Number(s.valor) : Number(s.valor) / qtd
+      // Valor vem direto do livro financeiro
+      const valor = Number(s.valor)
       const isReceita = s.operacao === 'receita' || s.operacao === 'aporte'
 
       let statusMessage = ''
@@ -200,48 +141,38 @@ export default function ScheduleControl() {
         statusMessage = 'Vencimento Hoje...'
       }
 
+      // Mapeamento de campos
+      // id_livro é a PK, usamos como id
       return {
         id: s.id,
         operacao: s.operacao,
-        vencimento: s.proxima_vencimento, // mantém formato ISO para ordenação
-        vencimentoBr: toBr(s.proxima_vencimento),
-        caixa: s.caixa?.nome || s.nome_caixa || '', // buscar pelo relacionamento ou campo direto
+        vencimento: vencimentoIso,
+        vencimentoBr: toBr(vencimentoIso),
+        caixa: s.caixa?.nome || '',
         caixaId: s.caixa_id || '',
-        cliente: s.cliente?.nome || s.nome_cliente || s.cliente || '', // múltiplas formas de buscar
-        compromisso: s.compromisso?.nome || s.nome_compromisso || s.compromisso || '',
-        grupoCompromisso: s.grupo_compromisso?.nome || '',
-        grupoCompromissoId: s.grupo_compromisso_id || '',
+        cliente: s.cliente?.nome || '',
+        compromisso: s.agendamento?.compromisso?.nome || '',
+        grupoCompromisso: s.agendamento?.grupo?.nome || '',
+        grupoCompromissoId: s.agendamento?.grupo?.id || '',
         historico: s.historico || '',
-        notaFiscal: s.nota_fiscal || '',
-        detalhes: s.detalhes || '',
+        notaFiscal: '', // Não temos NF no livro financeiro ainda? Podemos puxar do agendamento se quiser, mas usually é na transação
+        detalhes: '',
         especie: s.especie || '',
-        receita: isReceita ? valorParcela : 0,
-        despesa: !isReceita ? valorParcela : 0,
-        parcela: qtd,
+        receita: isReceita ? valor : 0,
+        despesa: !isReceita ? valor : 0,
+        parcela: 1, // Já está expandido
         vencimentoDate: d,
         diasAtraso: diffDays,
         statusMessage: statusMessage,
-        tipo: s.tipo,
-        periodo: s.periodo,
-        // We already have 'parcela: qtd' (which is s.parcelas || 1), but let's keep original too if needed or rely on 'parcela'
-        // The modal uses 'modal.parcelas'. In map above: const qtd = s.parcelas || 1; return { ... parcela: qtd }
-        // The confirmation logic uses 'Number(modal.parcelas || 1)'.
-        // So 'parcelas' on modal comes from 'parcela' on this object if we passed it?
-        // Wait, openModal(item) sets modal to item.
-        // item has 'parcela'.
-        // logic uses 'modal.parcelas'.
-        // So we should map 'parcelas: s.parcelas' explicitly or ensure logic uses 'modal.parcela'.
-        // Logic: const parcelas = Number(modal.parcelas || 1)
-        // If modal has 'parcela' (from line 211) but not 'parcelas', then 'modal.parcelas' is undefined.
-        // So 'Number(undefined || 1)' is 1. This might be fine for calculation but avoiding confusion is better.
-        // Let's add 'parcelas' explicitly.
-        parcelas: s.parcelas
+        tipo: s.agendamento?.tipo, // Opcional, se precisarmos saber
+        periodo: s.agendamento?.periodo
       }
-    }).filter(r => within(new Date(r.vencimento)))
-      .filter(r => !filterCaixa || r.caixaId === filterCaixa) // Filtro por Caixa
-      .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo) // Filtro por Grupo
+    }).filter((r): r is NonNullable<typeof r> => r !== null)
+      .filter(r => within(new Date(r.vencimento)))
+      .filter(r => !filterCaixa || r.caixaId === filterCaixa)
+      .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo)
       .filter(r => [r.cliente, r.historico, r.compromisso].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
-      .sort((a, b) => a.vencimentoDate.getTime() - b.vencimentoDate.getTime()) // ordenar do mais antigo para o mais recente
+      .sort((a, b) => a.vencimentoDate.getTime() - b.vencimentoDate.getTime())
 
     // Calcular totais
     const totalReceitas = data.reduce((sum, r) => sum + r.receita, 0)
@@ -609,144 +540,35 @@ export default function ScheduleControl() {
                     <button
                       className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 text-sm"
                       onClick={async () => {
-                        console.log('Botão Sim clicado')
-                        const oper = modal.operacao || 'despesa'
-                        const isDespesa = oper === 'despesa' || oper === 'retirada'
-                        console.log('Operação:', oper, 'IsDespesa:', isDespesa)
-
-                        const trx = isDespesa
-                          ? {
-                            conta_id: modalContaId,
-                            operacao: oper as any,
-                            historico: modalHistorico,
-                            nota_fiscal: modalNotaFiscal,
-                            detalhes: modalDetalhes,
-                            data_lancamento: modalDataLancamento,
-                            data_vencimento: modalData,
-                            valor_entrada: 0,
-                            valor_saida: modalValor,
-                            status: 'pago' as const,
-                            cliente: modal.cliente,
-                            compromisso: modal.compromisso
-                          }
-                          : {
-                            conta_id: modalContaId,
-                            operacao: oper as any,
-                            historico: modalHistorico,
-                            nota_fiscal: modalNotaFiscal,
-                            detalhes: modalDetalhes,
-                            data_lancamento: modalDataLancamento,
-                            data_vencimento: modalData,
-                            valor_entrada: modalValor,
-                            valor_saida: 0,
-                            status: 'recebido' as const,
-                            cliente: modal.cliente,
-                            compromisso: modal.compromisso
-                          }
-
-                        console.log('Transaction payload:', trx)
-
                         if (hasBackend) {
                           try {
-                            console.log('Enviando para backend...')
-                            const { data, error } = await createTransaction(trx)
-                            console.log('Resultado createTransaction:', { data, error })
+                            const { data, error } = await confirmProvision(modal.id, {
+                              valor: modalValor,
+                              data: modalDataLancamento,
+                              cuentaId: modalContaId
+                            })
 
                             if (error) {
-                              alert('Erro ao criar lançamento: ' + error.message)
-                              console.error('Erro transaction:', error)
+                              alert('Erro de comunicação: ' + error.message)
                               return
                             }
 
-                            const isFixo = modal.tipo === 'fixo'
-                            const isVariavel = modal.tipo === 'variavel'
-                            const parcelas = Number(modal.parcelas || 1)
-
-                            // Update comum para preservar alterações de valor/histórico/detalhes no agendamento futuro
-                            const commonUpdates = {
-                              valor: modalValor,
-                              historico: modalHistorico,
-                              nota_fiscal: modalNotaFiscal,
-                              detalhes: modalDetalhes,
-                              caixa_id: modalContaId || null
+                            // Check RPC application-level error
+                            if (data && !data.success) {
+                              alert('Erro ao confirmar: ' + data.message)
+                              return
                             }
 
-                            if (isFixo) {
-                              // Fixo: Mantém, joga para próximo mês e atualiza dados
-                              const nextDate = new Date(modalData)
-                              const increment = modal.periodo === 'anual' ? 12 : (modal.periodo === 'semestral' ? 6 : 1)
-                              nextDate.setMonth(nextDate.getMonth() + increment)
-                              await updateSchedule(modal.id, {
-                                ...commonUpdates,
-                                proxima_vencimento: nextDate.toISOString().split('T')[0]
-                              })
-                            } else if (isVariavel && parcelas > 1) {
-                              // Variavel Parcelado: Decrementa parcela, joga para próximo mês e atualiza dados
-                              const nextDate = new Date(modalData)
-                              nextDate.setMonth(nextDate.getMonth() + 1)
-                              await updateSchedule(modal.id, {
-                                ...commonUpdates,
-                                proxima_vencimento: nextDate.toISOString().split('T')[0],
-                                parcelas: parcelas - 1
-                              })
-                            } else {
-                              // Variavel Único (ou última parcela): Finaliza
-                              await updateSchedule(modal.id, { situacao: 2, parcelas: 0 })
-                            }
-
-                            const r = await listSchedules()
-                            if (!r.error && r.data) setRemote(r.data as any)
-
-                            // Success only after await completes validation
+                            setMsg('Lançamento confirmado com sucesso!')
                             setShowConfirmModal(false)
                             setModal(null)
-                            setMsg('Lançamento confirmado com sucesso')
-                            setTimeout(() => setMsg(''), 2500)
-
-                          } catch (err: any) {
-                            alert('Erro inesperado: ' + err.message)
-                            console.error(err)
+                            // Refresh list
+                            listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                          } catch (e: any) {
+                            alert('Erro: ' + e.message)
                           }
                         } else {
-                          store.createTransaction(trx as any)
-
-                          // Local store logic mirroring backend
-                          const isFixo = modal.tipo === 'fixo'
-                          const isVariavel = modal.tipo === 'variavel'
-                          const parcelas = Number(modal.parcelas || 1)
-
-                          const commonUpdates = {
-                            valor: modalValor,
-                            historico: modalHistorico,
-                            nota_fiscal: modalNotaFiscal,
-                            detalhes: modalDetalhes,
-                            caixa_id: modalContaId || undefined
-                          }
-
-                          if (isFixo) {
-                            const nextDate = new Date(modalData)
-                            const increment = modal.periodo === 'anual' ? 12 : (modal.periodo === 'semestral' ? 6 : 1)
-                            nextDate.setMonth(nextDate.getMonth() + increment)
-                            store.updateSchedule(modal.id, {
-                              ...commonUpdates,
-                              proxima_vencimento: nextDate.toISOString().split('T')[0]
-                            })
-                          } else if (isVariavel && parcelas > 1) {
-                            const nextDate = new Date(modalData)
-                            nextDate.setMonth(nextDate.getMonth() + 1)
-                            store.updateSchedule(modal.id, {
-                              ...commonUpdates,
-                              proxima_vencimento: nextDate.toISOString().split('T')[0],
-                              parcelas: parcelas - 1
-                            })
-                          } else {
-                            store.updateSchedule(modal.id, { situacao: 2, parcelas: 0 })
-                          }
-
-                          setShowConfirmModal(false)
-                          setModal(null)
-                          setMsg('Lançamento confirmado com sucesso')
-                          setTimeout(() => setMsg(''), 2500)
+                          alert('Funcionalidade disponível apenas com Backend Supabase')
                         }
                       }}
                     >

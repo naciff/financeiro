@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
-import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts } from '../services/db'
+import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
 import { Tabs } from '../components/ui/Tabs'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { AlertModal } from '../components/ui/AlertModal'
 
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
@@ -15,10 +16,13 @@ export default function Schedules() {
   const [showForm, setShowForm] = useState<'none' | 'create' | 'edit'>('none')
   const [selectedId, setSelectedId] = useState<string>('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false)
+  const [deactivateId, setDeactivateId] = useState<string | null>(null)
+  const [alertInfo, setAlertInfo] = useState({ open: false, msg: '' })
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<Sort>({ key: 'ano_mes_inicial', dir: 'asc' })
   const [page, setPage] = useState(1)
-  const pageSize = 10
+  const pageSize = 10000
 
   const [operacao, setOperacao] = useState('despesa')
   const [tipo, setTipo] = useState('fixo')
@@ -382,7 +386,7 @@ export default function Schedules() {
   async function fetchRemoteSchedules() {
     if (hasBackend) {
       setLoadError('')
-      const r = await listSchedules(200, { includeConcluded: true })
+      const r = await listSchedules(10000, { includeConcluded: true })
       if (r.error) {
         setLoadError(r.error.message)
       } else {
@@ -468,10 +472,10 @@ export default function Schedules() {
     const s = hasBackend ? remoteSchedules.find((x: any) => x.id === selectedId) : store.schedules.find(x => x.id === selectedId)
     if (!s) return
     setOperacao(s.operacao); setTipo(s.tipo); setEspecie(s.especie); setAnoMesInicial(s.ano_mes_inicial);
-    setClienteId(s.cliente_id || '');
+    setClienteId(s.favorecido_id || s.cliente_id || '');
     // Fix client binding - handle object from backend
     const cliName = (typeof s.cliente === 'object' && s.cliente?.nome) ? s.cliente.nome : (typeof s.cliente === 'string' ? s.cliente : (hasBackend ? '' : store.clients.find(c => c.id === s.cliente_id)?.nome || ''))
-    setClienteNome(cliName); setClienteBusca(cliName);
+    setClienteNome(cliName); setClienteBusca(cliName); setClientes([]);
 
     setHistorico(s.historico || ''); setValor(s.valor); setProxima(s.proxima_vencimento);
     if (s.proxima_vencimento) {
@@ -484,6 +488,33 @@ export default function Schedules() {
     }
     setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || '')
     setShowForm('edit')
+  }
+
+  function onDeactivate(id: string) {
+    if (!id) return
+    setDeactivateId(id)
+    setShowDeactivateConfirm(true)
+  }
+
+  async function confirmDeactivate() {
+    if (!deactivateId) return
+    setShowDeactivateConfirm(false)
+
+    if (hasBackend) {
+      const { error } = await deactivateSchedule(deactivateId)
+      if (error) {
+        setMsg(`Erro ao desativar: ${error.message}`)
+        setMsgType('error')
+      } else {
+        setMsg('Agendamento desativado com sucesso')
+        setMsgType('success')
+        fetchRemoteSchedules()
+      }
+    } else {
+      setMsg('Funcionalidade disponível apenas online')
+    }
+    setDeactivateId(null)
+    setTimeout(() => setMsg(''), 3000)
   }
 
   function onDuplicate(targetId: string | null = null) {
@@ -500,9 +531,9 @@ export default function Schedules() {
     // Let's keep original date for now, user can change.
     setAnoMesInicial(s.ano_mes_inicial);
 
-    setClienteId(s.cliente_id || '');
+    setClienteId(s.favorecido_id || s.cliente_id || '');
     const cliName = (typeof s.cliente === 'object' && s.cliente?.nome) ? s.cliente.nome : (typeof s.cliente === 'string' ? s.cliente : (hasBackend ? '' : store.clients.find(c => c.id === s.cliente_id)?.nome || ''))
-    setClienteNome(cliName); setClienteBusca(cliName);
+    setClienteNome(cliName); setClienteBusca(cliName); setClientes([]);
 
     setHistorico(s.historico || ''); setValor(s.valor);
 
@@ -527,12 +558,21 @@ export default function Schedules() {
     setTimeout(() => setMsg(''), 3000)
   }
 
-  function onDelete() {
+  async function onDelete() {
     if (!selectedId) {
       setMsg('Selecione um agendamento para excluir')
       setMsgType('error')
       return
     }
+
+    if (hasBackend) {
+      const deps = await checkScheduleDependencies(selectedId)
+      if (deps.count > 0) {
+        setAlertInfo({ open: true, msg: 'Exclusão nao permitida. Já existe pagamentos vinculados ao mesmo!!!' })
+        return
+      }
+    }
+
     setShowDeleteConfirm(true)
   }
 
@@ -1028,7 +1068,7 @@ export default function Schedules() {
                         </thead>
                         <tbody>
                           {list.map(r => (
-                            <tr key={r.id} className={`border-t cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.pageX, y: e.pageY, id: r.id }) }} title="Clique com botão direito para opções">
+                            <tr key={r.id} className={`border-t cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onDoubleClick={() => { setSelectedId(r.id); onEditOpen() }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: r.id }) }} title="Clique com botão direito para opções">
                               <td className="p-2 w-[100px]">{r.data_referencia}</td>
                               <td className="p-2 w-[180px] break-words whitespace-normal" title={r.cliente}>{r.cliente}</td>
                               <td className="p-2 w-[200px] break-words whitespace-normal" title={r.historico}>{r.historico}</td>
@@ -1151,23 +1191,54 @@ export default function Schedules() {
           </div>
         )
       }
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={confirmDelete}
-        title="Excluir Agendamento"
-        message="Tem certeza que deseja excluir o agendamento selecionado?"
+      {showDeleteConfirm && (
+        <ConfirmModal
+          isOpen={showDeleteConfirm}
+          title="Excluir Agendamento"
+          onConfirm={confirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        >
+          Tem certeza que deseja excluir este agendamento?
+        </ConfirmModal>
+      )}
+
+      {showDeactivateConfirm && (
+        <ConfirmModal
+          isOpen={showDeactivateConfirm}
+          title="Desativar Agendamento"
+          onConfirm={confirmDeactivate}
+          onCancel={() => { setShowDeactivateConfirm(false); setDeactivateId(null) }}
+        >
+          Tem certeza que deseja desativar este agendamento? Os lançamentos futuros serão cancelados.
+        </ConfirmModal>
+      )}
+
+      <AlertModal
+        isOpen={alertInfo.open}
+        message={alertInfo.msg}
+        onClose={() => setAlertInfo({ open: false, msg: '' })}
       />
+
       {contextMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
           <div className="fixed z-50 bg-white border rounded shadow-lg py-1 text-sm font-medium" style={{ top: contextMenu.y, left: contextMenu.x }}>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2" onClick={() => { onEditOpen(); setContextMenu(null) }}>
+              <Icon name="edit" className="w-4 h-4" /> Alterar
+            </button>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { onDelete(); setContextMenu(null) }}>
+              <Icon name="trash" className="w-4 h-4" /> Excluir
+            </button>
             <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
               <Icon name="copy" className="w-4 h-4" /> Duplicar
+            </button>
+            <div className="border-t my-1"></div>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => { onDeactivate(contextMenu.id); setContextMenu(null) }}>
+              <Icon name="x" className="w-4 h-4" /> Desativar Agendamento Selecionado
             </button>
           </div>
         </>
       )}
-    </div >
+    </div>
   )
 }
