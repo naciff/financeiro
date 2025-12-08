@@ -22,6 +22,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
     { to: '/transfers', label: 'Transferências', icon: 'transfer' },
     { to: '/reports', label: 'Relatórios', icon: 'file-text' },
+    { to: '/notes', label: 'Notas', icon: 'notes' },
     {
       to: '/cadastro', label: 'Cadastro', icon: 'settings', children: [
         { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'accounts' },
@@ -30,7 +31,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { to: '/cadastro/clientes', label: 'Clientes', icon: 'clients' },
       ]
     },
-    { to: '/settings', label: 'Configurações', icon: 'settings' },
+    {
+      to: '/settings', label: 'Configurações', icon: 'settings', children: [
+        { to: '/profile', label: 'Perfil', icon: 'user' },
+        { to: '/settings', label: 'Geral', icon: 'settings' }
+      ]
+    },
   ]
   return (
     <div className="min-h-screen flex bg-gray-50 text-gray-900">

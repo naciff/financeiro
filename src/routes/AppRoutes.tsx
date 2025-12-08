@@ -1,3 +1,4 @@
+
 import { Route, Routes, Navigate } from 'react-router-dom'
 import Layout from '../shared/Layout'
 import Dashboard from '../pages/Dashboard'
@@ -7,6 +8,8 @@ import Ledger from '../pages/Ledger'
 import Accounts from '../pages/Accounts'
 import Transfers from '../pages/Transfers'
 import Reports from '../pages/Reports'
+import Notes from '../pages/Notes'
+import Profile from '../pages/Profile'
 import Settings from '../pages/Settings'
 import Cadastro from '../pages/Cadastro'
 import CommitmentGroups from '../pages/CommitmentGroups'
@@ -32,6 +35,8 @@ export function AppRoutes() {
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/transfers" element={<Transfers />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/notes" element={<Notes />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </Layout>

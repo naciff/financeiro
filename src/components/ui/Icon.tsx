@@ -81,6 +81,10 @@ export function Icon({ name, className, title }: Props) {
       return (<svg {...common} className={className}><path fill="currentColor" d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88c3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" /></svg>)
     case 'skip':
       return (<svg {...common} className={className}><path fill="currentColor" d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" /></svg>)
+    case 'notes':
+      return (<svg {...common} className={className}><path fill="currentColor" d="M3 18h12v-2H3v2zM3 6v2h18V6H3zm0 7h18v-2H3v2z" /></svg>) // Simple list/notes icon
+    case 'user':
+      return (<svg {...common} className={className}><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>)
     default:
       return (<svg {...common} className={className}><circle cx="12" cy="12" r="10" fill="currentColor" /></svg>)
   }

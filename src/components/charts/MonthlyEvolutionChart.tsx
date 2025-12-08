@@ -1,4 +1,4 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { MonthlyData } from '../../hooks/useChartData'
 import { formatCurrency } from '../../utils/formatCurrency'
 
@@ -32,23 +32,28 @@ export function MonthlyEvolutionChart({ data }: MonthlyEvolutionChartProps) {
 
     return (
         <div className="bg-white border rounded-lg p-6">
+            {/* Chart updated to BarChart */}
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Evolução Mensal</h2>
             <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <BarChart data={data}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                     <XAxis
                         dataKey="mes"
                         stroke="#6B7280"
                         style={{ fontSize: '12px' }}
+                        axisLine={false}
+                        tickLine={false}
                     />
                     <YAxis
                         stroke="#6B7280"
                         style={{ fontSize: '12px' }}
                         tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        axisLine={false}
+                        tickLine={false}
                     />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend
-                        wrapperStyle={{ fontSize: '14px' }}
+                        wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }}
                         formatter={(value) => {
                             if (value === 'receitas') return 'Receitas'
                             if (value === 'despesas') return 'Despesas'
@@ -56,37 +61,25 @@ export function MonthlyEvolutionChart({ data }: MonthlyEvolutionChartProps) {
                             return value
                         }}
                     />
-                    <Line
-                        type="monotone"
+                    <Bar
                         dataKey="receitas"
-                        stroke="#10B981"
-                        strokeWidth={2}
-                        dot={{ fill: '#10B981', r: 4 }}
-                        activeDot={{ r: 6 }}
-                        animationDuration={1500}
-                        animationEasing="ease-in-out"
+                        fill="#10B981"
+                        radius={[4, 4, 0, 0]}
+                        name="receitas"
                     />
-                    <Line
-                        type="monotone"
+                    <Bar
                         dataKey="despesas"
-                        stroke="#EF4444"
-                        strokeWidth={2}
-                        dot={{ fill: '#EF4444', r: 4 }}
-                        activeDot={{ r: 6 }}
-                        animationDuration={1500}
-                        animationEasing="ease-in-out"
+                        fill="#EF4444"
+                        radius={[4, 4, 0, 0]}
+                        name="despesas"
                     />
-                    <Line
-                        type="monotone"
+                    <Bar
                         dataKey="lucro"
-                        stroke="#3B82F6"
-                        strokeWidth={2}
-                        dot={{ fill: '#3B82F6', r: 4 }}
-                        activeDot={{ r: 6 }}
-                        animationDuration={1500}
-                        animationEasing="ease-in-out"
+                        fill="#3B82F6"
+                        radius={[4, 4, 0, 0]}
+                        name="lucro"
                     />
-                </LineChart>
+                </BarChart>
             </ResponsiveContainer>
         </div>
     )

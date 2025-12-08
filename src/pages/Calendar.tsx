@@ -54,6 +54,14 @@ export default function Calendar() {
   }, [month])
   const { from, to } = monthRange(currentDate)
 
+  // Helper to parse date string YYYY-MM-DD to a local date object
+  // considering the timezone to avoid "previous day" issues when doing new Date()
+  const parseLocalDate = (dateStr: string) => {
+    if (!dateStr) return new Date()
+    // Append T12:00:00 to ensure we are in the middle of the day, avoiding timezone shifts to previous day
+    return new Date(dateStr.split('T')[0] + 'T12:00:00')
+  }
+
   const items = useMemo(() => {
     const schedules = hasBackend ? remoteSchedules : store.schedules
     const transactions = hasBackend ? remoteTransactions : store.transactions
@@ -62,7 +70,7 @@ export default function Calendar() {
 
     // Processar Agendamentos
     schedules.forEach((s: any) => {
-      const d = new Date(s.proxima_vencimento || s.ano_mes_inicial)
+      const d = parseLocalDate(s.proxima_vencimento || s.ano_mes_inicial)
       if (d >= from && d <= to) {
         list.push({
           id: s.id,
@@ -79,10 +87,8 @@ export default function Calendar() {
 
     // Processar Transações (Realizadas)
     transactions.forEach((t: any) => {
-      const d = new Date(t.data_vencimento || t.data_lancamento)
+      const d = parseLocalDate(t.data_vencimento || t.data_lancamento)
       if (d >= from && d <= to) {
-        // Evitar duplicar se já existir um agendamento correspondente (opcional, mas difícil sem link direto)
-        // Por enquanto mostramos tudo
         list.push({
           id: t.id,
           date: d,
