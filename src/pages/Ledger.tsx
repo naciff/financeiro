@@ -83,7 +83,7 @@ export default function Ledger() {
 
   async function load() {
     if (hasBackend) {
-      const t = await listTransactions(100)
+      const t = await listTransactions(2000)
       const a = await listAccounts()
       const c = await listClients()
       const g = await listCommitmentGroups()
@@ -156,11 +156,9 @@ export default function Ledger() {
       valor_entrada: isEntrada ? formValor : 0,
       valor_saida: !isEntrada ? formValor : 0,
       status: formStatus,
-      cliente: formCliente,
-      grupo_compromisso: formGrupoCompromisso,
-      grupo_id: formGrupoCompromisso, // Ensure we send this standard key
-      compromisso: commitments.find(c => c.id === formCompromisso)?.nome || formCompromisso, // Fallback to name if ID lookup fails (legacy)
-      compromisso_id: formCompromisso, // Send ID
+      cliente_id: formCliente, // Correctly mapped to database column
+      grupo_compromisso_id: formGrupoCompromisso, // Use correct FK column
+      compromisso_id: formCompromisso, // Use correct FK column
       nota_fiscal: formNotaFiscal,
       detalhes: formDetalhes
     }
@@ -229,7 +227,7 @@ export default function Ledger() {
       setFormDataLancamento(tx.data_lancamento ? tx.data_lancamento.split('T')[0] : today)
       setFormStatus(tx.status || 'pendente')
       setFormCliente(tx.cliente || '')
-      setFormCliente(tx.cliente || '')
+      setFormCliente(tx.cliente_id || tx.cliente || '')
       // Fix: Check various likely column names (schedule uses grupo_id)
       setFormGrupoCompromisso(tx.grupo_compromisso || tx.grupo_compromisso_id || tx.grupo_id || '')
       setFormCompromisso(tx.compromisso || tx.compromisso_id || '')
@@ -320,30 +318,32 @@ export default function Ledger() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
+  const today = new Date().toISOString().split('T')[0]
+  const [appliedDates, setAppliedDates] = useState({ start: today, end: today })
+
   const filteredTxs = useMemo(() => {
     return txs.filter(t => {
       if (filterMode === 'simple') {
         if (!t.data_lancamento.startsWith(selectedMonth)) return false
       } else {
-        if (!startDate || !endDate) return true
+        if (!appliedDates.start || !appliedDates.end) return true
         const dateToCheck = dateFilterType === 'payment' ? (t.data_vencimento || t.data_lancamento) : t.data_lancamento
-        if (dateToCheck < startDate || dateToCheck > endDate) return false
+        if (dateToCheck < appliedDates.start || dateToCheck > appliedDates.end) return false
       }
 
-      if (!searchTerm) return true
-      const term = searchTerm.toLowerCase()
-      const valSearch = parseFloat(searchTerm.replace(',', '.'))
-      const matchText = (t.cliente?.toLowerCase() || '').includes(term) || (t.historico?.toLowerCase() || '').includes(term)
-      const matchValue = !isNaN(valSearch) && (Math.abs(t.valor_entrada - valSearch) < 0.01 || Math.abs(t.valor_saida - valSearch) < 0.01)
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase()
+        const valSearch = parseFloat(searchTerm.replace(',', '.'))
+        const matchText = (t.cliente?.toLowerCase() || '').includes(term) || (t.historico?.toLowerCase() || '').includes(term)
+        const matchValue = !isNaN(valSearch) && (Math.abs(t.valor_entrada - valSearch) < 0.01 || Math.abs(t.valor_saida - valSearch) < 0.01)
 
-
-
-      const matchesSearch = matchText || matchValue
-      if (!matchesSearch) return false
+        const matchesSearch = matchText || matchValue
+        if (!matchesSearch) return false
+      }
 
       // Operation Filter Logic
       // console.log('Filter Check:', { op: t.operacao, filter: opFilter })
-      const op = (t.operacao || '').toLowerCase()
+      const op = (t.operacao || '').toLowerCase().trim()
 
       // Account Filter Logic
       if (accountFilter && t.conta_id !== accountFilter) return false
@@ -356,10 +356,11 @@ export default function Ledger() {
       if (opFilter === 'Receitas e Aportes') return ['receita', 'aporte'].includes(op)
       if (opFilter === 'Somente Aporte') return op === 'aporte'
       if (opFilter === 'Somente Retiradas') return op === 'retirada'
+      if (opFilter === 'Somente Transferências') return op === 'transferencia'
 
       return true
     })
-  }, [txs, filterMode, selectedMonth, startDate, endDate, dateFilterType, searchTerm, opFilter])
+  }, [txs, filterMode, selectedMonth, appliedDates, dateFilterType, searchTerm, opFilter, accountFilter])
 
   const selectionSum = useMemo(() => {
     return filteredTxs.reduce((acc, t) => {
@@ -442,6 +443,7 @@ export default function Ledger() {
               <option>Receitas e Aportes</option>
               <option>Somente Aporte</option>
               <option>Somente Retiradas</option>
+              <option>Somente Transferências</option>
             </select>
             <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -515,17 +517,27 @@ export default function Ledger() {
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" name="dateFilterType" checked={dateFilterType === 'payment'} onChange={() => setDateFilterType('payment')} />
-                <span className="text-sm font-medium">Dt. Pag/Receb.</span>
+                <span className="text-sm font-medium">Data Vencimento</span>
               </label>
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" name="dateFilterType" checked={dateFilterType === 'launch'} onChange={() => setDateFilterType('launch')} />
-                <span className="text-sm font-medium">Dt. Lançamento</span>
+                <span className="text-sm font-medium">Data Pagamento</span>
               </label>
             </div>
             <div className="flex items-center gap-2">
-              <input type="date" className="border rounded px-2 py-1 text-sm" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              <input type="date" max="9999-12-31" className="border rounded px-2 py-1 text-sm" value={startDate} onChange={e => setStartDate(e.target.value)} />
               <span className="text-sm">a</span>
-              <input type="date" className="border rounded px-2 py-1 text-sm" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              <input type="date" max="9999-12-31" className="border rounded px-2 py-1 text-sm" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              <button
+                onClick={() => {
+                  if (startDate && startDate.length > 10) return alert('Data Inicial inválida. Verifique o ano.')
+                  if (endDate && endDate.length > 10) return alert('Data Final inválida. Verifique o ano.')
+                  setAppliedDates({ start: startDate, end: endDate })
+                }}
+                className="bg-fourtek-blue text-white px-3 py-1 rounded text-sm hover:bg-blue-700 ml-2"
+              >
+                Pesquisar
+              </button>
             </div>
           </div>
         )}
@@ -556,11 +568,11 @@ export default function Ledger() {
               >
                 <td className="p-2">{toBr(tx.data_lancamento)}</td>
                 <td className="p-2">{labelAccount(tx.conta_id)}</td>
-                <td className="p-2">{tx.cliente || '-'}</td>
-                <td className="p-2">{tx.compromisso || '-'}</td>
+                <td className="p-2">{tx.cliente?.nome || clients.find(c => c.id === tx.cliente_id)?.nome || '-'}</td>
+                <td className="p-2">{tx.compromisso?.nome || tx.compromisso_id || '-'}</td>
                 <td className="p-2">{tx.historico}</td>
-                <td className="p-2 text-green-600 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${Number(tx.valor_entrada).toFixed(2)}` : ''}</td>
-                <td className="p-2 text-red-600 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${Number(tx.valor_saida).toFixed(2)}` : ''}</td>
+                <td className="p-2 text-green-600 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_entrada))}` : ''}</td>
+                <td className="p-2 text-red-600 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_saida))}` : ''}</td>
                 <td className="p-2">{tx.especie ? (tx.especie.charAt(0).toUpperCase() + tx.especie.slice(1).replace('_', ' ')) : '-'}</td>
               </tr>
             ))}
@@ -634,7 +646,11 @@ export default function Ledger() {
               {/* 1. Operação | Espécie */}
               <div>
                 <label className="block text-sm font-medium mb-1">Operação *</label>
-                <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => setFormOperacao(e.target.value as any)}>
+                <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => {
+                  setFormOperacao(e.target.value as any)
+                  setFormGrupoCompromisso('')
+                  setFormCompromisso('')
+                }}>
                   <option value="despesa">Despesa</option>
                   <option value="receita">Receita</option>
                   <option value="aporte">Aporte</option>
@@ -658,7 +674,7 @@ export default function Ledger() {
                 <label className="block text-sm font-medium mb-1">Cliente *</label>
                 <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
                   <option value="">Selecione...</option>
-                  {clients.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>
 
@@ -667,7 +683,9 @@ export default function Ledger() {
                 <label className="block text-sm font-medium mb-1">Grupo Compromisso *</label>
                 <select className="w-full border rounded px-3 py-2" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
                   <option value="">Selecione...</option>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                  {groups
+                    .filter(g => !g.tipo || (g.tipo && formOperacao && g.tipo.toLowerCase() === formOperacao.toLowerCase()))
+                    .map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
                 </select>
               </div>
               <div>
@@ -713,7 +731,7 @@ export default function Ledger() {
                 <label className="block text-sm font-medium mb-1">Caixa Lançamento *</label>
                 <select className="w-full border rounded px-3 py-2" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
                   <option value="">Selecione...</option>
-                  {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
+                  {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
                 </select>
               </div>
             </div>

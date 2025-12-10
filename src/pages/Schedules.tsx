@@ -200,7 +200,7 @@ export default function Schedules() {
         valor_total: valorTotal,
         valor_parcela: valorParcela,
         especie: s.especie,
-        status: (s.situacao === 2 || s.situacao === 3) ? 'Concluído' : (concluido ? 'Concluído' : 'Ativo'),
+        status: (s.situacao && s.situacao >= 2) ? 'Concluído' : (concluido ? 'Concluído' : 'Ativo'),
         operacao: s.operacao,
         tipo: s.tipo,
         caixa: caixaNome,
@@ -289,7 +289,7 @@ export default function Schedules() {
       try {
         console.log('Schedules: navegou para /schedules')
         if (hasBackend) {
-          const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(), listCommitmentGroups(), listAccounts(), listCashboxes(), listSchedules()])
+          const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(), listCommitmentGroups(), listAccounts(), listCashboxes(), listSchedules(10000, { includeConcluded: true })])
           if (cRes.error) throw cRes.error
           if (gRes.error) throw gRes.error
           if (accRes.error) throw accRes.error
@@ -299,6 +299,7 @@ export default function Schedules() {
           setGrupos((gRes.data as any) || [])
           setContas((accRes.data as any) || [])
           setCaixas((cbRes.data as any) || [])
+
           setRemoteSchedules((sRes.data as any) || [])
           console.log('Schedules: dados carregados', {
             clientes: (cRes.data as any)?.length || 0,
@@ -883,7 +884,7 @@ export default function Schedules() {
                     }
                   }}>
                     <option value="">Selecione</option>
-                    {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    {contas.filter(c => c.ativo !== false).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
                   {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
                 </div>

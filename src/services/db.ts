@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 
 export async function listAccounts() {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento').order('created_at', { ascending: true })
+  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,cor,agencia,conta,banco_codigo').order('created_at', { ascending: true })
 }
 
 export async function searchAccounts(term: string, limit = 10) {
@@ -126,9 +126,12 @@ export async function deactivateSchedule(id: string) {
   return supabase.rpc('fn_deactivate_schedule', { p_schedule_id: id })
 }
 
-export async function listTransactions(limit = 50) {
+export async function listTransactions(limit = 1000) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('transactions').select('*').order('data_lancamento', { ascending: false }).limit(limit)
+  return supabase.from('transactions')
+    .select('*, compromisso:compromisso_id(nome), grupo:grupo_compromisso_id(nome), cliente:cliente_id(nome)')
+    .order('data_lancamento', { ascending: false })
+    .limit(limit)
 }
 
 export async function listFinancials(options?: { status?: number }) {
@@ -337,4 +340,37 @@ export async function getRandomMessage() {
 
   const randomIndex = Math.floor(Math.random() * data.length)
   return { data: data[randomIndex], error: null }
+}
+
+export async function getProfile() {
+  if (!supabase) return { data: null, error: null }
+  const user = (await supabase.auth.getUser()).data.user
+  if (!user) return { data: null, error: 'User not found' }
+
+  return supabase
+    .from('profiles')
+    .select('name, email, avatar_url')
+    .eq('id', user.id)
+    .single()
+}
+
+export async function listFinancialsBySchedule(scheduleId: string) {
+  if (!supabase) return { data: [], error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  return supabase.from('financials')
+    .select(`
+      *,
+      caixa: caixa_id(id, nome, cor),
+      cliente: favorecido_id(id, nome),
+      agendamento: id_agendamento(
+        id,
+        tipo,
+        compromisso: compromisso_id(id, nome),
+        grupo: grupo_compromisso_id(id, nome)
+      )
+    `)
+    .eq('user_id', userId as any)
+    .eq('id_agendamento', scheduleId)
+    .order('data_vencimento', { ascending: true })
 }

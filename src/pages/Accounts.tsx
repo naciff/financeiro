@@ -51,11 +51,11 @@ export default function Accounts() {
     if (tipo === 'cartao' && !diaVencimento) { setNotice({ type: 'error', text: 'Dia de vencimento é obrigatório para Cartão' }); return }
     if (tipo === 'banco') {
       if (bancoCodigo && !/^\d{3}$/.test(bancoCodigo)) { setNotice({ type: 'error', text: 'Banco deve ter 3 dígitos' }); return }
-      if (agencia && !/^\d{5}$/.test(agencia)) { setNotice({ type: 'error', text: 'Agência deve ter 5 dígitos' }); return }
-      if (conta && !/^\d{6}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta deve ter 6 dígitos' }); return }
+      if (agencia && !/^\d{1,4}$/.test(agencia)) { setNotice({ type: 'error', text: 'Agência inválida (máx 4 dígitos)' }); return }
+      if (conta && !/^\d{1,8}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta inválida (máx 8 dígitos)' }); return }
     }
     if (hasBackend) {
-      const r = await createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo ? bancoCodigo.trim() : null, agencia: agencia && /^\d{5}$/.test(agencia) ? agencia.trim() : null, conta: conta && /^\d{6}$/.test(conta) ? conta.trim() : null, dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : null, cor, principal })
+      const r = await createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo ? bancoCodigo.trim() : null, agencia: agencia ? agencia.trim() : null, conta: conta ? conta.trim() : null, dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : null, cor, principal })
       console.log('createAccount result', r)
       if ((r as any).error) {
         setNotice({ type: 'error', text: (r as any).error.message })
@@ -118,10 +118,10 @@ export default function Accounts() {
     if (!editId) return
     if (tipo === 'banco') {
       if (bancoCodigo && !/^\d{3}$/.test(bancoCodigo)) { setNotice({ type: 'error', text: 'Banco deve ter 3 dígitos' }); return }
-      if (agencia && !/^\d{5}$/.test(agencia)) { setNotice({ type: 'error', text: 'Agência deve ter 5 dígitos' }); return }
-      if (conta && !/^\d{6}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta deve ter 6 dígitos' }); return }
+      if (agencia && !/^\d{1,4}$/.test(agencia)) { setNotice({ type: 'error', text: 'Agência inválida' }); return }
+      if (conta && !/^\d{1,8}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta inválida' }); return }
     }
-    const patch: any = { nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo || undefined, agencia: agencia && /^\d{5}$/.test(agencia) ? agencia : null, conta: conta && /^\d{6}$/.test(conta) ? conta : null, ativo: situacao === 'ativo', dia_vencimento: tipo === 'cartao' ? (diaVencimento || null) : null, cor, principal }
+    const patch: any = { nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo || undefined, agencia: agencia || null, conta: conta || null, ativo: situacao === 'ativo', dia_vencimento: tipo === 'cartao' ? (diaVencimento || null) : null, cor, principal }
     if (hasBackend) {
       updateAccountFields(editId, patch).then(res => {
         console.log('updateAccountFields', res)
@@ -141,15 +141,18 @@ export default function Accounts() {
   }
 
   function maskAgencia(v: string) {
-    return v.replace(/\D/g, '').slice(0, 5)
+    return v.replace(/\D/g, '').slice(0, 4)
   }
   function maskConta(v: string) {
-    return v.replace(/\D/g, '').slice(0, 6)
+    return v.replace(/\D/g, '').slice(0, 8)
   }
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Contas</h1>
+      {notice.text && (
+        <div className={`p-3 rounded border ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{notice.text}</div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {!showForm && (
           <div className="bg-white border rounded p-4">
@@ -197,11 +200,11 @@ export default function Accounts() {
                 </div>
                 <div>
                   <label className="text-sm" htmlFor="agencia">Agência</label>
-                  <input id="agencia" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="00000" value={agencia} onChange={e => { setAgencia(maskAgencia(e.target.value)); setDirty(true) }} />
+                  <input id="agencia" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => { setAgencia(maskAgencia(e.target.value)); setDirty(true) }} />
                 </div>
                 <div>
                   <label className="text-sm" htmlFor="conta">Conta</label>
-                  <input id="conta" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="000000" value={conta} onChange={e => { setConta(maskConta(e.target.value)); setDirty(true) }} />
+                  <input id="conta" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => { setConta(maskConta(e.target.value)); setDirty(true) }} />
                 </div>
               </div>
             )}
@@ -225,7 +228,11 @@ export default function Accounts() {
           )}
           <ul className="space-y-2">
             {balances
-              .map(b => ({ ...b, nome: accounts.find(a => a.id === b.account_id)?.nome || b.account_id }))
+              .map(b => {
+                const acct = accounts.find(a => a.id === b.account_id)
+                return { ...b, nome: acct?.nome || b.account_id, ativo: acct?.ativo }
+              })
+              .filter(b => b.ativo !== false)
               .sort((a, b) => a.nome.localeCompare(b.nome))
               .map(b => (
                 <li key={b.account_id} className="flex justify-between"><span>{b.nome}</span><span>R$ {Number(b.saldo_atual).toFixed(2)}</span></li>
@@ -239,6 +246,8 @@ export default function Accounts() {
           <thead>
             <tr className="text-left">
               <th className="p-2">Nome</th>
+              <th className="p-2">Agência</th>
+              <th className="p-2">Conta</th>
               <th className="p-2">Tipo</th>
               <th className="p-2">Situação</th>
               <th className="p-2">Conta Principal</th>
@@ -257,6 +266,8 @@ export default function Accounts() {
                       {a.nome}
                     </div>
                   </td>
+                  <td className="p-2">{a.agencia || '-'}</td>
+                  <td className="p-2">{a.conta || '-'}</td>
                   <td className="p-2">{a.tipo.charAt(0).toUpperCase() + a.tipo.slice(1).replace('cartao', 'Cartão')}</td>
                   <td className="p-2">{a.ativo === false ? 'Inativo' : 'Ativo'}</td>
                   <td className="p-2">
@@ -303,9 +314,6 @@ export default function Accounts() {
           </tbody>
         </table>
       </div>
-      {notice.text && (
-        <div className={`mt-3 ${notice.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>{notice.text}</div>
-      )}
       {editOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setEditOpen(false)} aria-hidden="true"></div>
@@ -353,11 +361,11 @@ export default function Accounts() {
                   </div>
                   <div>
                     <label className="text-sm">Agência</label>
-                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="00000" value={agencia} onChange={e => setAgencia(maskAgencia(e.target.value))} />
+                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => setAgencia(maskAgencia(e.target.value))} />
                   </div>
                   <div>
                     <label className="text-sm">Conta</label>
-                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="000000" value={conta} onChange={e => setConta(maskConta(e.target.value))} />
+                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => setConta(maskConta(e.target.value))} />
                   </div>
                 </div>
               )}

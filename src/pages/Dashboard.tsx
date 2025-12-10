@@ -2,11 +2,23 @@ import { useDashboardData } from '../hooks/useDashboardData'
 import { useChartData } from '../hooks/useChartData'
 import { formatCurrency } from '../utils/formatCurrency'
 import { MonthlyEvolutionChart } from '../components/charts/MonthlyEvolutionChart'
-import { ExpensesPieChart } from '../components/charts/ExpensesPieChart'
-import { useState } from 'react'
+import { ExpensesBarChart } from '../components/charts/ExpensesBarChart'
+import { useState, useEffect } from 'react'
+import { getProfile } from '../services/db'
 
 export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [userName, setUserName] = useState('')
+
+  useEffect(() => {
+    getProfile().then(r => {
+      if (r.data && r.data.name) {
+        // Get first name only to be cleaner? Or full name? User said "campo nome"
+        const firstName = r.data.name.split(' ')[0]
+        setUserName(firstName)
+      }
+    })
+  }, [])
 
   const year = parseInt(selectedMonth.split('-')[0])
   const month = parseInt(selectedMonth.split('-')[1]) - 1
@@ -30,7 +42,10 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          {userName && <div className="text-sm text-gray-500">Olá, {userName}</div>}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -88,7 +103,7 @@ export default function Dashboard() {
         <div className="text-center py-8 text-gray-500">Carregando gráficos...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ExpensesPieChart data={expensesByGroup} />
+          <ExpensesBarChart data={expensesByGroup} />
           <MonthlyEvolutionChart data={monthlyData} />
         </div>
       )}

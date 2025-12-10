@@ -12,7 +12,7 @@ export default function Commitments() {
   const [items, setItems] = useState<Array<{ id: string; nome: string; grupo_id: string; ir?: boolean }>>([])
   const [editId, setEditId] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [tab, setTab] = useState<'despesa' | 'receita' | 'aporte' | 'retirada'>('despesa')
+  const [tab, setTab] = useState<'despesa' | 'receita' | 'retirada' | 'aporte'>('despesa')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<{ key: 'nome' | 'grupo'; dir: 'asc' | 'desc' }>({ key: 'nome', dir: 'asc' })
 
@@ -90,7 +90,7 @@ export default function Commitments() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Compromissos</h1>
       <div className="flex items-center gap-2">
-        {(['despesa', 'receita', 'aporte', 'retirada'] as const).map(k => {
+        {(['despesa', 'receita', 'retirada', 'aporte'] as const).map(k => {
           const active = tab === k
           const bg = active ? 'bg-fourtek-blue text-white shadow' : 'bg-white'
           return (<button key={k} className={`px-3 py-2 rounded border transition-colors duration-300 ${bg}`} onClick={() => setTab(k)}>{k[0].toUpperCase() + k.slice(1)}</button>)

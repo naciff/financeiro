@@ -41,22 +41,45 @@ export function useChartData() {
             }
 
             try {
-                // Fetch monthly totals for the last 12 months
+                // Fetch monthly totals from financials (Controle e Previsão)
                 const now = new Date()
                 const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1)
 
-                const monthlyResult = await supabase
-                    .from('monthly_totals_view')
-                    .select('*')
-                    .gte('mes', twelveMonthsAgo.toISOString())
-                    .order('mes', { ascending: true })
+                const { data: financials } = await supabase
+                    .from('financials')
+                    .select('id, data_vencimento, valor, operacao, situacao')
+                    .gte('data_vencimento', twelveMonthsAgo.toISOString())
+                    .neq('situacao', 4) // Exclude cancelled/skipped
+                    .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
 
-                if (monthlyResult.data) {
-                    const monthlyChartData: MonthlyData[] = monthlyResult.data.map((row: any) => {
-                        const date = new Date(row.mes)
+                if (financials) {
+                    const monthlyAgg = new Map<string, { receitas: number, despesas: number }>()
+
+                    financials.forEach((item: any) => {
+                        if (!item.data_vencimento) return
+                        const date = new Date(item.data_vencimento)
+                        // Key format: YYYY-MM for sorting/grouping
+                        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+
+                        const val = Number(item.valor || 0)
+                        const isReceita = item.operacao === 'receita' || item.operacao === 'aporte'
+
+                        const current = monthlyAgg.get(key) || { receitas: 0, despesas: 0 }
+                        if (isReceita) {
+                            current.receitas += val
+                        } else {
+                            current.despesas += val
+                        }
+                        monthlyAgg.set(key, current)
+                    })
+
+                    // Convert map to sorted array
+                    const sortedKeys = Array.from(monthlyAgg.keys()).sort()
+                    const monthlyChartData: MonthlyData[] = sortedKeys.map(key => {
+                        const [year, month] = key.split('-')
+                        const date = new Date(Number(year), Number(month) - 1, 1)
                         const monthName = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
-                        const receitas = Number(row.total_recebido || 0)
-                        const despesas = Number(row.total_pago || 0)
+                        const { receitas, despesas } = monthlyAgg.get(key)!
 
                         return {
                             mes: monthName.charAt(0).toUpperCase() + monthName.slice(1),
@@ -79,7 +102,11 @@ export function useChartData() {
                 parcelas,
                 compromisso:compromisso_id (
                   id,
-                  nome
+                  nome,
+                  grupo:grupo_id (
+                    id, 
+                    nome
+                  )
                 )
               `)
                         .eq('user_id', user.id)
@@ -87,11 +114,13 @@ export function useChartData() {
                         .neq('situacao', 2)
 
                     if (schedules) {
-                        // Group expenses by commitment
+                        // Group expenses by commitment group
                         const groupMap = new Map<string, number>()
 
                         schedules.forEach((item: any) => {
-                            const groupName = item.compromisso?.nome || 'Sem Compromisso'
+                            // Extract group name from the nested relationship
+                            const groupName = item.compromisso?.grupo?.nome || 'Sem Grupo'
+
                             // Calculate monthly installment value if applicable
                             const rawVal = Number(item.valor || 0)
                             const qtd = Number(item.parcelas || 1)

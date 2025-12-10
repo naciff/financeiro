@@ -4,7 +4,7 @@ import { hasBackend } from '../lib/runtime'
 
 
 import { Icon } from '../components/ui/Icon'
-import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
@@ -50,9 +50,17 @@ export default function ScheduleControl() {
   const [editValueModal, setEditValueModal] = useState<{ open: boolean, item: any, value: number } | null>(null)
   const [editDateModal, setEditDateModal] = useState<{ open: boolean, item: any, date: string } | null>(null)
   const [showUpdateScheduleModal, setShowUpdateScheduleModal] = useState(false)
+
   const [pendingConfirmation, setPendingConfirmation] = useState<any>(null)
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false)
 
   // Carregar caixas e grupos
+  const [bulkDate, setBulkDate] = useState('')
+  const [bulkAccount, setBulkAccount] = useState('')
+
+  const [showLinkedItemsModal, setShowLinkedItemsModal] = useState(false)
+  const [linkedItems, setLinkedItems] = useState<any[]>([])
+
   useEffect(() => {
     if (hasBackend) {
       listAccounts().then(r => { if (!r.error && r.data) setCaixas(r.data as any) })
@@ -195,7 +203,8 @@ export default function ScheduleControl() {
         statusMessage: statusMessage,
         agendamento: s.agendamento, // Pass full object for modal checks
         tipo: s.agendamento?.tipo,
-        periodo: s.agendamento?.periodo
+        periodo: s.agendamento?.periodo,
+        conferido: s.conferido || false
       }
     }).filter((r): r is NonNullable<typeof r> => r !== null)
       .filter(r => within(new Date(r.vencimento)))
@@ -323,7 +332,24 @@ export default function ScheduleControl() {
           ))}
         </select>
 
-
+        {rows.allData.some(r => r.conferido) && (
+          <button
+            className="text-sm bg-black text-white hover:bg-gray-800 border rounded px-3 py-2 flex items-center gap-2"
+            onClick={() => {
+              setBulkDate(new Date().toISOString().split('T')[0])
+              const firstItem = rows.allData.find(r => r.conferido)
+              if (firstItem && firstItem.caixaId) {
+                setBulkAccount(firstItem.caixaId)
+              } else {
+                setBulkAccount('')
+              }
+              setShowBulkConfirm(true)
+            }}
+          >
+            <Icon name="check" className="w-4 h-4" />
+            Baixar {rows.allData.filter(r => r.conferido).length} Conferidos
+          </button>
+        )}
       </div>
 
 
@@ -372,6 +398,7 @@ export default function ScheduleControl() {
                             <th className="p-2 text-right w-[8%]">Receita</th>
                             <th className="p-2 text-right w-[8%]">Despesa</th>
                             <th className="p-2 text-center w-[4%]">Parcela</th>
+                            <th className="p-2 text-center w-[5%]">Conferido</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -401,6 +428,19 @@ export default function ScheduleControl() {
                               <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)} ` : '-'}</td>
                               <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)} ` : '-'}</td>
                               <td className="p-2 text-center">{r.totalParcelas > 1 ? `${r.parcela}/${r.totalParcelas}` : ''}</td>
+                              <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  className="cursor-pointer w-4 h-4"
+                                  checked={r.conferido}
+                                  onChange={async (e) => {
+                                    if (hasBackend) {
+                                      await updateFinancial(r.id, { conferido: e.target.checked })
+                                      listFinancials({ status: 1 }).then(res => { if (!res.error && res.data) setRemote(res.data as any) })
+                                    }
+                                  }}
+                                />
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -433,6 +473,7 @@ export default function ScheduleControl() {
                     <th className="p-2 text-right w-[8%]">Receita</th>
                     <th className="p-2 text-right w-[8%]">Despesa</th>
                     <th className="p-2 text-center w-[4%]">Parcela</th>
+                    <th className="p-2 text-center w-[5%]">Conferido</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -461,7 +502,21 @@ export default function ScheduleControl() {
                       <td className="p-2 truncate" title={r.historico}>{r.historico}</td>
                       <td className="p-2 text-right">{r.receita > 0 ? `R$ ${formatMoneyBr(r.receita)} ` : '-'}</td>
                       <td className="p-2 text-right">{r.despesa > 0 ? `R$ ${formatMoneyBr(r.despesa)} ` : '-'}</td>
+
                       <td className="p-2 text-center">{r.totalParcelas > 1 ? `${r.parcela}/${r.totalParcelas}` : ''}</td>
+                      <td className="p-2 text-center" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="cursor-pointer w-4 h-4"
+                          checked={r.conferido}
+                          onChange={async (e) => {
+                            if (hasBackend) {
+                              await updateFinancial(r.id, { conferido: e.target.checked })
+                              listFinancials({ status: 1 }).then(res => { if (!res.error && res.data) setRemote(res.data as any) })
+                            }
+                          }}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -733,101 +788,326 @@ export default function ScheduleControl() {
         )
       }
 
-      {/* Context Menu */}
-      {contextMenu && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
-          <div
-            className="fixed z-50 bg-white border rounded shadow-lg py-1 text-xs font-medium w-48"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-          >
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
-              if (hasBackend) {
-                await updateFinancial(contextMenu.item.id, { situacao: 4 }) // 4 = Saltado/Cancelado
-                setContextMenu(null)
-                // Refresh
-                listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-              } else {
-                alert('Disponível apenas com backend')
-              }
-            }}>
-              <Icon name="skip" className="w-4 h-4 text-gray-500" />
-              Saltar Lançamento
-            </button>
-            <div className="border-t my-1"></div>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-              const val = contextMenu.item.valor_parcela ? Number(contextMenu.item.valor_parcela) : (contextMenu.item.receita || contextMenu.item.despesa || 0)
-              setEditValueModal({ open: true, item: contextMenu.item, value: val })
-              setContextMenu(null)
-            }}>
-              <Icon name="edit" className="w-4 h-4" />
-              Alterar Valor Previsto
-            </button>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-              const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
-              setEditDateModal({ open: true, item: contextMenu.item, date: d })
-              setContextMenu(null)
-            }}>
-              <Icon name="edit" className="w-4 h-4" />
-              Alterar Data Vencimento
-            </button>
+      {/* Linked Items Modal */}
+      {showLinkedItemsModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
+          <div className="bg-white border rounded shadow-lg p-0 w-[95%] max-w-[1000px] max-h-[90vh] flex flex-col text-xs">
+            <div className="flex items-center justify-between p-2 bg-[#f0f9eb] border-b">
+              <div className="flex items-center gap-2 font-bold text-gray-800 text-sm">
+                <Icon name="check" className="w-5 h-5 text-green-600" />
+                Itens do Agendamento
+              </div>
+              <div className="flex gap-2">
+                <button className="flex items-center gap-1 px-3 py-1 bg-white border rounded hover:bg-gray-100" onClick={() => window.print()}>
+                  <Icon name="printer" className="w-4 h-4" /> Imprimir
+                </button>
+                <button className="flex items-center gap-1 px-3 py-1 bg-white border rounded hover:bg-gray-100" onClick={() => setShowLinkedItemsModal(false)}>
+                  <Icon name="x" className="w-4 h-4" /> Fechar
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto flex-1 p-0">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[#e0e0e0] sticky top-0 z-10 font-bold border-b border-gray-300">
+                  <tr>
+                    <th className="px-2 py-1 border-r border-gray-300">Situação</th>
+                    <th className="px-2 py-1 border-r border-gray-300">Data Prevista</th>
+                    <th className="px-2 py-1 border-r border-gray-300">Valor Previsto</th>
+                    <th className="px-2 py-1 border-r border-gray-300">Compromisso</th>
+                    <th className="px-2 py-1 border-r border-gray-300">Histórico</th>
+                    <th className="px-2 py-1 border-r border-gray-300">Data Pagamento</th>
+                    <th className="px-2 py-1 border-r border-gray-300">Valor Realizado</th>
+                    <th className="px-2 py-1">Parcela</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linkedItems.map((item, idx) => {
+                    const isPaid = item.situacao === 2
+                    const statusIcon = isPaid ? 'check' : 'clock'
+                    const statusText = isPaid ? 'Realizado' : 'Aguardando Realização'
+                    const statusClass = isPaid ? 'text-green-700 font-bold' : 'text-blue-700'
+                    const rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]'
+
+                    // Formatting
+                    const valorPrevisto = formatMoneyBr(item.valor)
+                    const valorRealizado = isPaid ? formatMoneyBr(item.valor_pago || item.valor) : ''
+                    const dataPagamento = isPaid && item.data_pagamento ? toBr(item.data_pagamento) : ''
+                    const compromisso = item.agendamento?.compromisso?.nome || ''
+                    // Parse '1/12' from history if possible, or just item history
+                    // The user screenshot shows "1/48" appended to history or in a separate column. 
+                    // Our backend usually stores "Parcela X/Y" or we can derive it.
+                    // Ideally, we'd have parcel_current / parcel_total. 
+                    // For now, let's display what we have.
+                    // Based on screenshot, "Parcela" is a column "8/48".
+                    // Our data structure might vary. If item.agendamento.parcelas > 1, show item index+1 / total?
+                    // Need to be careful. The list is ordered by date.
+                    // We can infer parcela if not stored: (idx + 1) / totalItems
+
+                    // Actually, let's check if we have it in history or details.
+                    // For now rendering generic.
+                    const parcelaDisplay = (item.agendamento?.parcelas > 1) ? `${idx + 1}/${item.agendamento.parcelas}` : ''
+
+                    return (
+                      <tr key={item.id} className={`${rowClass} hover:bg-yellow-50 border-b border-gray-200 text-[#000000]`}>
+                        <td className={`px-2 py-1 border-r border-gray-200 whitespace-nowrap ${statusClass}`}>
+                          <div className="flex items-center gap-1">
+                            <Icon name={statusIcon} className="w-3 h-3" />
+                            {statusText}
+                          </div>
+                        </td>
+                        <td className="px-2 py-1 border-r border-gray-200">{toBr(item.data_vencimento)}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 text-red-600 font-medium whitespace-nowrap">R$ {valorPrevisto}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 text-green-700">{compromisso}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 text-blue-700 uppercase font-medium">{item.historico}</td>
+                        <td className="px-2 py-1 border-r border-gray-200">{dataPagamento}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 text-right whitespace-nowrap">{valorRealizado ? `R$ ${valorRealizado}` : ''}</td>
+                        <td className="px-2 py-1 text-right">{parcelaDisplay}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </>
+        </div>
       )}
+
+      {/* Bulk Confirm Modal */}
+      {showBulkConfirm && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
+          <div className="bg-white border rounded shadow-lg p-6 w-[800px] max-h-[90vh] flex flex-col text-xs">
+            <h3 className="font-semibold text-lg mb-4 text-gray-800 border-b pb-2">Confirmação de Registro em Lote</h3>
+
+            <div className="grid grid-cols-4 gap-4 mb-4 bg-gray-50 p-4 rounded border">
+              <div>
+                <label className="block text-gray-600 font-medium mb-1">Data de Pagamento</label>
+                <input
+                  type="date"
+                  className="w-full border rounded px-2 py-1"
+                  value={bulkDate}
+                  onChange={e => setBulkDate(e.target.value)}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-gray-600 font-medium mb-1">Caixa de Lançamento</label>
+                <select
+                  className="w-full border rounded px-2 py-1"
+                  value={bulkAccount}
+                  onChange={e => setBulkAccount(e.target.value)}
+                >
+                  <option value="">Selecione...</option>
+                  {caixas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-600 font-medium mb-1">Total Selecionado</label>
+                <div className="w-full border rounded px-2 py-1 bg-gray-100 font-bold text-right">
+                  R$ {formatMoneyBr(rows.allData.filter(r => r.conferido).reduce((acc, curr) => acc + (curr.receita || curr.despesa || 0), 0))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border rounded mb-4">
+              <table className="w-full text-left">
+                <thead className="bg-gray-100 sticky top-0">
+                  <tr>
+                    <th className="p-2 border-b">Favorecido / Cliente</th>
+                    <th className="p-2 border-b">Compromisso</th>
+                    <th className="p-2 border-b">Vencimento</th>
+                    <th className="p-2 border-b text-right">Valor Item</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.allData.filter(r => r.conferido).map(item => (
+                    <tr key={item.id} className="border-b hover:bg-gray-50">
+                      <td className="p-2 truncate max-w-[200px]">{item.cliente}</td>
+                      <td className="p-2 truncate max-w-[200px]">{item.compromisso}</td>
+                      <td className="p-2">{toBr(item.vencimento)}</td>
+                      <td className="p-2 text-right">R$ {formatMoneyBr(item.receita || item.despesa || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t">
+              <button
+                className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                onClick={() => setShowBulkConfirm(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm flex items-center gap-2"
+                onClick={async () => {
+                  if (!bulkDate) { alert('Informe a Data de Pagamento'); return }
+                  if (!bulkAccount) { alert('Informe o Caixa de Lançamento'); return }
+
+                  const items = rows.allData.filter(r => r.conferido)
+                  let successCount = 0
+                  let errorCount = 0
+
+                  for (const item of items) {
+                    const val = item.receita || item.despesa || 0
+
+                    const { data, error } = await confirmProvision(item.id, {
+                      valor: val,
+                      data: bulkDate,
+                      cuentaId: bulkAccount
+                    })
+
+                    if (error || (data && !data.success)) {
+                      console.error('Falha ao baixar item:', item.id, error || data)
+                      errorCount++
+                    } else {
+                      successCount++
+                    }
+                  }
+
+                  let msg = `Processado! ${successCount} confirmados.`
+                  if (errorCount > 0) msg += ` ${errorCount} erros.`
+                  setMsg(msg)
+                  setShowBulkConfirm(false)
+                  setBulkDate('')
+                  setBulkAccount('')
+
+                  // Refresh list and keep checkbox state in sync (reload will clear them though if mapped from DB)
+                  // Ideally, DB update should clear 'conferido' flag? 
+                  // confirmProvision usually moves status to 2 (Pago), so they will disappear from the list (status=1)
+
+                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                }}
+              >
+                <Icon name="check" className="w-4 h-4" />
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {
+        contextMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+            <div
+              className="fixed z-50 bg-white border rounded shadow-lg py-1 text-xs font-medium w-48"
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+            >
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
+                if (hasBackend) {
+                  await updateFinancial(contextMenu.item.id, { situacao: 4 }) // 4 = Saltado/Cancelado
+                  setContextMenu(null)
+                  // Refresh
+                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                } else {
+                  alert('Disponível apenas com backend')
+                }
+              }}>
+                <Icon name="skip" className="w-4 h-4 text-gray-500" />
+                Saltar Lançamento
+              </button>
+              <div className="border-t my-1"></div>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
+                setContextMenu(null)
+                const item = contextMenu.item
+                if (!item || !item.scheduleId) {
+                  alert('Este item não possui um agendamento vinculado.')
+                  return
+                }
+
+                const r = await listFinancialsBySchedule(item.scheduleId)
+                if (r.error) {
+                  alert('Erro ao carregar itens vinculados: ' + (r.error as any).message)
+                } else {
+                  setLinkedItems(r.data || [])
+                  setShowLinkedItemsModal(true)
+                }
+              }}>
+                <Icon name="list" className="w-4 h-4 text-gray-500" />
+                Visualizar Itens Vinculados
+              </button>
+              <div className="border-t my-1"></div>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+                const val = contextMenu.item.valor_parcela ? Number(contextMenu.item.valor_parcela) : (contextMenu.item.receita || contextMenu.item.despesa || 0)
+                setEditValueModal({ open: true, item: contextMenu.item, value: val })
+                setContextMenu(null)
+              }}>
+                <Icon name="edit" className="w-4 h-4" />
+                Alterar Valor Previsto
+              </button>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+                const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
+                setEditDateModal({ open: true, item: contextMenu.item, date: d })
+                setContextMenu(null)
+              }}>
+                <Icon name="edit" className="w-4 h-4" />
+                Alterar Data Vencimento
+              </button>
+            </div>
+          </>
+        )
+      }
 
       {/* Edit Value Modal */}
-      {editValueModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-            <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
-            <input
-              type="number"
-              className="w-full border rounded px-3 py-2 mb-4"
-              value={editValueModal.value}
-              onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
-            />
-            <div className="flex justify-end gap-2">
-              <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
-              <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                if (hasBackend) {
-                  await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
-                  setEditValueModal(null)
-                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                } else {
-                  alert('Backend required')
-                }
-              }}>Salvar</button>
+      {
+        editValueModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+              <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
+              <input
+                type="number"
+                className="w-full border rounded px-3 py-2 mb-4"
+                value={editValueModal.value}
+                onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
+              />
+              <div className="flex justify-end gap-2">
+                <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
+                <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                  if (hasBackend) {
+                    await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
+                    setEditValueModal(null)
+                    listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                  } else {
+                    alert('Backend required')
+                  }
+                }}>Salvar</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Edit Date Modal */}
-      {editDateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-            <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
-            <input
-              type="date"
-              className="w-full border rounded px-3 py-2 mb-4"
-              value={editDateModal.date}
-              onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
-            />
-            <div className="flex justify-end gap-2">
-              <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
-              <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                if (hasBackend) {
-                  await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
-                  setEditDateModal(null)
-                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                } else {
-                  alert('Backend required')
-                }
-              }}>Salvar</button>
+      {
+        editDateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+              <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
+              <input
+                type="date"
+                className="w-full border rounded px-3 py-2 mb-4"
+                value={editDateModal.date}
+                onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
+              />
+              <div className="flex justify-end gap-2">
+                <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
+                <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                  if (hasBackend) {
+                    await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
+                    setEditDateModal(null)
+                    listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                  } else {
+                    alert('Backend required')
+                  }
+                }}>Salvar</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   )
 }

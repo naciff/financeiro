@@ -9,8 +9,8 @@ import { useAutoLogout } from './hooks/useAutoLogout'
 export default function App() {
   const { session, loading } = useAuth()
 
-  // Enable auto-logout with 2 minutes timeout
-  useAutoLogout(2 * 60 * 1000)
+  // Enable auto-logout with 5 minutes timeout
+  useAutoLogout(5 * 60 * 1000)
 
   if (loading) return <div className="h-full flex items-center justify-center">Carregando...</div>
 

@@ -2,8 +2,8 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
-// Default timeout: 2 minutes (120000 ms)
-const DEFAULT_TIMEOUT = 2 * 60 * 1000
+// Default timeout: 5 minutes (300000 ms)
+const DEFAULT_TIMEOUT = 5 * 60 * 1000
 
 export function useAutoLogout(timeoutMs = DEFAULT_TIMEOUT) {
     const { signOut, session } = useAuth()
