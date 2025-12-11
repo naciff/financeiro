@@ -1,8 +1,9 @@
 import { supabase } from '../lib/supabase'
 
-export async function listAccounts() {
+export async function listAccounts(orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,cor,agencia,conta,banco_codigo').order('created_at', { ascending: true })
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,cor,agencia,conta,banco_codigo').eq('user_id', userId as any).order('created_at', { ascending: true })
 }
 
 export async function searchAccounts(term: string, limit = 10) {
@@ -54,9 +55,9 @@ export async function generateSchedule(scheduleId: string) {
   return supabase.rpc('fn_generate_schedule', { sched_id: scheduleId })
 }
 
-export async function listSchedules(limit = 200, options?: { includeConcluded?: boolean }) {
+export async function listSchedules(limit = 200, options?: { includeConcluded?: boolean, orgId?: string }) {
   if (!supabase) return { data: [], error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
+  const userId = options?.orgId || (await supabase.auth.getUser()).data.user?.id
   let query = supabase
     .from('schedules')
     .select(`
@@ -126,17 +127,19 @@ export async function deactivateSchedule(id: string) {
   return supabase.rpc('fn_deactivate_schedule', { p_schedule_id: id })
 }
 
-export async function listTransactions(limit = 1000) {
+export async function listTransactions(limit = 1000, orgId?: string) {
   if (!supabase) return { data: [], error: null }
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
   return supabase.from('transactions')
     .select('*, compromisso:compromisso_id(nome), grupo:grupo_compromisso_id(nome), cliente:cliente_id(nome)')
+    .eq('user_id', userId as any)
     .order('data_lancamento', { ascending: false })
     .limit(limit)
 }
 
-export async function listFinancials(options?: { status?: number }) {
+export async function listFinancials(options?: { status?: number, orgId?: string }) {
   if (!supabase) return { data: [], error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
+  const userId = options?.orgId || (await supabase.auth.getUser()).data.user?.id
 
   let query = supabase.from('financials')
     .select(`
@@ -224,9 +227,10 @@ export async function updateTransaction(id: string, payload: any) {
   return supabase.from('transactions').update(rest).eq('id', id).eq('user_id', userId as any).select('id').single()
 }
 
-export async function listClients() {
+export async function listClients(orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('clients').select('id,nome,documento').order('nome', { ascending: true })
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('clients').select('id,nome,documento').eq('user_id', userId as any).order('nome', { ascending: true })
 }
 
 export async function searchClients(term: string, limit = 10) {
@@ -250,9 +254,10 @@ export async function deleteClient(id: string) {
   return supabase.from('clients').delete().eq('id', id).eq('user_id', userId as any)
 }
 
-export async function listCommitmentGroups() {
+export async function listCommitmentGroups(orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('commitment_groups').select('id,nome,operacao,tipo').order('nome', { ascending: true })
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('commitment_groups').select('id,nome,operacao,tipo').eq('user_id', userId as any).order('nome', { ascending: true })
 }
 
 export async function listCommitmentsByGroup(groupId: string) {
@@ -260,9 +265,10 @@ export async function listCommitmentsByGroup(groupId: string) {
   return supabase.from('commitments').select('id,nome,ir').eq('grupo_id', groupId).order('nome', { ascending: true })
 }
 
-export async function listCashboxes() {
+export async function listCashboxes(orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('cashboxes').select('id,nome').order('nome', { ascending: true })
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('cashboxes').select('id,nome').eq('user_id', userId as any).order('nome', { ascending: true })
 }
 
 export async function createCommitmentGroup(payload: { operacao: 'receita' | 'despesa' | 'aporte' | 'retirada'; nome: string }) {
@@ -354,9 +360,9 @@ export async function getProfile() {
     .single()
 }
 
-export async function listFinancialsBySchedule(scheduleId: string) {
+export async function listFinancialsBySchedule(scheduleId: string, orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
 
   return supabase.from('financials')
     .select(`
@@ -374,3 +380,75 @@ export async function listFinancialsBySchedule(scheduleId: string) {
     .eq('id_agendamento', scheduleId)
     .order('data_vencimento', { ascending: true })
 }
+
+// --- Organization / Team Management ---
+
+export async function addOrganizationMember(email: string, permissions: any = {}) {
+  if (!supabase) return { error: { message: 'Supabase não inicializado' } }
+
+  // 1. Find user by email in profiles
+  const { data: profiles, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .eq('email', email)
+
+  if (profileError) return { error: profileError }
+  if (!profiles || profiles.length === 0) return { error: { message: 'Usuário não encontrado. Peça para ele se cadastrar no sistema primeiro.' } }
+
+  const memberId = profiles[0].id
+  const ownerId = (await supabase.auth.getUser()).data.user?.id
+
+  if (memberId === ownerId) return { error: { message: 'Você não pode convidar a si mesmo.' } }
+
+  // 2. Insert into organization_members
+  return supabase
+    .from('organization_members')
+    .insert({
+      owner_id: ownerId,
+      member_id: memberId,
+      permissions
+    })
+    .select()
+}
+
+export async function removeOrganizationMember(memberId: string) {
+  if (!supabase) return { error: { message: 'Supabase não inicializado' } }
+  const ownerId = (await supabase.auth.getUser()).data.user?.id
+
+  return supabase
+    .from('organization_members')
+    .delete()
+    .eq('owner_id', ownerId)
+    .eq('member_id', memberId)
+}
+
+export async function listOrganizationMembers() {
+  if (!supabase) return { data: [], error: null }
+  const ownerId = (await supabase.auth.getUser()).data.user?.id
+
+  // We need to join with profiles to get names
+  // But Supabase simple join might be tricky if no direct FK on profiles (it is on auth.users usually, but profiles has FK to auth.users too)
+  // Let's try explicit select
+  return supabase
+    .from('organization_members')
+    .select(`
+      *,
+      profile:member_id(id, name, email, avatar_url)
+    `)
+    .eq('owner_id', ownerId)
+}
+
+export async function listMyMemberships() {
+  if (!supabase) return { data: [], error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  return supabase
+    .from('organization_members')
+    .select(`
+      owner_id,
+      permissions,
+      owner:owner_id(id, name, email, avatar_url)
+    `)
+    .eq('member_id', userId)
+}
+

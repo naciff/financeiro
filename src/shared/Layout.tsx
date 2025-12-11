@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { CalculatorModal } from '../components/modals/CalculatorModal'
 import { TransferModal } from '../components/modals/TransferModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
+import { useLocation } from 'react-router-dom'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -16,87 +17,98 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const nav = [
     { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/calendar', label: 'Calendário', icon: 'calendar' },
-    { to: '/schedules/control', label: 'Controle e Previsão', icon: 'reports' },
-    { to: '/ledger', label: 'Livro Caixa', icon: 'ledger' },
+    { to: '/calendar', label: 'Calendário', icon: 'calendar_today' },
+    { to: '/schedules/control', label: 'Controle e Previsão', icon: 'analytics' },
+    { to: '/ledger', label: 'Livro Caixa', icon: 'book' },
     { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
-    { to: '/transfers', label: 'Transferências', icon: 'transfer' },
-    { to: '/reports', label: 'Relatórios', icon: 'file-text' },
+    { to: '/transfers', label: 'Transferências', icon: 'swap_horiz' },
+    { to: '/reports', label: 'Relatórios', icon: 'description' },
     { to: '/notes', label: 'Notas', icon: 'notes' },
     {
-      to: '/cadastro', label: 'Cadastro', icon: 'settings', children: [
-        { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'accounts' },
+      to: '/cadastro', label: 'Cadastro', icon: 'settings_suggest', children: [
+        { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'home' },
         { to: '/cadastro/grupo-compromisso', label: 'Grupo de Compromisso', icon: 'group' },
-        { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'commitment' },
-        { to: '/cadastro/clientes', label: 'Clientes', icon: 'clients' },
+        { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'bookmark' },
+        { to: '/cadastro/clientes', label: 'Clientes', icon: 'people' },
       ]
     },
     {
       to: '/settings', label: 'Configurações', icon: 'settings', children: [
-        { to: '/profile', label: 'Perfil', icon: 'user' },
-        { to: '/settings', label: 'Geral', icon: 'settings' }
+        { to: '/profile', label: 'Perfil', icon: 'person' },
+        { to: '/settings', label: 'Geral', icon: 'settings_applications' }
       ]
     },
   ]
+  // Determine current title based on path
+  const location = useLocation()
+  let currentTitle = 'ContaMestre'
+
+  // Flatten items for easy lookup
+  const findTitle = (items: typeof nav): string | undefined => {
+    for (const item of items) {
+      if (item.to === location.pathname) return item.label
+      if (item.children) {
+        const childLabel = findTitle(item.children)
+        if (childLabel) return childLabel
+      }
+    }
+    return undefined
+  }
+
+  currentTitle = findTitle(nav) || 'Dashboard'
+
+  // State for sidebar collapse (persisted)
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('sidebar.collapsed') === 'true'
+    } catch { return false }
+  })
+
+  const toggleCollapse = () => {
+    setCollapsed(prev => {
+      const n = !prev
+      localStorage.setItem('sidebar.collapsed', String(n))
+      return n
+    })
+  }
+
   return (
-    <div className="min-h-screen flex bg-gray-50 text-gray-900">
-      <Header onMenuToggle={() => setMobileOpen(true)} />
-      <div className="hidden md:block">
-        <Sidebar items={nav} onLogout={() => supabase?.auth.signOut()} />
-      </div>
-      <main className="flex-1 p-6 pb-20 mt-12 md:mt-0 relative">
-        <div className="hidden md:flex items-center gap-4 absolute top-4 right-6 text-sm text-gray-700">
-
-          <div className="flex items-center gap-2 border-r pr-4 mr-2">
-            <button
-              className="p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors"
-              title="Calculadora"
-              onClick={() => setShowCalculator(true)}
-            >
-              <Icon name="calculator" className="w-5 h-5" />
-            </button>
-            <button
-              className="p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors"
-              title="Incluir Lançamento (Livro Caixa)"
-              onClick={() => setShowTransaction(true)}
-            >
-              <Icon name="add" className="w-5 h-5" />
-            </button>
-            <button
-              className="p-1.5 rounded hover:bg-gray-200 text-gray-700 transition-colors"
-              title="Transferência"
-              onClick={() => setShowTransfer(true)}
-            >
-              <Icon name="transfer" className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Icon name="calendar-primary" className="w-5 h-5" />
-            <span>{(() => {
-              const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-              return dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
-            })()}</span>
-          </div>
-          <button
-            onClick={() => supabase?.auth.signOut()}
-            className="flex items-center gap-1 hover:text-red-600 transition-colors font-medium border-l border-gray-300 pl-4"
-          >
-            Sair
-          </button>
-        </div>
-        {children}
-      </main>
-      <Footer />
-
+    <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark font-body text-text-main-light dark:text-text-main-dark transition-colors duration-200 antialiased">
+      {/* Mobile Sidebar Overlay */}
       {mobileOpen && (
-        <div className="md:hidden">
-          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMobileOpen(false)} aria-hidden="true"></div>
-          <div id="mobile-sidebar" className="fixed top-0 left-0 bottom-0 w-64 bg-white border-r z-50 transition-transform duration-300 overflow-y-auto sidebar-scroll" role="dialog" aria-label="Menu móvel">
-            <Sidebar items={nav} onLogout={() => { setMobileOpen(false); supabase?.auth.signOut() }} />
+        <div className="fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)}></div>
+          <div className="relative bg-surface-light dark:bg-surface-dark w-64 h-full shadow-xl">
+            <Sidebar items={nav} onLogout={() => supabase?.auth.signOut()} mobile onClose={() => setMobileOpen(false)} />
           </div>
         </div>
       )}
+
+      {/* Desktop Sidebar */}
+      <aside className={`hidden md:flex flex-col flex-shrink-0 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark overflow-y-auto transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
+        <Sidebar
+          items={nav}
+          onLogout={() => supabase?.auth.signOut()}
+          collapsed={collapsed}
+          onToggle={toggleCollapse}
+        />
+      </aside>
+
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <Header
+          onMenuToggle={() => setMobileOpen(true)}
+          title={currentTitle}
+          onOpenCalculator={() => setShowCalculator(true)}
+          onOpenTransaction={() => setShowTransaction(true)}
+          onOpenTransfer={() => setShowTransfer(true)}
+        />
+
+        <div className="flex-1 overflow-y-auto relative p-6">
+          {children}
+        </div>
+
+        <Footer />
+      </main>
 
       {showCalculator && <CalculatorModal onClose={() => setShowCalculator(false)} />}
       {showTransfer && <TransferModal onClose={() => setShowTransfer(false)} />}

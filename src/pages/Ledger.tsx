@@ -5,6 +5,7 @@ import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
 import { Icon } from '../components/ui/Icon'
 import { formatMoneyBr } from '../utils/format'
+import { TransactionModal } from '../components/modals/TransactionModal'
 
 export default function Ledger() {
   const store = useAppStore()
@@ -83,10 +84,11 @@ export default function Ledger() {
 
   async function load() {
     if (hasBackend) {
-      const t = await listTransactions(2000)
-      const a = await listAccounts()
-      const c = await listClients()
-      const g = await listCommitmentGroups()
+      const orgId = store.activeOrganization || undefined
+      const t = await listTransactions(2000, orgId)
+      const a = await listAccounts(orgId)
+      const c = await listClients(orgId)
+      const g = await listCommitmentGroups(orgId)
       setTxs(t.data || [])
       setAccounts(a.data || [])
       setClients(c.data || [])
@@ -99,7 +101,7 @@ export default function Ledger() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [store.activeOrganization])
 
   useEffect(() => {
     if (!formGrupoCompromisso) {
@@ -637,121 +639,19 @@ export default function Ledger() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowModal(false)} aria-hidden="true"></div>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">{modalTitle}</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 1. Operação | Espécie */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Operação *</label>
-                <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => {
-                  setFormOperacao(e.target.value as any)
-                  setFormGrupoCompromisso('')
-                  setFormCompromisso('')
-                }}>
-                  <option value="despesa">Despesa</option>
-                  <option value="receita">Receita</option>
-                  <option value="aporte">Aporte</option>
-                  <option value="retirada">Retirada</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Espécie</label>
-                <select className="w-full border rounded px-3 py-2" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="pix">PIX</option>
-                  <option value="cartao">Cartão</option>
-                  <option value="boleto">Boleto</option>
-                  <option value="transferencia">Transferência</option>
-                  <option value="debito_automatico">Débito Automático</option>
-                </select>
-              </div>
-
-              {/* 2. Cliente */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Cliente *</label>
-                <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </div>
-
-              {/* 3. Grupo Compromisso | Compromisso */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Grupo Compromisso *</label>
-                <select className="w-full border rounded px-3 py-2" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {groups
-                    .filter(g => !g.tipo || (g.tipo && formOperacao && g.tipo.toLowerCase() === formOperacao.toLowerCase()))
-                    .map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Compromisso *</label>
-                <select className="w-full border rounded px-3 py-2" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </div>
-
-              {/* 4. Histórico */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Histórico *</label>
-                <input className="w-full border rounded px-3 py-2" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
-              </div>
-
-              {/* 5. Detalhe | Nota Fiscal */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Detalhe</label>
-                <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Nota Fiscal</label>
-                <input className="w-full border rounded px-3 py-2" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
-              </div>
-
-              {/* 6. Data Vencimento | Data Pagamento */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Data Vencimento</label>
-                <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Data Pagamento</label>
-                <input type="date" className="w-full border rounded px-3 py-2" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
-              </div>
-
-              {/* 7. Valor | Caixa */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Valor *</label>
-                <input type="number" step="0.01" className="w-full border rounded px-3 py-2" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Caixa Lançamento *</label>
-                <select className="w-full border rounded px-3 py-2" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                className="px-4 py-2 border rounded hover:bg-gray-50"
-                onClick={() => setShowModal(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="px-4 py-2 bg-fourtek-blue text-white rounded hover:bg-blue-700"
-                onClick={handleCreateTransaction}
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
-        </div>
+        <TransactionModal
+          onClose={() => {
+            setShowModal(false)
+            setEditingId(null)
+          }}
+          onSuccess={() => {
+            setShowModal(false)
+            setEditingId(null)
+            load()
+          }}
+          initialData={editingId ? txs.find(t => t.id === editingId) : undefined}
+          title={modalTitle}
+        />
       )}
     </div>
   )

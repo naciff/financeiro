@@ -1,12 +1,28 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Icon } from '../ui/Icon'
 
 type Item = { to: string; label: string; icon: string; children?: Item[] }
 
-export function Sidebar({ items, onLogout }: { items: Item[]; onLogout?: () => void }) {
-  const [collapsed, setCollapsed] = useState(false)
+export function Sidebar({
+  items,
+  onLogout,
+  mobile,
+  onClose,
+  collapsed = false,       // New Prop
+  onToggle                 // New Prop
+}: {
+  items: Item[];
+  onLogout?: () => void;
+  mobile?: boolean;
+  onClose?: () => void;
+  collapsed?: boolean;     // Optional to support mobile defaulting to false
+  onToggle?: () => void;   // Optional for mobile
+}) {
   const loc = useLocation()
+
+  // Mobile always expanded
+  const isCollapsed = mobile ? false : collapsed
+
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>(() => {
     try {
       const raw = localStorage.getItem('sidebar.expanded')
@@ -15,136 +31,108 @@ export function Sidebar({ items, onLogout }: { items: Item[]; onLogout?: () => v
       return {}
     }
   })
-  useEffect(() => {
-    try {
-      localStorage.setItem('sidebar.expanded', JSON.stringify(expandedParents))
-    } catch { }
-  }, [expandedParents])
 
-  const flatItems = useMemo(() => {
-    const out: Array<{ key: string; to?: string; label: string; depth: number }> = []
-    items.forEach(i => {
-      out.push({ key: i.to, to: i.to, label: i.label, depth: 0 })
-      if (i.children && expandedParents[i.to]) {
-        i.children.forEach(c => out.push({ key: `${i.to}:${c.to}`, to: c.to, label: c.label, depth: 1 }))
-      }
-    })
-    return out
-  }, [items, expandedParents])
+  // We rely on parent to handle persistence of collapsed state if needed for desktop
 
-  const itemRefs = useRef<Array<HTMLAnchorElement | HTMLButtonElement | null>>([])
-  function focusAt(index: number) {
-    const el = itemRefs.current[index]
-    if (el) el.focus()
-  }
   return (
-    <nav role="navigation" aria-label="Menu principal" className={`bg-white border-r h-screen sticky top-0 flex flex-col transition-all duration-300 ease-in-out ${collapsed ? 'w-16' : 'w-64'}`}>
-      <div className="flex items-center justify-between p-4">
-        <button
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          aria-expanded={!collapsed}
-          aria-controls="sidebar-items"
-          className="rounded p-2 hover:bg-gray-100 focus:outline-none focus:ring"
-          onClick={() => setCollapsed(v => !v)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) } }}
-        >
-          <img src="/favicon.png" alt="Menu" className="w-8 h-8 object-contain" />
-        </button>
-        {!collapsed && <div className="font-semibold">ContaMestre</div>}
+    <div className={`flex flex-col h-full bg-surface-light dark:bg-surface-dark ${isCollapsed ? 'w-16' : 'w-full'} transition-all duration-300`}>
+      {/* Header (Brand) */}
+      <div className={`h-16 flex items-center ${isCollapsed ? 'justify-center' : 'px-6'} border-b border-border-light dark:border-border-dark flex-shrink-0 overflow-hidden`}>
+        <div className="flex items-center gap-3 overflow-hidden">
+          <img src="/favicon.png" alt="Logo" className="w-8 h-8 object-contain shrink-0" />
+          {!isCollapsed && <span className="font-bold text-lg tracking-tight whitespace-nowrap text-text-main-light dark:text-text-main-dark">ContaMestre</span>}
+        </div>
       </div>
-      <ul id="sidebar-items" className="flex-1 space-y-1 sidebar-scroll pr-2">
-        {items.map((i, pi) => {
-          const isActiveParent = loc.pathname === i.to || (i.children?.some(c => loc.pathname.startsWith(c.to)))
-          const isExpandable = !!i.children?.length
+
+      {/* Navigation */}
+      <nav className="flex-1 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
+        {items.map((i) => {
+          const isActive = loc.pathname === i.to || (i.children?.some(c => loc.pathname.startsWith(c.to)))
           const expanded = !!expandedParents[i.to]
+          const showChildren = expanded && !isCollapsed && i.children
+
+          // Parent Item
           return (
-            <li key={i.to}>
-              {isExpandable ? (
-                <button
-                  ref={el => itemRefs.current[pi] = el}
-                  type="button"
-                  aria-label={i.label}
-                  title={i.label}
-                  className={`flex items-center gap-2 w-full text-left px-4 py-3 min-h-12 transition-colors duration-300 ${isActiveParent ? 'bg-fourtek-blue text-white' : 'hover:bg-fourtek-blue-light'}`}
-                  aria-haspopup="true"
-                  aria-expanded={expanded}
-                  onClick={() => setExpandedParents(s => ({ ...s, [i.to]: !expanded }))}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedParents(s => ({ ...s, [i.to]: !expanded })) }
-                    if (e.key === 'ArrowRight' && !expanded) { e.preventDefault(); setExpandedParents(s => ({ ...s, [i.to]: true })) }
-                    if (e.key === 'ArrowLeft' && expanded) { e.preventDefault(); setExpandedParents(s => ({ ...s, [i.to]: false })) }
-                    if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(Math.min(pi + 1, flatItems.length - 1)) }
-                    if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(Math.max(pi - 1, 0)) }
-                  }}
-                >
-                  <Icon name={i.icon} className="w-5 h-5" title={i.label} />
-                  {!collapsed && <span className="text-base">{i.label}</span>}
-                  {!collapsed && (
-                    <span className="ml-auto" aria-hidden="true">
-                      <Icon name={expanded ? 'chevron-down' : 'chevron-right'} className="w-5 h-5" />
-                    </span>
-                  )}
-                </button>
-              ) : (
-                <Link
-                  ref={el => itemRefs.current[pi] = el}
-                  to={i.to}
-                  title={i.label}
-                  className={`flex items-center gap-2 px-4 py-3 min-h-12 transition-colors duration-300 ${loc.pathname === i.to ? 'bg-fourtek-blue text-white' : 'hover:bg-fourtek-blue-light'}`}
-                  aria-current={loc.pathname === i.to ? 'page' : undefined}
-                  onKeyDown={e => {
-                    const idx = pi
-                    if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(Math.min(idx + 1, flatItems.length - 1)) }
-                    if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(Math.max(idx - 1, 0)) }
-                  }}
-                >
-                  <Icon name={i.icon} className="w-5 h-5" title={i.label} />
-                  <span className={`transition-opacity duration-300 ${collapsed ? 'opacity-0 pointer-events-none w-0 overflow-hidden' : 'opacity-100 text-base'}`}>{i.label}</span>
-                </Link>
-              )}
-              {expanded && i.children && !collapsed && (
-                <ul className="mt-2 space-y-2 pl-10" aria-label={`Submenu ${i.label}`}>
-                  {i.children.map((c, ci) => {
-                    const idx = pi + 1 + ci
-                    const active = loc.pathname.startsWith(c.to)
+            <div key={i.to}>
+              <div
+                className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-6'} py-3 cursor-pointer border-l-4 transition-colors relative group
+                  ${isActive
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-text-muted-light dark:text-text-muted-dark hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-primary'
+                  }`}
+                onClick={() => {
+                  if (i.children) {
+                    setExpandedParents(s => ({ ...s, [i.to]: !expanded }))
+                    if (isCollapsed && onToggle) onToggle() // Auto expand if clicking parent in collapsed mode
+                  } else {
+                    if (mobile && onClose) onClose()
+                  }
+                }}
+              >
+                {i.children && !isCollapsed ? (
+                  // Button behavior for parent toggle
+                  <button className="flex items-center w-full focus:outline-none">
+                    <span className="material-icons-outlined select-none mr-3">{i.icon}</span>
+                    {!isCollapsed && (
+                      <>
+                        <span className="font-medium text-sm flex-1 text-left">{i.label}</span>
+                        <span className={`material-icons-outlined text-sm transition-transform ${expanded ? 'rotate-180' : ''}`}>expand_more</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  // Link behavior
+                  <Link to={i.to} className="flex items-center w-full focus:outline-none" onClick={() => { if (mobile && onClose) onClose() }}>
+                    <span className="material-icons-outlined select-none mr-3">{i.icon}</span>
+                    {!isCollapsed && <span className="font-medium text-sm">{i.label}</span>}
+                  </Link>
+                )}
+
+                {/* Tooltip for collapsed mode */}
+                {isCollapsed && (
+                  <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+                    {i.label}
+                  </div>
+                )}
+              </div>
+
+              {/* Children */}
+              {showChildren && (
+                <div className="bg-gray-50 dark:bg-gray-800/50 py-1">
+                  {i.children!.map((c) => {
+                    const isChildActive = loc.pathname === c.to
                     return (
-                      <li key={c.to}>
-                        <Link
-                          ref={el => itemRefs.current[idx] = el}
-                          to={c.to}
-                          title={c.label}
-                          className={`flex items-center gap-3 px-4 py-2 min-h-12 transition-colors duration-300 ${active ? 'bg-fourtek-blue/80 text-white' : 'hover:bg-fourtek-blue-light'}`}
-                          aria-current={active ? 'page' : undefined}
-                          onKeyDown={e => {
-                            if (e.key === 'ArrowRight') { e.preventDefault() }
-                            if (e.key === 'ArrowLeft') { e.preventDefault(); setExpandedParents(s => ({ ...s, [i.to]: false })) }
-                            if (e.key === 'ArrowDown') { e.preventDefault(); focusAt(Math.min(idx + 1, flatItems.length - 1)) }
-                            if (e.key === 'ArrowUp') { e.preventDefault(); focusAt(Math.max(idx - 1, 0)) }
-                          }}
-                        >
-                          <Icon name={c.icon} className="w-6 h-6" title={c.label} />
-                          <span className="text-sm">{c.label}</span>
-                        </Link>
-                      </li>
+                      <Link
+                        key={c.to}
+                        to={c.to}
+                        onClick={() => { if (mobile && onClose) onClose() }}
+                        className={`flex items-center pl-14 pr-6 py-2 text-sm hover:text-primary transition-colors
+                           ${isChildActive ? 'text-primary font-medium' : 'text-text-muted-light dark:text-text-muted-dark'}
+                         `}
+                      >
+                        <span className="material-icons-outlined text-xs mr-2">{c.icon}</span>
+                        {c.label}
+                      </Link>
                     )
                   })}
-                </ul>
+                </div>
               )}
-            </li>
+            </div>
           )
         })}
-      </ul>
-      <div className="p-4">
-        {onLogout && (
+      </nav>
+
+      {/* Collapse Toggle (Desktop only) */}
+      {!mobile && onToggle && (
+        <div className="p-4 border-t border-border-light dark:border-border-dark">
           <button
-            className="flex items-center gap-3 w-full text-left px-4 py-2 rounded hover:bg-gray-50"
-            onClick={() => onLogout()}
+            onClick={onToggle}
+            className="w-full flex items-center justify-center p-2 text-text-muted-light dark:text-text-muted-dark hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
           >
-            <Icon name="logout" className="w-5 h-5" title="Sair" />
-            <span className={`transition-opacity duration-300 ${collapsed ? 'opacity-0 pointer-events-none w-0 overflow-hidden' : 'opacity-100 text-base'}`}>Sair</span>
+            <span className="material-icons-outlined">{collapsed ? 'chevron_right' : 'chevron_left'}</span>
           </button>
-        )}
-      </div>
-    </nav>
+        </div>
+      )}
+    </div>
   )
 }

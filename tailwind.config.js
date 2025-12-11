@@ -6,6 +6,21 @@ export default {
   theme: {
     extend: {
       colors: {
+        primary: "#359EFF",
+        "background-light": "#f5f7f8",
+        "background-dark": "#0f1923",
+        "surface-light": "#FFFFFF",
+        "surface-dark": "#1F2937",
+        "border-light": "#E5E7EB",
+        "border-dark": "#374151",
+        "text-main-light": "#111827",
+        "text-main-dark": "#F9FAFB",
+        "text-muted-light": "#6B7280",
+        "text-muted-dark": "#9CA3AF",
+        profit: "#10B981",
+        loss: "#EF4444",
+        neutral: "#3B82F6",
+        // Keep existing colors for safety/compatibility
         'fourtek': {
           green: '#00CC00',
           blue: '#0066CC',
@@ -13,19 +28,15 @@ export default {
           'blue-hover': '#0052A3',
           'green-light': '#33D633',
           'blue-light': '#3385D6',
-        },
-        'neutral': {
-          50: '#FAFAFA',
-          100: '#F5F5F5',
-          200: '#E5E5E5',
-          300: '#D4D4D4',
-          400: '#A3A3A3',
-          500: '#737373',
-          600: '#525252',
-          700: '#404040',
-          800: '#262626',
-          900: '#171717',
         }
+      },
+      fontFamily: {
+        display: "Spline Sans",
+        body: ["Inter", "sans-serif"]
+      },
+      borderRadius: {
+        lg: "0.5rem",
+        xl: "0.75rem"
       },
       animation: {
         'scale-in': 'scaleIn 0.2s ease-out',

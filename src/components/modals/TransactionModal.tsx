@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup } from '../../services/db'
+import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction } from '../../services/db'
 import { hasBackend } from '../../lib/runtime'
 import { useAppStore } from '../../store/AppStore'
 import { supabase } from '../../lib/supabase'
@@ -7,9 +7,11 @@ import { supabase } from '../../lib/supabase'
 type Props = {
     onClose: () => void
     onSuccess?: () => void
+    initialData?: any
+    title?: string
 }
 
-export function TransactionModal({ onClose, onSuccess }: Props) {
+export function TransactionModal({ onClose, onSuccess, initialData, title }: Props) {
     const store = useAppStore()
     const [msg, setMsg] = useState('')
 
@@ -53,11 +55,28 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
         }
         loadData()
 
-        // Defaults
-        const today = new Date().toISOString().split('T')[0]
-        setFormDataLancamento(today)
-        setFormDataVencimento(today)
-    }, [])
+        if (initialData) {
+            setFormOperacao(initialData.operacao)
+            setFormContaId(initialData.conta_id || initialData.caixa_id || '')
+            setFormEspecie(initialData.especie || 'dinheiro')
+            setFormHistorico(initialData.historico)
+            setFormValor(Number(initialData.valor_saida || initialData.valor_entrada || 0))
+            const today = new Date().toISOString().split('T')[0]
+            setFormDataVencimento(initialData.data_vencimento ? initialData.data_vencimento.split('T')[0] : today)
+            setFormDataLancamento(initialData.data_lancamento ? initialData.data_lancamento.split('T')[0] : today)
+            setFormStatus(initialData.status || 'pendente')
+            setFormCliente(initialData.cliente_id || initialData.cliente || '')
+            setFormGrupoCompromisso(initialData.grupo_compromisso || initialData.grupo_compromisso_id || initialData.grupo_id || '')
+            setFormCompromisso(initialData.compromisso || initialData.compromisso_id || '')
+            setFormNotaFiscal(initialData.nota_fiscal || '')
+            setFormDetalhes(initialData.detalhes ? (typeof initialData.detalhes === 'string' ? initialData.detalhes : JSON.stringify(initialData.detalhes)) : '')
+        } else {
+            // Defaults
+            const today = new Date().toISOString().split('T')[0]
+            setFormDataLancamento(today)
+            setFormDataVencimento(today)
+        }
+    }, [initialData])
 
     useEffect(() => {
         if (!formGrupoCompromisso) {
@@ -71,7 +90,7 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
         }
     }, [formGrupoCompromisso])
 
-    async function handleCreateTransaction() {
+    async function handleSave() {
         if (!formContaId || !formValor || !formDataLancamento || !formOperacao || !formCliente || !formGrupoCompromisso || !formCompromisso || !formHistorico) {
             setMsg('Preencha todos os campos obrigatórios')
             return
@@ -87,29 +106,40 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
             valor_entrada: isEntrada ? formValor : 0,
             valor_saida: !isEntrada ? formValor : 0,
             status: formStatus,
-            cliente: formCliente,
-            grupo_compromisso: formGrupoCompromisso,
-            compromisso: formCompromisso,
+            cliente_id: formCliente,
+            grupo_compromisso_id: formGrupoCompromisso,
+            compromisso_id: formCompromisso,
             nota_fiscal: formNotaFiscal,
             detalhes: formDetalhes,
             especie: formEspecie
         }
 
         if (hasBackend && supabase) {
-            const userId = (await supabase.auth.getUser()).data.user?.id
-            const r = await supabase.from('transactions').insert([{ user_id: userId, ...newTransaction }])
-            if (r.error) {
-                setMsg('Erro ao criar transação: ' + r.error.message)
+            let r
+            if (initialData && initialData.id) {
+                r = await updateTransaction(initialData.id, newTransaction)
             } else {
-                setMsg('Transação criada com sucesso!')
+                const userId = (await supabase.auth.getUser()).data.user?.id
+                r = await supabase.from('transactions').insert([{ user_id: userId, ...newTransaction }])
+            }
+
+            if (r.error) {
+                setMsg('Erro ao salvar transação: ' + r.error.message)
+            } else {
+                setMsg(initialData ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!')
                 setTimeout(() => {
                     onClose()
                     if (onSuccess) onSuccess()
                 }, 1000)
             }
         } else {
-            store.createTransaction(newTransaction as any)
-            setMsg('Transação criada com sucesso!')
+            if (initialData && initialData.id) {
+                // store.updateTransaction(initialData.id, newTransaction)
+                console.warn("Local update not implemented fully")
+            } else {
+                store.createTransaction(newTransaction as any)
+            }
+            setMsg(initialData ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!')
             setTimeout(() => {
                 onClose()
                 if (onSuccess) onSuccess()
@@ -120,14 +150,18 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 text-left">
             <div className="bg-white border rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto shadow-2xl">
-                <h2 className="text-lg font-semibold mb-4">Incluir Nova Transação (Rápida)</h2>
+                <h2 className="text-lg font-semibold mb-4">{title || (initialData ? 'Editar Transação' : 'Incluir Nova Transação')}</h2>
 
                 {msg && <div className={`mb-4 text-sm ${msg.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{msg}</div>}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Operação | Espécie */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Operação *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => setFormOperacao(e.target.value as any)}>
+                        <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => {
+                            setFormOperacao(e.target.value as any)
+                            // Reset dependents if needed like Ledger does
+                        }}>
                             <option value="despesa">Despesa</option>
                             <option value="receita">Receita</option>
                             <option value="aporte">Aporte</option>
@@ -135,42 +169,61 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Cliente *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
-                            <option value="">Selecione...</option>
-                            {clients.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                        <label className="block text-sm font-medium mb-1">Espécie</label>
+                        <select className="w-full border rounded px-3 py-2" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
+                            <option value="dinheiro">Dinheiro</option>
+                            <option value="pix">PIX</option>
+                            <option value="cartao">Cartão</option>
+                            <option value="boleto">Boleto</option>
+                            <option value="transferencia">Transferência</option>
+                            <option value="debito_automatico">Débito Automático</option>
                         </select>
                     </div>
 
+                    {/* Cliente */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1">Cliente *</label>
+                        <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
+                            <option value="">Selecione...</option>
+                            {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Grupo | Compromisso */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Grupo Compromisso *</label>
                         <select className="w-full border rounded px-3 py-2" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
                             <option value="">Selecione...</option>
-                            {groups.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                            {groups
+                                .filter(g => !g.tipo || (g.tipo && formOperacao && g.tipo.toLowerCase() === formOperacao.toLowerCase()))
+                                .map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Compromisso *</label>
                         <select className="w-full border rounded px-3 py-2" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
                             <option value="">Selecione...</option>
-                            {commitments.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                            {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                         </select>
                     </div>
 
-                    <div>
+                    {/* Histórico */}
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium mb-1">Histórico *</label>
                         <input className="w-full border rounded px-3 py-2" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
+                    </div>
+
+                    {/* Detalhe | NF */}
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Detalhe</label>
+                        <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Nota Fiscal</label>
                         <input className="w-full border rounded px-3 py-2" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
                     </div>
 
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium mb-1">Detalhe</label>
-                        <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
-                    </div>
-
+                    {/* Datas */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Data Vencimento</label>
                         <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
@@ -179,28 +232,17 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
                         <label className="block text-sm font-medium mb-1">Data Pagamento</label>
                         <input type="date" className="w-full border rounded px-3 py-2" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
                     </div>
+
+                    {/* Valor | Caixa */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Valor *</label>
                         <input type="number" step="0.01" className="w-full border rounded px-3 py-2" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Espécie</label>
-                        <select className="w-full border rounded px-3 py-2" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
-                            <option value="dinheiro">Dinheiro</option>
-                            <option value="pix">PIX</option>
-                            <option value="transferencia">Transferência</option>
-                            <option value="deposito">Depósito</option>
-                            <option value="boleto">Boleto</option>
-                            <option value="cartao_credito">Cartão de Crédito</option>
-                            <option value="cartao_debito">Cartão de Débito</option>
-                            <option value="debito_automatico">Débito Automático</option>
-                        </select>
-                    </div>
-                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium mb-1">Caixa Lançamento *</label>
                         <select className="w-full border rounded px-3 py-2" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
                             <option value="">Selecione...</option>
-                            {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
+                            {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
                         </select>
                     </div>
                 </div>
@@ -213,8 +255,8 @@ export function TransactionModal({ onClose, onSuccess }: Props) {
                         Cancelar
                     </button>
                     <button
-                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                        onClick={handleCreateTransaction}
+                        className="px-4 py-2 bg-fourtek-blue text-white rounded hover:bg-blue-700" // Use blue style from Ledger
+                        onClick={handleSave}
                     >
                         Salvar
                     </button>

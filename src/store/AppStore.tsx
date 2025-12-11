@@ -75,6 +75,8 @@ type AppStoreState = {
   deleteCommitment: (id: string) => void
   createTransaction: (t: Omit<Transaction, 'id'>) => string
   deleteTransaction: (id: string) => void
+  activeOrganization: string | null
+  setActiveOrganization: (orgId: string | null) => void
 }
 
 const AppStoreCtx = createContext<AppStoreState | null>(null)
@@ -102,6 +104,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     { id: 'cx-1', nome: 'Carteira' },
     { id: 'cx-2', nome: 'Banco Itaú' },
   ])
+  const [activeOrganization, setActiveOrganization] = useState<string | null>(null)
 
   const api = useMemo<AppStoreState>(() => ({
     accounts,
@@ -206,8 +209,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }
     , deleteCommitment: id => {
       setCommitments(prev => prev.filter(c => c.id !== id))
-    }
-  }), [accounts, transactions, schedules, clients, commitmentGroups, commitments, cashboxes])
+    },
+    activeOrganization,
+    setActiveOrganization
+  }), [accounts, transactions, schedules, clients, commitmentGroups, commitments, cashboxes, activeOrganization])
 
   return <AppStoreCtx.Provider value={api}>{children}</AppStoreCtx.Provider>
 }

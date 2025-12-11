@@ -288,8 +288,16 @@ export default function Schedules() {
     async function load() {
       try {
         console.log('Schedules: navegou para /schedules')
+        setLoadError('')
+        const orgId = store.activeOrganization || undefined
         if (hasBackend) {
-          const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(), listCommitmentGroups(), listAccounts(), listCashboxes(), listSchedules(10000, { includeConcluded: true })])
+          const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([
+            listClients(orgId),
+            listCommitmentGroups(orgId),
+            listAccounts(orgId),
+            listCashboxes(orgId),
+            listSchedules(10000, { includeConcluded: true, orgId })
+          ])
           if (cRes.error) throw cRes.error
           if (gRes.error) throw gRes.error
           if (accRes.error) throw accRes.error
@@ -323,7 +331,7 @@ export default function Schedules() {
       }
     }
     load()
-  }, [activeTab])
+  }, [activeTab, store.activeOrganization])
 
   useEffect(() => {
     const map: any = { despesa: 'despesa', receita: 'receita', retirada: 'retirada', aporte: 'aporte' }
@@ -395,7 +403,7 @@ export default function Schedules() {
   async function fetchRemoteSchedules() {
     if (hasBackend) {
       setLoadError('')
-      const r = await listSchedules(10000, { includeConcluded: true })
+      const r = await listSchedules(10000, { includeConcluded: true, orgId: store.activeOrganization || undefined })
       if (r.error) {
         setLoadError(r.error.message)
       } else {

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { listSchedules } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 
-export function useDashboardData(selectedMonth?: number, selectedYear?: number) {
+export function useDashboardData(selectedMonth?: number, selectedYear?: number, orgId?: string | null) {
     const [totais, setTotais] = useState<any | null>(null)
     const [totalDespesas, setTotalDespesas] = useState(0)
     const [totalReceitas, setTotalReceitas] = useState(0)
@@ -74,7 +74,8 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number) 
                         }
                     }
 
-                    const schedulesResult = await listSchedules()
+                    const schedulesResult = await listSchedules(200, { orgId: orgId || undefined }) // Explicitly pass orgId to listSchedules
+
                     if (!schedulesResult.error && schedulesResult.data) {
                         const schedules = schedulesResult.data as any[]
 
@@ -134,7 +135,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number) 
             }
         }
         load()
-    }, [selectedMonth, selectedYear])
+    }, [selectedMonth, selectedYear, orgId])
 
     return {
         totais: {

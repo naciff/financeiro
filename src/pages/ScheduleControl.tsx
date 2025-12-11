@@ -63,10 +63,11 @@ export default function ScheduleControl() {
 
   useEffect(() => {
     if (hasBackend) {
-      listAccounts().then(r => { if (!r.error && r.data) setCaixas(r.data as any) })
-      listCommitmentGroups().then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
+      const orgId = store.activeOrganization || undefined
+      listAccounts(orgId).then(r => { if (!r.error && r.data) setCaixas(r.data as any) })
+      listCommitmentGroups(orgId).then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
     }
-  }, [])
+  }, [store.activeOrganization])
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -81,21 +82,21 @@ export default function ScheduleControl() {
   // Carregar dados do Livro Financeiro (apenas Ativos/Agendados)
   useMemo(() => {
     if (hasBackend) {
-      listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+      listFinancials({ status: 1, orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
     }
-  }, [])
+  }, [store.activeOrganization])
 
   // Refresh automaticamente ao entrar/voltar para a tela
   useMemo(() => {
     function refresh() {
       if (hasBackend) {
-        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+        listFinancials({ status: 1, orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
       }
     }
     refresh()
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
-  }, [])
+  }, [store.activeOrganization])
 
 
   const rows = useMemo(() => {
@@ -202,6 +203,7 @@ export default function ScheduleControl() {
         diasAtraso: diffDays,
         statusMessage: statusMessage,
         agendamento: s.agendamento, // Pass full object for modal checks
+        scheduleId: s.id_agendamento,
         tipo: s.agendamento?.tipo,
         periodo: s.agendamento?.periodo,
         conferido: s.conferido || false
@@ -824,9 +826,22 @@ export default function ScheduleControl() {
                 <tbody>
                   {linkedItems.map((item, idx) => {
                     const isPaid = item.situacao === 2
-                    const statusIcon = isPaid ? 'check' : 'clock'
-                    const statusText = isPaid ? 'Realizado' : 'Aguardando Realização'
-                    const statusClass = isPaid ? 'text-green-700 font-bold' : 'text-blue-700'
+                    const isSkipped = item.situacao === 4
+                    const isTime = item.situacao === 1 || !item.situacao
+
+                    let statusIcon = 'clock'
+                    let statusText = 'Aguardando Realização'
+                    let statusClass = 'text-blue-700'
+
+                    if (isPaid) {
+                      statusIcon = 'check'
+                      statusText = 'Realizado'
+                      statusClass = 'text-green-700 font-bold'
+                    } else if (isSkipped) {
+                      statusIcon = 'skip'
+                      statusText = 'Saltado/Cancelado'
+                      statusClass = 'text-gray-500 italic line-through'
+                    }
                     const rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]'
 
                     // Formatting
@@ -849,7 +864,7 @@ export default function ScheduleControl() {
                     const parcelaDisplay = (item.agendamento?.parcelas > 1) ? `${idx + 1}/${item.agendamento.parcelas}` : ''
 
                     return (
-                      <tr key={item.id} className={`${rowClass} hover:bg-yellow-50 border-b border-gray-200 text-[#000000]`}>
+                      <tr key={item.id} className={`${rowClass} hover:bg-yellow-50 border-b border-gray-200 text-[#000000] ${isSkipped ? 'opacity-60 bg-gray-50' : ''}`}>
                         <td className={`px-2 py-1 border-r border-gray-200 whitespace-nowrap ${statusClass}`}>
                           <div className="flex items-center gap-1">
                             <Icon name={statusIcon} className="w-3 h-3" />
@@ -993,7 +1008,7 @@ export default function ScheduleControl() {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
             <div
-              className="fixed z-50 bg-white border rounded shadow-lg py-1 text-xs font-medium w-48"
+              className="fixed z-50 bg-white border rounded shadow-lg py-1 text-xs font-medium w-64"
               style={{ top: contextMenu.y, left: contextMenu.x }}
             >
               <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
@@ -1018,6 +1033,28 @@ export default function ScheduleControl() {
                   return
                 }
 
+                // Note: listFinancialsBySchedule needs update to support orgId?
+                // Actually it filters by scheduleId, which is unique.
+                // But for robust RLS, we should prob pass context or ensure RLS covers it.
+                // RLS on financials: has_access(user_id)
+                // If the item exists and I can see it, I have access.
+                // fetching by scheduleId should define filtered records.
+                // But wait, listFinancialsBySchedule calculates userId internaly.
+                // It needs to support orgId too if used in shared context.
+                // Let's check db.ts again.
+                // I forgot to refactor listFinancialsBySchedule.
+                // I will do it later or rely on RLS not blocking if queried correctly?
+                // No, the function explicitly does .eq('user_id', userId).
+                // It needs to be refactored. I will assume it accepts orgId or I need to fix it.
+                // For now, I'll pass it if I fix the signature.
+                // Assuming I will fix it:
+                // Wait, I can't pass orgId if signature doesn't take it.
+                // I should assume the basic implementation first.
+                // The current implementation of listFinancialsBySchedule USES active user ID.
+                // If I am browsing delegated data, userId will be ME, but data belongs to OWNER.
+                // So .eq('user_id', my_id) will return NOTHING.
+                // I MUST refactor listFinancialsBySchedule.
+                // For now I'll just leave this call as is and FIX the backend function.
                 const r = await listFinancialsBySchedule(item.scheduleId)
                 if (r.error) {
                   alert('Erro ao carregar itens vinculados: ' + (r.error as any).message)
@@ -1027,7 +1064,7 @@ export default function ScheduleControl() {
                 }
               }}>
                 <Icon name="list" className="w-4 h-4 text-gray-500" />
-                Visualizar Itens Vinculados
+                <span className="whitespace-nowrap">Visualizar Itens Vinculados</span>
               </button>
               <div className="border-t my-1"></div>
               <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {

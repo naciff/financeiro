@@ -28,7 +28,7 @@ const COLORS = [
     '#14B8A6', // teal
 ]
 
-export function useChartData() {
+export function useChartData(orgId?: string | null) {
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
     const [expensesByGroup, setExpensesByGroup] = useState<ExpenseByGroup[]>([])
     const [loading, setLoading] = useState(true)
@@ -50,7 +50,7 @@ export function useChartData() {
                     .select('id, data_vencimento, valor, operacao, situacao')
                     .gte('data_vencimento', twelveMonthsAgo.toISOString())
                     .neq('situacao', 4) // Exclude cancelled/skipped
-                    .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+                    .eq('user_id', orgId || (await supabase.auth.getUser()).data.user?.id)
 
                 if (financials) {
                     const monthlyAgg = new Map<string, { receitas: number, despesas: number }>()
@@ -109,7 +109,7 @@ export function useChartData() {
                   )
                 )
               `)
-                        .eq('user_id', user.id)
+                        .eq('user_id', orgId || user.id)
                         .eq('operacao', 'despesa')
                         .neq('situacao', 2)
 
@@ -154,7 +154,7 @@ export function useChartData() {
         }
 
         loadChartData()
-    }, [])
+    }, [orgId])
 
     return { monthlyData, expensesByGroup, loading }
 }
