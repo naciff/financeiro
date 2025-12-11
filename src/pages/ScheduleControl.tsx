@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
 
@@ -20,6 +21,7 @@ function toBr(iso: string) {
 }
 
 export default function ScheduleControl() {
+  const navigate = useNavigate()
   const store = useAppStore()
   const [remote, setRemote] = useState<any[]>([])
   const [modal, setModal] = useState<any | null>(null)
@@ -1082,6 +1084,19 @@ export default function ScheduleControl() {
               }}>
                 <Icon name="edit" className="w-4 h-4" />
                 Alterar Data Vencimento
+              </button>
+
+              <div className="border-t my-1"></div>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
+                const item = contextMenu.item
+                if (item && item.scheduleId) {
+                  navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
+                } else {
+                  alert('Item sem agendamento vinculado')
+                }
+              }}>
+                <Icon name="calendar" className="w-4 h-4 text-gray-500" />
+                Ir ao Agendamento do Item
               </button>
             </div>
           </>

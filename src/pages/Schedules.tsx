@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
 import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule } from '../services/db'
 import { hasBackend } from '../lib/runtime'
@@ -11,6 +12,8 @@ import { AlertModal } from '../components/ui/AlertModal'
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
 export default function Schedules() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const store = useAppStore()
   const [activeTab, setActiveTab] = useState<'despesa' | 'receita' | 'retirada' | 'aporte' | 'concluidos'>('despesa')
   const [showForm, setShowForm] = useState<'none' | 'create' | 'edit'>('none')
@@ -485,9 +488,10 @@ export default function Schedules() {
     }
   }
 
-  function onEditOpen() {
-    const s = hasBackend ? remoteSchedules.find((x: any) => x.id === selectedId) : store.schedules.find(x => x.id === selectedId)
+  function openEditForm(id: string) {
+    const s = hasBackend ? remoteSchedules.find((x: any) => x.id === id) : store.schedules.find(x => x.id === id)
     if (!s) return
+    setSelectedId(id)
     setOperacao(s.operacao); setTipo(s.tipo); setEspecie(s.especie); setAnoMesInicial(s.ano_mes_inicial);
     setClienteId(s.favorecido_id || s.cliente_id || '');
     // Fix client binding - handle object from backend
@@ -506,6 +510,52 @@ export default function Schedules() {
     setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || '')
     setShowForm('edit')
   }
+
+  function onEditOpen() {
+    openEditForm(selectedId)
+  }
+
+  // Handle Deep Linking
+  useEffect(() => {
+    if (location.state && location.state.selectedScheduleId) {
+      // Wait for data to be loaded?
+      if (hasBackend && remoteSchedules.length > 0) {
+        const id = location.state.selectedScheduleId
+        // Find the item to see which tab it belongs to, or just switch tabs?
+        // The tabs filter the view, but the form can open anyway.
+        // However, it's nice to switch the tab to the item's operation.
+        const item = remoteSchedules.find((x: any) => x.id === id)
+        if (item) {
+          // Map operation to tab
+          const map: any = { despesa: 'despesa', receita: 'receita', retirada: 'retirada', aporte: 'aporte' }
+          if (item.situacao === 2) {
+            setActiveTab('concluidos')
+          } else if (map[item.operacao]) {
+            setActiveTab(map[item.operacao])
+          }
+
+          // Open Modal
+          openEditForm(id)
+          // Clear state so it doesn't reopen on refresh/re-nav
+          navigate(location.pathname, { replace: true, state: {} })
+        }
+      } else if (!hasBackend && store.schedules.length > 0) {
+        // Local store logic
+        const id = location.state.selectedScheduleId
+        const item = store.schedules.find(x => x.id === id)
+        if (item) {
+          const map: any = { despesa: 'despesa', receita: 'receita', retirada: 'retirada', aporte: 'aporte' }
+          if (item.situacao === 2) {
+            setActiveTab('concluidos')
+          } else if (map[item.operacao]) {
+            setActiveTab(map[item.operacao])
+          }
+          openEditForm(id)
+          navigate(location.pathname, { replace: true, state: {} })
+        }
+      }
+    }
+  }, [location.state, remoteSchedules, store.schedules])
 
   function onDeactivate(id: string) {
     if (!id) return

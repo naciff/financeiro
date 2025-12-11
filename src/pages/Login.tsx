@@ -66,21 +66,22 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scale-in">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-[380px] animate-scale-in">
         {/* Header with FourTek Logo */}
-        <div className="p-6 text-center border-b border-gray-100">
-          <div className="flex items-center justify-center mb-2">
+        {/* Header with FourTek Logo */}
+        <div className="p-5 text-center border-b border-gray-100">
+          <div className="flex items-center justify-center mb-1">
             <img
               src="/logo-new.png"
               alt="Conta Mestre Logo"
-              className="h-24 w-auto object-contain"
+              className="h-16 w-auto object-contain"
               loading="eager"
             />
           </div>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={onSubmit} className="p-6 space-y-4">
+        <form onSubmit={onSubmit} className="p-5 space-y-3">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
               Email
@@ -160,7 +161,7 @@ export default function Login() {
         </form>
 
         {/* Footer with Social Icons and Quote */}
-        <div className="px-6 pb-6 pt-4 border-t border-gray-100">
+        <div className="px-5 pb-5 pt-3 border-t border-gray-100">
           <div className="flex justify-center space-x-4 mb-4">
             <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-[#014d6d] transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/site.svg" alt="Website" className="w-5 h-5" />
