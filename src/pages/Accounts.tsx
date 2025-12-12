@@ -236,7 +236,7 @@ export default function Accounts() {
               .filter(b => b.ativo !== false)
               .sort((a, b) => a.nome.localeCompare(b.nome))
               .map(b => (
-                <li key={b.account_id} className="flex justify-between"><span>{b.nome}</span><span>R$ {Number(b.saldo_atual).toFixed(2)}</span></li>
+                <li key={b.account_id} className="flex justify-between"><span>{b.nome}</span><span>R$ {Number(b.saldo_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></li>
               ))}
           </ul>
         </div>

@@ -233,7 +233,7 @@ export default function Reports() {
               <input
                 type="date"
                 max="9999-12-31"
-                className="w-full border rounded px-2 py-1.5 text-sm"
+                className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
               />
@@ -241,7 +241,7 @@ export default function Reports() {
               <input
                 type="date"
                 max="9999-12-31"
-                className="w-full border rounded px-2 py-1.5 text-sm"
+                className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
               />

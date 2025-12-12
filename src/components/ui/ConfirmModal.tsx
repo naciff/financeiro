@@ -12,19 +12,19 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title = 'Confirmaçã
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-            <div className="bg-white border rounded shadow-lg p-6 w-[300px] text-center">
-                <h3 className="font-semibold text-lg mb-4 text-gray-800">{title}</h3>
-                <p className="text-sm text-gray-600 mb-6">{message}</p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm rounded">
+            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[300px] text-center">
+                <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100">{title}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">{message}</p>
                 <div className="flex justify-center gap-3">
                     <button
-                        className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                        className="px-4 py-2 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
                         onClick={onClose}
                     >
                         Não
                     </button>
                     <button
-                        className="px-4 py-2 rounded bg-black text-white hover:bg-gray-800 text-sm"
+                        className="px-4 py-2 rounded bg-black dark:bg-gray-900 text-white hover:bg-gray-800 dark:hover:bg-black text-sm"
                         onClick={onConfirm}
                     >
                         Sim

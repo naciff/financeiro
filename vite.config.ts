@@ -18,7 +18,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api-whatsapp': {
-        target: 'https://apiconnect4.datamastersolucoes.com.br',
+        target: 'https://apiconnect8.datamastersolucoes.com.br',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api-whatsapp/, '')
       }

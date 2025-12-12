@@ -34,9 +34,10 @@ export async function getAccountById(id: string) {
     .single()
 }
 
-export async function listAccountBalances() {
+export async function listAccountBalances(orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('account_balances_view').select('*')
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('account_balances_view').select('*').eq('user_id', userId as any)
 }
 
 export async function transfer(payload: { source: string; dest: string; amount: number; date?: string; descricao?: string }) {
@@ -235,7 +236,7 @@ export async function listClients(orgId?: string) {
 
 export async function searchClients(term: string, limit = 10) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('clients').select('id,nome').ilike('nome', `% ${term} % `).order('nome').limit(limit)
+  return supabase.from('clients').select('id,nome').ilike('nome', `%${term}%`).order('nome').limit(limit)
 }
 
 export async function createClient(payload: { nome: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string }) {
@@ -339,10 +340,16 @@ export async function getRandomMessage() {
   const { data, error } = await supabase
     .from('messages')
     .select('content')
-    .eq('active', true)
+  // .eq('active', true) // Removed to ensure we get messages if column doesn't exist
 
-  if (error) return { data: null, error }
-  if (!data || data.length === 0) return { data: { content: 'Se quer ter sucesso completo em sua vida, você tem que ser foda.' }, error: null }
+  if (error) {
+    console.error('Error fetching messages:', error)
+    return { data: null, error }
+  }
+  if (!data || data.length === 0) {
+    console.warn('No messages found in DB, using fallback.')
+    return { data: { content: 'Se quer ter sucesso completo em sua vida, você tem que ser foda.' }, error: null }
+  }
 
   const randomIndex = Math.floor(Math.random() * data.length)
   return { data: data[randomIndex], error: null }
@@ -355,9 +362,112 @@ export async function getProfile() {
 
   return supabase
     .from('profiles')
-    .select('name, email, avatar_url')
+    .select('name, email, avatar_url, phone') // Added phone
     .eq('id', user.id)
     .single()
+}
+
+export async function getDailyFinancials(dateIso: string, orgId?: string) {
+  if (!supabase) return { data: [], error: null }
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+
+  // Calculate generic range (Date - 1 day to Date + 1 day) to handle Timezone shifts
+  // We will filter strictly in JS.
+  const targetDate = new Date(dateIso)
+  const prevDate = new Date(targetDate)
+  prevDate.setDate(prevDate.getDate() - 1)
+
+  const gteStr = prevDate.toISOString().split('T')[0] // YYYY-MM-DD
+  const lteStr = `${dateIso}T23:59:59`
+
+  // 1. Fetch Scheduled Financials (Books)
+  const { data: financials, error: err1 } = await supabase.from('financials')
+    .select(`
+      *,
+      caixa: caixa_id(id, nome),
+      cliente: favorecido_id(id, nome),
+      compromisso: compromisso_id(id, nome),
+      grupo: grupo_compromisso_id(id, nome)
+    `)
+    .eq('user_id', userId as any)
+    .gte('data_vencimento', gteStr) // Start from yesterday
+    //.lte('data_vencimento', lteStr) // Allow up to end of today. (Actually we don't need strict upper bound if we filter later, but let's keep it reasonable)
+    .order('tipo', { ascending: false })
+
+  // 2. Fetch Transactions (Realized)
+  const { data: transactions, error: err2 } = await supabase.from('transactions')
+    .select(`
+      *,
+      caixa: conta_id(id, nome),
+      cliente: cliente_id(id, nome),
+      compromisso: compromisso_id(id, nome),
+      grupo: grupo_compromisso_id(id, nome)
+    `)
+    .eq('user_id', userId as any)
+    .gte('data_vencimento', gteStr)
+
+  // 3. Fetch Schedules (Agendamentos)
+  const { data: schedules, error: err3 } = await supabase.from('schedules')
+    .select(`
+      *,
+      caixa: caixa_id(id, nome),
+      cliente: favorecido_id(id, nome),
+      compromisso: compromisso_id(id, nome),
+      grupo: grupo_compromisso_id(id, nome)
+    `)
+    .eq('user_id', userId as any)
+    .gte('proxima_vencimento', gteStr)
+
+  // Merge
+  const list1 = financials || []
+  const list2 = transactions || []
+  const list3 = schedules || []
+
+  // Filter function: Include if truncated date matches dateIso
+  const isSameDay = (iso?: string) => {
+    if (!iso) return false
+    // Basic check: YYYY-MM-DD match
+    if (iso.startsWith(dateIso)) return true
+
+    // Timezone check: Convert to date object, check if it falls on 'dateIso' in local/user logic?
+    // Since frontend cuts 'T', let's stick to that convention.
+    // If the usage of 'dateIso' implies the visual date the user sees.
+    return iso.split('T')[0] === dateIso
+  }
+
+  const filteredFinancials = list1.filter(f => isSameDay(f.data_vencimento))
+  const filteredTransactions = list2.filter(t => isSameDay(t.data_vencimento || t.data_lancamento))
+  const filteredSchedules = list3.filter(s => isSameDay(s.proxima_vencimento || s.ano_mes_inicial))
+
+  // Map transactions to financials shape for the report
+  const mappedTransactions = filteredTransactions.map(t => ({
+    ...t,
+    id: t.id,
+    valor: t.valor_total || (t.valor_entrada > 0 ? t.valor_entrada : t.valor_saida),
+    tipo: 'realizado', // Flag as realized
+    operacao: t.operacao,
+    data_vencimento: t.data_vencimento || t.data_lancamento,
+    caixa: t.caixa,
+    cliente: t.cliente,
+    compromisso: t.compromisso,
+    grupo: t.grupo
+  }))
+
+  // Map schedules to financials shape
+  const mappedSchedules = filteredSchedules.map(s => ({
+    ...s,
+    id: s.id,
+    valor: s.valor,
+    tipo: 'agendamento', // Flag as scheduled
+    operacao: s.operacao,
+    data_vencimento: s.proxima_vencimento || s.ano_mes_inicial,
+    caixa: s.caixa,
+    cliente: s.cliente,
+    compromisso: s.compromisso,
+    grupo: s.grupo
+  }))
+
+  return { data: [...filteredFinancials, ...mappedTransactions, ...mappedSchedules], error: err1 || err2 || err3 }
 }
 
 export async function listFinancialsBySchedule(scheduleId: string, orgId?: string) {
@@ -466,4 +576,21 @@ export async function listMyMemberships() {
     `)
     .eq('member_id', userId)
 }
+
+export async function listAttachments(transactionId: string) {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('transaction_attachments').select('*').eq('transaction_id', transactionId).order('created_at', { ascending: false })
+}
+
+export async function addAttachment(payload: { transaction_id: string; file_name: string; file_type: string; file_data: string }) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('transaction_attachments').insert([payload]).select().single()
+}
+
+export async function deleteAttachment(id: string) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('transaction_attachments').delete().eq('id', id)
+}
+
+
 

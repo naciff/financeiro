@@ -77,13 +77,17 @@ export default function Calendar() {
     schedules.forEach((s: any) => {
       const d = parseLocalDate(s.proxima_vencimento || s.ano_mes_inicial)
       if (d >= from && d <= to) {
+        // Use installment value (valor_parcela) if available (common for variable/installments), 
+        // fallback to main value (common for fixed with no specific parcel value)
+        const val = Number(s.valor_parcela) || Number(s.valor)
+
         list.push({
           id: s.id,
           date: d,
           operacao: s.operacao,
           status: s.situacao === 2 ? 'pago' : 'pendente', // 2 = realizado/pago
-          entrada: (s.operacao === 'receita' || s.operacao === 'aporte') ? Number(s.valor) : 0,
-          saida: (s.operacao === 'despesa' || s.operacao === 'retirada') ? Number(s.valor) : 0,
+          entrada: (s.operacao === 'receita' || s.operacao === 'aporte') ? val : 0,
+          saida: (s.operacao === 'despesa' || s.operacao === 'retirada') ? val : 0,
           descricao: s.historico || 'Agendamento',
           tipo: 'agendamento'
         })
@@ -160,19 +164,19 @@ export default function Calendar() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total a pagar:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {totals.totalAPagar.toFixed(2)}</div>
+          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAPagar)}</div>
         </div>
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total a receber:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {totals.totalAReceber.toFixed(2)}</div>
+          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAReceber)}</div>
         </div>
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total já pago:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {totals.totalPago.toFixed(2)}</div>
+          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalPago)}</div>
         </div>
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
           <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total já recebido:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {totals.totalRecebido.toFixed(2)}</div>
+          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalRecebido)}</div>
         </div>
       </div>
       {loading && <div role="status" aria-live="polite" className="text-sm text-gray-600 dark:text-gray-400">Carregando…</div>}
@@ -250,7 +254,7 @@ export default function Calendar() {
                 return (
                   <div className="space-y-2">
                     {dayItems.map((item, idx) => (
-                      <div key={idx} className={`p-3 rounded-lg border dark:border-gray-700 flex items-center justify-between ${colorFor(item)} bg-opacity-10 border-opacity-20`}>
+                      <div key={idx} className={`p-3 rounded-lg border dark:border-gray-700 flex items-center justify-between ${getStatusColor(item)} bg-opacity-10 border-opacity-20`}>
                         <div className="flex-1 min-w-0 mr-4">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-xs uppercase font-bold px-1.5 py-0.5 rounded ${item.operacao === 'receita' ? 'bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-red-200 text-red-800 dark:bg-red-800 dark:text-red-100'}`}>

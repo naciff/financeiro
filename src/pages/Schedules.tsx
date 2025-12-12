@@ -840,7 +840,7 @@ Inicio: ${d.ano_mes_inicial}
         </button>
 
         {activeTab === 'concluidos' && selectedId && (
-          <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2" onClick={onReactivate} aria-label="Reativar">
+          <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2" onClick={() => onReactivate()} aria-label="Reativar">
             <Icon name="undo" className="w-4 h-4" /> Reativar
           </button>
         )}
@@ -895,35 +895,35 @@ Inicio: ${d.ano_mes_inicial}
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="operacao">Operação</label>
                       <select id="operacao" ref={operacaoRef} className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-400" value={operacao} disabled>
-                        <option value="despesa">Despesa</option>
-                        <option value="receita">Receita</option>
-                        <option value="aporte">Aporte</option>
-                        <option value="retirada">Retirada</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="despesa">Despesa</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="receita">Receita</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="aporte">Aporte</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="retirada">Retirada</option>
                       </select>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo</label>
                       <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => { setTipo(e.target.value) }}>
-                        <option value="fixo">Fixo</option>
-                        <option value="variavel">Variável</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="fixo">Fixo</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="variavel">Variável</option>
                       </select>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Espécie</label>
                       <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={especie} onChange={e => { setEspecie(e.target.value) }}>
-                        <option value="dinheiro">Dinheiro</option>
-                        <option value="pix">PIX</option>
-                        <option value="cartao">Cartão</option>
-                        <option value="boleto">Boleto</option>
-                        <option value="transferencia">Transferência</option>
-                        <option value="debito_automatico">Débito Automático</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="dinheiro">Dinheiro</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="pix">PIX</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="cartao">Cartão</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="boleto">Boleto</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="transferencia">Transferência</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="debito_automatico">Débito Automático</option>
                       </select>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Ano/Mês</label>
                       <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={refChoice} onChange={e => { setRefChoice(e.target.value as any) }}>
-                        <option value="vencimento">Ano/Mês Vencimento</option>
-                        <option value="anterior">Ano/Mês Anterior</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="vencimento">Ano/Mês Vencimento</option>
+                        <option className="dark:bg-gray-700 dark:text-gray-100" value="anterior">Ano/Mês Anterior</option>
                       </select>
                     </div>
                   </div>
@@ -962,8 +962,8 @@ Inicio: ${d.ano_mes_inicial}
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Grupo de Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
                     <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.grupoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={grupoId} onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}>
-                      <option value="">Selecione</option>
-                      {grupos.filter(g => (g.operacao || (g as any).tipo) === activeTab).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
+                      {grupos.filter(g => (g.operacao || (g as any).tipo) === activeTab).map(g => <option className="dark:bg-gray-700 dark:text-gray-100" key={g.id} value={g.id}>{g.nome}</option>)}
                     </select>
                     {errors.grupoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.grupoId}</div>}
                   </div>
@@ -971,8 +971,8 @@ Inicio: ${d.ano_mes_inicial}
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
                     <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.compromissoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={compromissoId} onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}>
-                      <option value="">Selecione</option>
-                      {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
+                      {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.nome}</option>)}
                     </select>
                     {errors.compromissoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.compromissoId}</div>}
                   </div>
@@ -1000,8 +1000,8 @@ Inicio: ${d.ano_mes_inicial}
                         setProxima(`${year}-${String(month).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`)
                       }
                     }}>
-                      <option value="">Selecione</option>
-                      {contas.filter(c => c.ativo !== false).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
+                      {contas.filter(c => c.ativo !== false).map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.nome}</option>)}
                     </select>
                     {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
                   </div>
@@ -1070,9 +1070,9 @@ Inicio: ${d.ano_mes_inicial}
                         <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" min={1} max={48} value={parcelas} onChange={e => { const n = Math.min(48, Math.max(1, parseInt(e.target.value) || 1)); setParcelas(n) }} />
                       ) : (
                         <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={periodoFix} onChange={e => { setPeriodoFix(e.target.value as any) }}>
-                          <option value="mensal">Mensal</option>
-                          <option value="semestral">Semestral</option>
-                          <option value="anual">Anual</option>
+                          <option className="dark:bg-gray-700 dark:text-gray-100" value="mensal">Mensal</option>
+                          <option className="dark:bg-gray-700 dark:text-gray-100" value="semestral">Semestral</option>
+                          <option className="dark:bg-gray-700 dark:text-gray-100" value="anual">Anual</option>
                         </select>
                       )}
                     </div>
@@ -1153,7 +1153,7 @@ Inicio: ${d.ano_mes_inicial}
         <div className="flex items-center justify-between p-2">
           <div className="font-medium">Caixas</div>
           <div className="flex gap-2">
-            <button className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded p-2" onClick={() => {
+            <button className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 rounded p-2" onClick={() => {
               const groups = new Map<string, typeof data.data>()
               data.data.forEach(r => {
                 const k = r.caixa || 'Sem caixa'
@@ -1165,7 +1165,7 @@ Inicio: ${d.ano_mes_inicial}
             }} title="Recolher Todos" aria-label="Recolher Todos">
               <Icon name="chevron-right" className="w-5 h-5" />
             </button>
-            <button className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded p-2" onClick={() => {
+            <button className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 rounded p-2" onClick={() => {
               const groups = new Map<string, typeof data.data>()
               data.data.forEach(r => {
                 const k = r.caixa || 'Sem caixa'

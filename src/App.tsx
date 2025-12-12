@@ -5,12 +5,14 @@ import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
 import { useAuth } from './contexts/AuthContext'
 import { useAutoLogout } from './hooks/useAutoLogout'
+import { useDailyAutomation } from './hooks/useDailyAutomation'
 
 export default function App() {
   const { session, loading } = useAuth()
 
   // Enable auto-logout with 5 minutes timeout
   useAutoLogout(5 * 60 * 1000)
+  useDailyAutomation()
 
   if (loading) return <div className="h-full flex items-center justify-center">Carregando...</div>
 

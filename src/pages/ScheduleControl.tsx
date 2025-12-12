@@ -2,11 +2,12 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
-
-
 import { Icon } from '../components/ui/Icon'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { AlertModal } from '../components/ui/AlertModal'
 import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
+import { useDailyAutomation } from '../hooks/useDailyAutomation'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
 
@@ -17,7 +18,7 @@ function toBr(iso: string) {
   if (!dateStr) return ''
   const [yyyy, mm, dd] = dateStr.split('-')
   if (!yyyy || !mm || !dd) return ''
-  return `${dd} /${mm}/${yyyy} `
+  return `${dd}/${mm}/${yyyy}`
 }
 
 export default function ScheduleControl() {
@@ -57,12 +58,18 @@ export default function ScheduleControl() {
   const [pendingConfirmation, setPendingConfirmation] = useState<any>(null)
   const [showBulkConfirm, setShowBulkConfirm] = useState(false)
 
+  // Test Report Modal State
+  const [showTestConfirm, setShowTestConfirm] = useState(false)
+  const [testResultModal, setTestResultModal] = useState({ open: false, title: '', message: '' })
+
   // Carregar caixas e grupos
   const [bulkDate, setBulkDate] = useState('')
   const [bulkAccount, setBulkAccount] = useState('')
 
   const [showLinkedItemsModal, setShowLinkedItemsModal] = useState(false)
   const [linkedItems, setLinkedItems] = useState<any[]>([])
+
+  const { runNow } = useDailyAutomation()
 
   useEffect(() => {
     if (hasBackend) {
@@ -300,6 +307,44 @@ export default function ScheduleControl() {
 
 
       {msg && <div className="text-sm text-green-700">{msg}</div>}
+
+      <div className="flex justify-end mb-2">
+        <button
+          className="flex items-center gap-2 text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded transition-colors shadow-sm"
+          onClick={() => setShowTestConfirm(true)}
+          title="Testar Envio WhatsApp"
+        >
+          <Icon name="whatsapp" className="w-4 h-4" />
+          <span className="hidden sm:inline">Testar Relatório</span>
+        </button>
+      </div>
+
+      <ConfirmModal
+        isOpen={showTestConfirm}
+        title="Testar Relatório"
+        message="Deseja enviar o relatório diário agora para o WhatsApp?"
+        onClose={() => setShowTestConfirm(false)}
+        onConfirm={async () => {
+          setShowTestConfirm(false)
+          // Show loading or just wait? Better to have a loading state but for now let's just run. 
+          // Ideally we could show a toast "Enviando...", but let's just wait for result.
+          const res = await runNow()
+          if (res && typeof res === 'object') {
+            setTestResultModal({
+              open: true,
+              title: res.success ? 'Sucesso' : 'Atenção',
+              message: res.message
+            })
+          }
+        }}
+      />
+
+      <AlertModal
+        isOpen={testResultModal.open}
+        title={testResultModal.title}
+        message={testResultModal.message}
+        onClose={() => setTestResultModal({ ...testResultModal, open: false })}
+      />
 
       <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto items-center">
         {buttons.map(b => (

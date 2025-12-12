@@ -80,7 +80,7 @@ export default function Clients() {
             </thead>
             <tbody className="divide-y dark:divide-gray-700 text-gray-900 dark:text-gray-100">
               {items.map((c: any) => (
-                <tr key={c.id} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer" onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }}>
+                <tr key={c.id} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }}>
                   <td className="p-2">{c.nome}</td>
                   <td className="p-2">{c.documento || ''}</td>
                   <td className="p-2">

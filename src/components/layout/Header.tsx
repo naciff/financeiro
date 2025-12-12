@@ -35,7 +35,7 @@ export function Header({
 
   return (
     <header className="bg-surface-light dark:bg-surface-dark shadow-sm sticky top-0 z-10">
-      <div className="px-8 py-4 flex items-center justify-between">
+      <div className="px-8 py-2 flex items-center justify-between">
 
         {/* Left: Mobile Toggle & Title */}
         <div className="flex items-center gap-4">
@@ -69,21 +69,22 @@ export function Header({
           </div>
 
           <div className="flex items-center gap-2 ml-4">
+            <div className="h-4 w-px bg-border-light dark:bg-border-dark mx-2"></div>
             {/* Theme Switcher */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-full border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-full border border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => {
                   setThemeMode('light')
                   localStorage.setItem('theme', 'light')
                   document.documentElement.classList.remove('dark')
                 }}
-                className={`p-1.5 rounded-full transition-all ${themeMode === 'light'
-                    ? 'bg-white dark:bg-gray-600 shadow-sm text-yellow-500'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                className={`p-1 rounded-full transition-all ${themeMode === 'light'
+                  ? 'bg-white dark:bg-gray-600 shadow-sm text-yellow-500'
+                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 title="Claro"
               >
-                <span className="material-icons-outlined text-lg">light_mode</span>
+                <span className="material-icons-outlined text-sm">light_mode</span>
               </button>
               <button
                 onClick={() => {
@@ -95,13 +96,13 @@ export function Header({
                     document.documentElement.classList.remove('dark')
                   }
                 }}
-                className={`p-1.5 rounded-full transition-all ${themeMode === 'auto'
-                    ? 'bg-white dark:bg-gray-600 shadow-sm text-primary'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                className={`p-1 rounded-full transition-all ${themeMode === 'auto'
+                  ? 'bg-white dark:bg-gray-600 shadow-sm text-primary'
+                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 title="Automático"
               >
-                <span className="material-icons-outlined text-lg">brightness_auto</span>
+                <span className="material-icons-outlined text-sm">brightness_auto</span>
               </button>
               <button
                 onClick={() => {
@@ -109,13 +110,13 @@ export function Header({
                   localStorage.setItem('theme', 'dark')
                   document.documentElement.classList.add('dark')
                 }}
-                className={`p-1.5 rounded-full transition-all ${themeMode === 'dark'
-                    ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-400'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                className={`p-1 rounded-full transition-all ${themeMode === 'dark'
+                  ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-400'
+                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 title="Escuro"
               >
-                <span className="material-icons-outlined text-lg">dark_mode</span>
+                <span className="material-icons-outlined text-sm">dark_mode</span>
               </button>
             </div>
 

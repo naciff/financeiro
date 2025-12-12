@@ -25,7 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/reports', label: 'Relatórios', icon: 'description' },
     { to: '/notes', label: 'Notas', icon: 'notes' },
     {
-      to: '/cadastro', label: 'Cadastro', icon: 'settings_suggest', children: [
+      to: '/cadastro', label: 'Cadastro', icon: 'app_registration', children: [
         { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'home' },
         { to: '/cadastro/grupo-compromisso', label: 'Grupo de Compromisso', icon: 'group' },
         { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'bookmark' },
