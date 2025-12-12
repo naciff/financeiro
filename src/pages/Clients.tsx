@@ -16,7 +16,8 @@ export default function Clients() {
   async function load() {
     setLoading(true); setError(null)
     if (hasBackend) {
-      const r = await listClients()
+      const orgId = store.activeOrganization || undefined
+      const r = await listClients(orgId)
       if (r.error) { setError(r.error.message); setItems([]) }
       else setItems((r.data as any) || [])
     } else {
@@ -24,7 +25,7 @@ export default function Clients() {
     }
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [store.activeOrganization])
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault()

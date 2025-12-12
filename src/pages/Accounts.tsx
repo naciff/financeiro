@@ -27,8 +27,9 @@ export default function Accounts() {
 
   async function load() {
     if (hasBackend) {
-      const a = await listAccounts()
-      const b = await listAccountBalances()
+      const orgId = store.activeOrganization || undefined
+      const a = await listAccounts(orgId)
+      const b = await listAccountBalances(orgId)
       console.log('listAccounts', a)
       console.log('listAccountBalances', b)
       if (a.error) setNotice({ type: 'error', text: a.error.message })
@@ -41,7 +42,7 @@ export default function Accounts() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [store.activeOrganization])
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault()

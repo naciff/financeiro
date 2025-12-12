@@ -22,7 +22,8 @@ export default function Commitments() {
   useEffect(() => {
     async function load() {
       if (hasBackend) {
-        const g = await listCommitmentGroups()
+        const orgId = store.activeOrganization || undefined
+        const g = await listCommitmentGroups(orgId)
         if (!g.error && g.data) {
           const arr = g.data as any
           setGrupos(arr)
@@ -41,7 +42,7 @@ export default function Commitments() {
       }
     }
     load()
-  }, [store.commitment_groups, store.commitments])
+  }, [store.activeOrganization])
 
   // Inicializar expanded vazio (recolhido por padrão)
   // useEffect removido para manter o padrão recolhido

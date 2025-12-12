@@ -26,7 +26,8 @@ export default function CommitmentGroups() {
   useEffect(() => {
     setLoading(true); setError(null)
     if (hasBackend) {
-      listCommitmentGroups().then(r => {
+      const orgId = store.activeOrganization || undefined
+      listCommitmentGroups(orgId).then(r => {
         if (r.error) { setError(r.error.message); setItems([]) }
         else {
           const data = Array.isArray(r.data) ? r.data : []
@@ -39,7 +40,7 @@ export default function CommitmentGroups() {
       const valid = Array.isArray(data) ? data.filter((x: any) => x && typeof x.id === 'string' && typeof x.nome === 'string') : []
       setItems(valid); setLoading(false)
     }
-  }, [store.commitment_groups])
+  }, [store.commitment_groups, store.activeOrganization])
 
   function onCreate(e: React.FormEvent) {
     e.preventDefault()

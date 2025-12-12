@@ -14,13 +14,16 @@ export default function Transfers() {
   const [result, setResult] = useState<string>('')
 
   useEffect(() => {
-    if (hasBackend) listAccounts().then(r => setAccounts(r.data || []))
+    if (hasBackend) {
+      const orgId = store.activeOrganization || undefined
+      listAccounts(orgId).then(r => setAccounts(r.data || []))
+    }
     else setAccounts(store.accounts)
 
     // Set default date to today
     const today = new Date().toISOString().split('T')[0]
     setDate(today)
-  }, [])
+  }, [store.activeOrganization])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()

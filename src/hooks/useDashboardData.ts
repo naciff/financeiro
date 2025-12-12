@@ -64,7 +64,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         const { data: allExpenses } = await supabase
                             .from('schedules')
                             .select('valor')
-                            .eq('user_id', user.id)
+                            .eq('user_id', orgId || user.id)
                             .eq('operacao', 'despesa')
                             .neq('situacao', 2) // Filter out canceled/inactive
 
