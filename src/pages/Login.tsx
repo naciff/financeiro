@@ -9,7 +9,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('Se quer ter sucesso completo em sua vida, você tem que ser foda.')
+  const [message, setMessage] = useState('Carregando mensagem do dia...')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -71,13 +71,13 @@ export default function Login() {
         <div className="p-6 text-center border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-center mb-2">
             <img
-              src="/logo-new.png?v=2"
+              src="/logo-new.png?v=3"
               alt="Conta Mestre Logo"
               className="h-24 w-auto object-contain dark:hidden"
               loading="eager"
             />
             <img
-              src="/logo-dark.png?v=2"
+              src="/logo-dark.png?v=3"
               alt="Conta Mestre Logo"
               className="h-24 w-auto object-contain hidden dark:block"
               loading="eager"
@@ -168,16 +168,16 @@ export default function Login() {
         {/* Footer with Social Icons and Quote */}
         <div className="px-6 pb-6 pt-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex justify-center space-x-4 mb-4">
-            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-[#014d6d] dark:hover:text-white transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-[#014d6d] dark:hover:text-white transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/site.svg" alt="Website" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/instagram.svg" alt="Instagram" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/facebook.svg" alt="Facebook" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/linkedin.svg" alt="LinkedIn" className="w-5 h-5" />
             </a>
           </div>

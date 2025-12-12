@@ -231,7 +231,7 @@ export default function Calendar() {
       {modalOpen && selectedDay && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg overflow-hidden animate-scale-in">
-            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-750">
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800">
               <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100">
                 Detalhes do Dia {selectedDay.toLocaleDateString()}
               </h3>

@@ -82,13 +82,13 @@ export default function Register() {
         <div className="p-6 text-center border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-center mb-2">
             <img
-              src="/logo-new.png?v=2"
+              src="/logo-new.png?v=3"
               alt="Conta Mestre Logo"
               className="h-24 w-auto object-contain dark:hidden"
               loading="eager"
             />
             <img
-              src="/logo-dark.png?v=2"
+              src="/logo-dark.png?v=3"
               alt="Conta Mestre Logo"
               className="h-24 w-auto object-contain hidden dark:block"
               loading="eager"

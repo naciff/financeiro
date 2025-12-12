@@ -39,7 +39,8 @@ export function Sidebar({
       {/* Header (Brand) */}
       <div className={`h-16 flex items-center ${isCollapsed ? 'justify-center' : 'px-6'} border-b border-border-light dark:border-border-dark flex-shrink-0 overflow-hidden`}>
         <div className="flex items-center gap-3 overflow-hidden">
-          <img src="/favicon.png" alt="Logo" className="w-8 h-8 object-contain shrink-0" />
+          <img src="/favicon.png" alt="Logo" className="w-8 h-8 object-contain shrink-0 dark:hidden" />
+          <img src="/favicon-dark.png?v=1" alt="Logo" className="w-8 h-8 object-contain shrink-0 hidden dark:block" />
           {!isCollapsed && <span className="font-bold text-lg tracking-tight whitespace-nowrap text-text-main-light dark:text-text-main-dark">ContaMestre</span>}
         </div>
       </div>

@@ -57,6 +57,8 @@ export default function ScheduleControl() {
 
   const [pendingConfirmation, setPendingConfirmation] = useState<any>(null)
   const [showBulkConfirm, setShowBulkConfirm] = useState(false)
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false)
+  const [skipId, setSkipId] = useState<string | null>(null)
 
   // Test Report Modal State
   const [showTestConfirm, setShowTestConfirm] = useState(false)
@@ -1103,15 +1105,10 @@ export default function ScheduleControl() {
               className="fixed z-50 bg-white border rounded shadow-lg py-1 text-xs font-medium w-64"
               style={{ top: contextMenu.y, left: contextMenu.x }}
             >
-              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
-                if (hasBackend) {
-                  await updateFinancial(contextMenu.item.id, { situacao: 4 }) // 4 = Saltado/Cancelado
-                  setContextMenu(null)
-                  // Refresh
-                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                } else {
-                  alert('Disponível apenas com backend')
-                }
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
+                setSkipId(contextMenu.item.id)
+                setShowSkipConfirm(true)
+                setContextMenu(null)
               }}>
                 <Icon name="skip" className="w-4 h-4 text-gray-500" />
                 Saltar Lançamento
@@ -1248,6 +1245,30 @@ export default function ScheduleControl() {
               </div>
             </div>
           </div>
+        )
+      }
+
+      {/* Skip Confirmation Modal */}
+      {
+        showSkipConfirm && (
+          <ConfirmModal
+            isOpen={showSkipConfirm}
+            title="Saltar Lançamento"
+            message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
+            onConfirm={async () => {
+              if (skipId) {
+                if (hasBackend) {
+                  await updateFinancial(skipId, { situacao: 4 })
+                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                } else {
+                  alert('Necessário backend')
+                }
+              }
+              setShowSkipConfirm(false)
+              setSkipId(null)
+            }}
+            onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
+          />
         )
       }
     </div >

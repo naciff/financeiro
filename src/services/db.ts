@@ -337,22 +337,30 @@ export async function setAccountPrincipal(id: string, principal: boolean) {
 
 export async function getRandomMessage() {
   if (!supabase) return { data: null, error: null }
-  const { data, error } = await supabase
-    .from('messages')
-    .select('content')
-  // .eq('active', true) // Removed to ensure we get messages if column doesn't exist
+
+  // Select * to see what columns exist if 'content' is missing
+  const { data, error } = await supabase.from('messages').select('*')
 
   if (error) {
-    console.error('Error fetching messages:', error)
-    return { data: null, error }
-  }
-  if (!data || data.length === 0) {
-    console.warn('No messages found in DB, using fallback.')
-    return { data: { content: 'Se quer ter sucesso completo em sua vida, você tem que ser foda.' }, error: null }
+    // Return error as content so user can see it on screen
+    return { data: { content: `Erro DB: ${error.message} (${error.code})` }, error: null }
   }
 
-  const randomIndex = Math.floor(Math.random() * data.length)
-  return { data: data[randomIndex], error: null }
+  if (!data || data.length === 0) {
+    return { data: { content: 'Tabela "messages" vazia ou sem acesso (RLS).' }, error: null }
+  }
+
+  // Pick random row
+  const randomRow = data[Math.floor(Math.random() * data.length)]
+
+  // Try to find a suitable column for text
+  const text = randomRow.content || randomRow.message || randomRow.frase || randomRow.texto || randomRow.description || Object.values(randomRow).find(v => typeof v === 'string' && v.length > 20)
+
+  if (!text) {
+    return { data: { content: 'Colunas encontradas: ' + Object.keys(randomRow).join(', ') }, error: null }
+  }
+
+  return { data: { content: text }, error: null }
 }
 
 export async function getProfile() {
@@ -590,6 +598,36 @@ export async function addAttachment(payload: { transaction_id: string; file_name
 export async function deleteAttachment(id: string) {
   if (!supabase) return { data: null, error: null }
   return supabase.from('transaction_attachments').delete().eq('id', id)
+}
+
+export async function saveClientDefault(payload: { client_id: string; grupo_compromisso_id: string; compromisso_id: string; historico: string }) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  // Upsert based on unique(user_id, client_id)
+  return supabase
+    .from('client_defaults')
+    .upsert({
+      user_id: userId,
+      client_id: payload.client_id,
+      grupo_compromisso_id: payload.grupo_compromisso_id,
+      compromisso_id: payload.compromisso_id,
+      historico: payload.historico
+    }, { onConflict: 'user_id, client_id' })
+    .select()
+    .single()
+}
+
+export async function getClientDefault(clientId: string) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  return supabase
+    .from('client_defaults')
+    .select('*')
+    .eq('user_id', userId as any)
+    .eq('client_id', clientId)
+    .single()
 }
 
 
