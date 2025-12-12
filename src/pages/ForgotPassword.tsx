@@ -60,10 +60,10 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scale-in">
+    <div className="min-h-screen bg-neutral-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md animate-scale-in">
         {/* Header with FourTek Logo */}
-        <div className="p-6 text-center border-b border-gray-100">
+        <div className="p-6 text-center border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-center mb-2">
             <img
               src="/logo-new.png"
@@ -77,20 +77,20 @@ export default function ForgotPassword() {
         {/* Forgot Password Form */}
         <form onSubmit={onSubmit} className="p-6 space-y-4">
           <div className="text-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Recuperar Senha</h2>
-            <p className="text-gray-600 text-sm">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Recuperar Senha</h2>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
               Insira seu email e enviaremos um link para redefinir sua senha.
             </p>
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Email
             </label>
             <input
               id="email"
               type="email"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
+              className="w-full px-3 py-2 border border-neutral-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
               placeholder="Digite seu email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -99,14 +99,14 @@ export default function ForgotPassword() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md p-3">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
           )}
 
           {success && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-3">
-              <p className="text-sm text-green-600">{success}</p>
+            <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-md p-3">
+              <p className="text-sm text-green-600 dark:text-green-400">{success}</p>
             </div>
           )}
 
@@ -119,31 +119,31 @@ export default function ForgotPassword() {
           </button>
 
           <div className="text-center">
-            <Link to="/login" className="text-sm text-[#014d6d] hover:text-[#013c55] font-medium transition-colors duration-200">
+            <Link to="/login" className="text-sm text-[#014d6d] dark:text-[#359EFF] hover:text-[#013c55] dark:hover:text-[#60b2ff] font-medium transition-colors duration-200">
               Voltar para o login
             </Link>
           </div>
         </form>
 
         {/* Footer with Social Icons and Quote */}
-        <div className="px-6 pb-6 pt-4 border-t border-gray-100">
+        <div className="px-6 pb-6 pt-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex justify-center space-x-4 mb-4">
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-[#014d6d] transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-[#014d6d] dark:hover:text-white transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/site.svg" alt="Website" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-pink-600 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/instagram.svg" alt="Instagram" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-blue-800 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/facebook.svg" alt="Facebook" className="w-5 h-5" />
             </a>
-            <a href="#" className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-neutral-600 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
+            <a href="#" className="w-10 h-10 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center text-neutral-600 dark:text-gray-300 hover:text-blue-700 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md">
               <img src="/icons/linkedin.svg" alt="LinkedIn" className="w-5 h-5" />
             </a>
           </div>
 
           <div className="text-center">
-            <p className="text-gray-500 italic text-sm mb-4">
+            <p className="text-gray-500 dark:text-gray-400 italic text-sm mb-4">
               "{message}"
             </p>
           </div>

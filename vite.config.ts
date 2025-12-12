@@ -14,5 +14,14 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1600,
+  },
+  server: {
+    proxy: {
+      '/api-whatsapp': {
+        target: 'https://apiconnect4.datamastersolucoes.com.br',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-whatsapp/, '')
+      }
+    }
   }
 })

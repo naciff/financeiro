@@ -199,13 +199,13 @@ export default function Notes() {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-xl font-semibold">Notas</h1>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Notas</h1>
 
             {!showForm && (
-                <div className="bg-white border rounded p-4">
+                <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
                     <button
                         onClick={handleNew}
-                        className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors"
+                        className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white px-4 py-2 rounded hover:bg-gray-800 dark:hover:bg-black transition-colors"
                     >
                         <Icon name="add" className="w-5 h-5" />
                         Nova Nota
@@ -214,28 +214,28 @@ export default function Notes() {
             )}
 
             {showForm && (
-                <div className="bg-white border rounded-lg p-6 shadow-sm">
-                    <h2 className="text-lg font-medium mb-4">{editId ? 'Editar Nota' : 'Nova Nota'}</h2>
+                <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-6 shadow-sm">
+                    <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">{editId ? 'Editar Nota' : 'Nova Nota'}</h2>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
                                 <input
                                     type="date"
                                     value={date}
                                     onChange={e => setDate(e.target.value)}
-                                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full border dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Grupo</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Grupo</label>
                                 <input
                                     type="text"
                                     list="groups-list"
                                     value={groupName}
                                     onChange={e => setGroupName(e.target.value)}
-                                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full border dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                     placeholder="Selecione ou digite um novo grupo"
                                     required
                                 />
@@ -246,12 +246,12 @@ export default function Notes() {
                                 </datalist>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrição</label>
                                 <input
                                     type="text"
                                     value={description}
                                     onChange={e => setDescription(e.target.value)}
-                                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full border dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                     placeholder="Resumo da nota"
                                     required
                                 />
@@ -259,12 +259,12 @@ export default function Notes() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Conteúdo</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Conteúdo</label>
                             <textarea
                                 value={content}
                                 onChange={e => setContent(e.target.value)}
                                 rows={6}
-                                className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none font-sans"
+                                className="w-full border dark:border-gray-600 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none font-sans bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                 placeholder="Digite o conteúdo da nota..."
                             />
                         </div>
@@ -273,7 +273,7 @@ export default function Notes() {
                             <button
                                 type="button"
                                 onClick={resetForm}
-                                className="px-4 py-2 border rounded hover:bg-gray-50 text-gray-700"
+                                className="px-4 py-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                             >
                                 Cancelar
                             </button>
@@ -289,9 +289,9 @@ export default function Notes() {
             )}
 
             {loading ? (
-                <div className="text-center py-8 text-gray-500">Carregando notas...</div>
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">Carregando notas...</div>
             ) : notes.length === 0 ? (
-                <div className="text-center py-12 bg-white border rounded-lg text-gray-500">
+                <div className="text-center py-12 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400">
                     Nenhuma nota encontrada. Crie a primeira!
                 </div>
             ) : (
@@ -301,36 +301,36 @@ export default function Notes() {
                         const isExpanded = expanded[group]
 
                         return (
-                            <div key={group} className="bg-white border rounded">
+                            <div key={group} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded text-gray-900 dark:text-gray-100">
                                 <div
-                                    className="flex items-center gap-3 px-3 py-2 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                                    className="flex items-center gap-3 px-3 py-2 cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                                     onClick={() => setExpanded(s => ({ ...s, [group]: !s[group] }))}
                                 >
                                     <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className="w-4 h-4" />
                                     <div className="font-medium">{group}</div>
-                                    <div className="ml-auto text-sm text-gray-600">{groupItems.length} notas</div>
+                                    <div className="ml-auto text-sm text-gray-600 dark:text-gray-400">{groupItems.length} notas</div>
                                 </div>
 
                                 {isExpanded && (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-sm">
-                                            <thead className="bg-gray-50 border-b">
+                                            <thead className="bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600">
                                                 <tr>
-                                                    <th className="px-6 py-3 font-medium text-gray-500">Data</th>
-                                                    <th className="px-6 py-3 font-medium text-gray-500">Descrição</th>
-                                                    <th className="px-6 py-3 font-medium text-gray-500 text-right">Ações</th>
+                                                    <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-300">Data</th>
+                                                    <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-300">Descrição</th>
+                                                    <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-300 text-right">Ações</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-gray-100">
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                                 {groupItems.map(note => (
-                                                    <tr key={note.id} className="hover:bg-gray-50 transition-colors">
-                                                        <td className="px-6 py-3 text-gray-600 whitespace-nowrap w-32">
+                                                    <tr key={note.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                                        <td className="px-6 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap w-32">
                                                             {formatDate(note.created_at)}
                                                         </td>
-                                                        <td className="px-6 py-3 font-medium text-gray-900">
+                                                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-gray-100">
                                                             {note.description}
                                                             {note.content && (
-                                                                <div className="text-xs text-gray-500 mt-0.5 truncate max-w-xs font-normal">
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-xs font-normal">
                                                                     {note.content.substring(0, 50)}{note.content.length > 50 ? '...' : ''}
                                                                 </div>
                                                             )}
@@ -339,14 +339,14 @@ export default function Notes() {
                                                             <div className="flex justify-end gap-2">
                                                                 <button
                                                                     onClick={() => handleEdit(note)}
-                                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded"
                                                                     title="Editar"
                                                                 >
                                                                     <Icon name="edit" className="w-4 h-4" />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleDelete(note.id)}
-                                                                    className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                                                    className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 rounded"
                                                                     title="Excluir"
                                                                 >
                                                                     <Icon name="trash" className="w-4 h-4" />

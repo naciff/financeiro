@@ -149,7 +149,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 text-left">
-            <div className="bg-white border rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto shadow-2xl text-gray-900 dark:text-gray-100">
                 <h2 className="text-lg font-semibold mb-4">{title || (initialData ? 'Editar Transação' : 'Incluir Nova Transação')}</h2>
 
                 {msg && <div className={`mb-4 text-sm ${msg.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{msg}</div>}
@@ -158,7 +158,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     {/* Operação | Espécie */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Operação *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formOperacao} onChange={e => {
+                        <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formOperacao} onChange={e => {
                             setFormOperacao(e.target.value as any)
                             // Reset dependents if needed like Ledger does
                         }}>
@@ -170,7 +170,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Espécie</label>
-                        <select className="w-full border rounded px-3 py-2" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
+                        <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
                             <option value="dinheiro">Dinheiro</option>
                             <option value="pix">PIX</option>
                             <option value="cartao">Cartão</option>
@@ -183,7 +183,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     {/* Cliente */}
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium mb-1">Cliente *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
+                        <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
                             <option value="">Selecione...</option>
                             {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                         </select>
@@ -192,7 +192,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     {/* Grupo | Compromisso */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Grupo Compromisso *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
+                        <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
                             <option value="">Selecione...</option>
                             {groups
                                 .filter(g => !g.tipo || (g.tipo && formOperacao && g.tipo.toLowerCase() === formOperacao.toLowerCase()))
@@ -201,7 +201,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Compromisso *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
+                        <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
                             <option value="">Selecione...</option>
                             {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                         </select>
@@ -210,37 +210,37 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     {/* Histórico */}
                     <div className="md:col-span-2">
                         <label className="block text-sm font-medium mb-1">Histórico *</label>
-                        <input className="w-full border rounded px-3 py-2" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
+                        <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
                     </div>
 
                     {/* Detalhe | NF */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Detalhe</label>
-                        <input className="w-full border rounded px-3 py-2" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
+                        <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Nota Fiscal</label>
-                        <input className="w-full border rounded px-3 py-2" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
+                        <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
                     </div>
 
                     {/* Datas */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Data Vencimento</label>
-                        <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
+                        <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed dark:bg-gray-900 dark:border-gray-700 dark:text-gray-400" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Data Pagamento</label>
-                        <input type="date" className="w-full border rounded px-3 py-2" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
+                        <input type="date" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
                     </div>
 
                     {/* Valor | Caixa */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Valor *</label>
-                        <input type="number" step="0.01" className="w-full border rounded px-3 py-2" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
+                        <input type="number" step="0.01" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium mb-1">Caixa Lançamento *</label>
-                        <select className="w-full border rounded px-3 py-2" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
+                        <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
                             <option value="">Selecione...</option>
                             {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
                         </select>
@@ -249,7 +249,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
 
                 <div className="flex justify-end gap-2 mt-6">
                     <button
-                        className="px-4 py-2 border rounded hover:bg-gray-50 bg-white"
+                        className="px-4 py-2 border rounded hover:bg-gray-50 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600"
                         onClick={onClose}
                     >
                         Cancelar

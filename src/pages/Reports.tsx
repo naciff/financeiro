@@ -217,14 +217,14 @@ export default function Reports() {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
           <Icon name="file-text" className="w-6 h-6" />
           Relatórios
         </h1>
       </div>
 
       {/* Filters Card */}
-      <div className="bg-white p-4 rounded-lg shadow border border-gray-200 space-y-4">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Calendar */}
           <div className="space-y-1">
@@ -250,9 +250,9 @@ export default function Reports() {
 
           {/* Account */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase">Caixa / Banco</label>
+            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Caixa / Banco</label>
             <select
-              className="w-full border rounded px-2 py-1.5 text-sm"
+              className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               value={selectedAccount}
               onChange={e => setSelectedAccount(e.target.value)}
             >
@@ -265,9 +265,9 @@ export default function Reports() {
 
           {/* Group */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase">Grupo de Compromisso</label>
+            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Grupo de Compromisso</label>
             <select
-              className="w-full border rounded px-2 py-1.5 text-sm"
+              className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               value={selectedGroup}
               onChange={e => setSelectedGroup(e.target.value)}
             >
@@ -280,9 +280,9 @@ export default function Reports() {
 
           {/* Commitment */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase">Compromisso</label>
+            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Compromisso</label>
             <select
-              className="w-full border rounded px-2 py-1.5 text-sm"
+              className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               value={selectedCommitment}
               onChange={e => setSelectedCommitment(e.target.value)}
               disabled={!selectedGroup}
@@ -295,7 +295,7 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t mt-4">
+        <div className="flex items-center justify-between pt-2 border-t dark:border-gray-700 mt-4">
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -304,7 +304,7 @@ export default function Reports() {
                 checked={viewType === 'synthetic'}
                 onChange={() => setViewType('synthetic')}
               />
-              <span className="text-sm font-medium text-gray-700">Sintético (Resumo)</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sintético (Resumo)</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -313,7 +313,7 @@ export default function Reports() {
                 checked={viewType === 'analytic'}
                 onChange={() => setViewType('analytic')}
               />
-              <span className="text-sm font-medium text-gray-700">Analítico (Detalhado)</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Analítico (Detalhado)</span>
             </label>
           </div>
 
@@ -350,18 +350,18 @@ export default function Reports() {
 
       {/* Results Area */}
       {generated && (
-        <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
-          <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-            <h2 className="font-semibold text-gray-700">Resultados da Pesquisa</h2>
-            <div className={`text-sm font-bold px-3 py-1 rounded ${totalBalance >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700">
+          <div className="p-4 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 flex justify-between items-center">
+            <h2 className="font-semibold text-gray-700 dark:text-gray-200">Resultados da Pesquisa</h2>
+            <div className={`text-sm font-bold px-3 py-1 rounded ${totalBalance >= 0 ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'}`}>
               Saldo do Período: {formatMoneyBr(totalBalance)}
             </div>
           </div>
 
           {viewType === 'analytic' ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
+              <table className="w-full text-sm text-left text-gray-900 dark:text-gray-100">
+                <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs uppercase">
                   <tr>
                     <th className="p-3">Vencimento</th>
                     <th className="p-3">Pagamento</th>
@@ -379,10 +379,10 @@ export default function Reports() {
                     reportData.map(t => {
                       const val = Number(t.valor_entrada || 0) - Number(t.valor_saida || 0)
                       return (
-                        <tr key={t.id} className="hover:bg-gray-50">
+                        <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                           <td className="p-3">{toBr(t.data_vencimento)}</td>
                           <td className="p-3">{toBr(t.data_lancamento)}</td>
-                          <td className="p-3 text-gray-600">{t.conta_id === t.caixa?.id /* complex logic skipped, showing just ID if name missing in join */}
+                          <td className="p-3 hover:text-gray-900 dark:hover:text-gray-100 text-gray-600 dark:text-gray-400">{t.conta_id === t.caixa?.id /* complex logic skipped, showing just ID if name missing in join */}
                             {/* Assuming we might not have full joins everywhere, but listTransactions does */}
                             {t.caixa?.nome || accounts.find(a => a.id === t.conta_id)?.nome || '-'}
                           </td>
@@ -402,12 +402,12 @@ export default function Reports() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
+              <table className="w-full text-sm text-left text-gray-900 dark:text-gray-100">
+                <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs uppercase">
                   <tr>
                     <th className="p-3">Grupo de Compromisso</th>
-                    <th className="p-3 text-right text-green-700">Entradas</th>
-                    <th className="p-3 text-right text-red-700">Saídas</th>
+                    <th className="p-3 text-right text-green-700 dark:text-green-400">Entradas</th>
+                    <th className="p-3 text-right text-red-700 dark:text-red-400">Saídas</th>
                     <th className="p-3 text-right">Total</th>
                   </tr>
                 </thead>
@@ -416,11 +416,11 @@ export default function Reports() {
                     <tr><td colSpan={4} className="p-4 text-center text-gray-500">Nenhum registro encontrado</td></tr>
                   ) : (
                     syntheticData.map((d, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
+                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="p-3 font-medium">{d.name}</td>
-                        <td className="p-3 text-right text-green-600">{formatMoneyBr(d.income)}</td>
-                        <td className="p-3 text-right text-red-500">{formatMoneyBr(d.expense)}</td>
-                        <td className={`p-3 text-right font-bold ${d.total >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                        <td className="p-3 text-right text-green-600 dark:text-green-400">{formatMoneyBr(d.income)}</td>
+                        <td className="p-3 text-right text-red-500 dark:text-red-400">{formatMoneyBr(d.expense)}</td>
+                        <td className={`p-3 text-right font-bold ${d.total >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400'}`}>
                           {formatMoneyBr(d.total)}
                         </td>
                       </tr>

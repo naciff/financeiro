@@ -386,11 +386,9 @@ export async function listFinancialsBySchedule(scheduleId: string, orgId?: strin
 export async function addOrganizationMember(email: string, permissions: any = {}) {
   if (!supabase) return { error: { message: 'Supabase não inicializado' } }
 
-  // 1. Find user by email in profiles
+  // 1. Find user by email in profiles (via Secure RPC)
   const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .eq('email', email)
+    .rpc('search_user_by_email', { p_email: email })
 
   if (profileError) return { error: profileError }
   if (!profiles || profiles.length === 0) return { error: { message: 'Usuário não encontrado. Peça para ele se cadastrar no sistema primeiro.' } }
@@ -426,16 +424,33 @@ export async function listOrganizationMembers() {
   if (!supabase) return { data: [], error: null }
   const ownerId = (await supabase.auth.getUser()).data.user?.id
 
-  // We need to join with profiles to get names
-  // But Supabase simple join might be tricky if no direct FK on profiles (it is on auth.users usually, but profiles has FK to auth.users too)
-  // Let's try explicit select
-  return supabase
+  // 1. Get relation rows
+  const { data: members, error } = await supabase
     .from('organization_members')
-    .select(`
-      *,
-      profile:member_id(id, name, email, avatar_url)
-    `)
+    .select('id, member_id, permissions')
     .eq('owner_id', ownerId)
+
+  if (error || !members) return { data: [], error }
+
+  if (members.length === 0) return { data: [] }
+
+  // 2. Get profiles manually (to avoid foreign key issues)
+  const memberIds = members.map(m => m.member_id)
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name, email, avatar_url')
+    .in('id', memberIds)
+
+  // 3. Merge
+  const merged = members.map(m => {
+    const p = profiles?.find(prof => prof.id === m.member_id)
+    return {
+      ...m,
+      profile: p || { email: 'Usuario não encontrado', name: 'Desconhecido' }
+    }
+  })
+
+  return { data: merged, error: null }
 }
 
 export async function listMyMemberships() {

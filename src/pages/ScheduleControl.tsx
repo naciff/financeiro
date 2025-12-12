@@ -34,6 +34,7 @@ export default function ScheduleControl() {
 
   // Filtros adicionais
   const [filterCaixa, setFilterCaixa] = useState('')
+  const [filterOp, setFilterOp] = useState('Todas')
   const [filterGrupo, setFilterGrupo] = useState('')
   const [caixas, setCaixas] = useState<any[]>([])
   const [grupos, setGrupos] = useState<any[]>([])
@@ -213,6 +214,18 @@ export default function ScheduleControl() {
     }).filter((r): r is NonNullable<typeof r> => r !== null)
       .filter(r => within(new Date(r.vencimento)))
       .filter(r => !filterCaixa || r.caixaId === filterCaixa)
+      .filter(r => {
+        if (filterOp === 'Todas') return true
+        if (filterOp === 'Somente Receitas') return r.operacao === 'receita'
+        if (filterOp === 'Somente Despesas') return r.operacao === 'despesa'
+        if (filterOp === 'Somente Aporte/Ret./Transf.') return ['aporte', 'retirada', 'transferencia'].includes(r.operacao || '')
+        if (filterOp === 'Despesas e Retiradas') return ['despesa', 'retirada'].includes(r.operacao || '')
+        if (filterOp === 'Receitas e Aportes') return ['receita', 'aporte'].includes(r.operacao || '')
+        if (filterOp === 'Somente Aporte') return r.operacao === 'aporte'
+        if (filterOp === 'Somente Retiradas') return r.operacao === 'retirada'
+        if (filterOp === 'Somente Transferências') return r.operacao === 'transferencia'
+        return true
+      })
       .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo)
       .filter(r => [r.cliente, r.historico, r.compromisso, String(r.receita), String(r.despesa)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
       .sort((a, b) => a.vencimentoDate.getTime() - b.vencimentoDate.getTime())
@@ -231,7 +244,7 @@ export default function ScheduleControl() {
       totalRecords,
       allData: data
     }
-  }, [remote, store.schedules, filter, search, page, filterCaixa, filterGrupo])
+  }, [remote, store.schedules, filter, search, page, filterCaixa, filterGrupo, filterOp])
 
   const buttons: Array<{ id: Filter; label: string }> = [
     { id: 'vencidos', label: 'Vencidos/Dia Atual' },
@@ -282,7 +295,7 @@ export default function ScheduleControl() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Controle e Previsão</h1>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Controle e Previsão</h1>
 
 
 
@@ -290,7 +303,7 @@ export default function ScheduleControl() {
 
       <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2 overflow-x-auto items-center">
         {buttons.map(b => (
-          <button key={b.id} className={`px-3 py-2 rounded border transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${filter === b.id ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'}`} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
+          <button key={b.id} className={`px-3 py-2 rounded border transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${filter === b.id ? 'bg-fourtek-blue text-white ring-1 ring-fourtek-blue' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`} onClick={() => { setFilter(b.id); setPage(1) }}>{b.label}</button>
         ))}
         {selectedIds.size > 1 && (
           <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
@@ -303,56 +316,88 @@ export default function ScheduleControl() {
           </div>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-3 bg-white border rounded px-3 py-2">
-        <div className="flex items-center gap-2 border rounded px-3 py-2">
-          <Icon name="search" className="w-4 h-4" />
-          <input className="outline-none w-64" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+      <div className="flex items-end gap-3 px-3 py-2">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700">
+            <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <input className="outline-none w-64 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+          </div>
         </div>
-        {(filterCaixa || filterGrupo || search) && (
-          <button className="text-sm bg-gray-100 hover:bg-gray-200 border rounded px-3 py-2 text-gray-700" onClick={() => { setFilterCaixa(''); setFilterGrupo(''); setSearch('') }}>
-            Limpar filtros
-          </button>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Caixa</label>
+          <select
+            className="border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+            value={filterCaixa}
+            onChange={e => { setFilterCaixa(e.target.value); setPage(1) }}
+          >
+            <option value="">Todas as Caixas</option>
+            {caixas.filter(c => c.ativo !== false).map(c => (
+              <option key={c.id} value={c.id}>{c.nome}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Tipo Operação</label>
+          <select
+            className="border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+            value={filterOp}
+            onChange={e => { setFilterOp(e.target.value); setPage(1) }}
+          >
+            <option>Todas</option>
+            <option>Somente Receitas</option>
+            <option>Somente Despesas</option>
+            <option>Somente Aporte/Ret./Transf.</option>
+            <option>Despesas e Retiradas</option>
+            <option>Receitas e Aportes</option>
+            <option>Somente Aporte</option>
+            <option>Somente Retiradas</option>
+            <option>Somente Transferências</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Grupo</label>
+          <select
+            className="border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 min-w-[150px]"
+            value={filterGrupo}
+            onChange={e => { setFilterGrupo(e.target.value); setPage(1) }}
+          >
+            <option value="">Todos os Grupos</option>
+            {grupos.map(g => (
+              <option key={g.id} value={g.id}>{g.nome}</option>
+            ))}
+          </select>
+        </div>
+
+        {(filterCaixa || filterGrupo || search || filterOp !== 'Todas') && (
+          <div className="flex flex-col gap-1 justify-end pb-0.5">
+            <button className="text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-200" onClick={() => { setFilterCaixa(''); setFilterGrupo(''); setSearch(''); setFilterOp('Todas') }}>
+              Limpar filtros
+            </button>
+          </div>
         )}
 
-        <select
-          className="border rounded px-3 py-2 text-sm"
-          value={filterCaixa}
-          onChange={e => { setFilterCaixa(e.target.value); setPage(1) }}
-        >
-          <option value="">Todas as Caixas</option>
-          {caixas.map(c => (
-            <option key={c.id} value={c.id}>{c.nome}</option>
-          ))}
-        </select>
-
-        <select
-          className="border rounded px-3 py-2 text-sm"
-          value={filterGrupo}
-          onChange={e => { setFilterGrupo(e.target.value); setPage(1) }}
-        >
-          <option value="">Todos os Grupos</option>
-          {grupos.map(g => (
-            <option key={g.id} value={g.id}>{g.nome}</option>
-          ))}
-        </select>
-
         {rows.allData.some(r => r.conferido) && (
-          <button
-            className="text-sm bg-black text-white hover:bg-gray-800 border rounded px-3 py-2 flex items-center gap-2"
-            onClick={() => {
-              setBulkDate(new Date().toISOString().split('T')[0])
-              const firstItem = rows.allData.find(r => r.conferido)
-              if (firstItem && firstItem.caixaId) {
-                setBulkAccount(firstItem.caixaId)
-              } else {
-                setBulkAccount('')
-              }
-              setShowBulkConfirm(true)
-            }}
-          >
-            <Icon name="check" className="w-4 h-4" />
-            Baixar {rows.allData.filter(r => r.conferido).length} Conferidos
-          </button>
+          <div className="flex flex-col gap-1 justify-end pb-0.5 ml-auto">
+            <button
+              className="text-sm bg-black text-white hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black border dark:border-gray-700 rounded px-3 py-2 flex items-center gap-2"
+              onClick={() => {
+                setBulkDate(new Date().toISOString().split('T')[0])
+                const firstItem = rows.allData.find(r => r.conferido)
+                if (firstItem && firstItem.caixaId) {
+                  setBulkAccount(firstItem.caixaId)
+                } else {
+                  setBulkAccount('')
+                }
+                setShowBulkConfirm(true)
+              }}
+            >
+              <Icon name="check" className="w-4 h-4" />
+              Baixar {rows.allData.filter(r => r.conferido).length} Conferidos
+            </button>
+          </div>
         )}
       </div>
 
@@ -378,9 +423,9 @@ export default function ScheduleControl() {
               const totalDesp = groupItems.reduce((sum, r) => sum + r.despesa, 0)
 
               return (
-                <div key={groupTitle} className="bg-white border rounded">
+                <div key={groupTitle} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded">
                   <div
-                    className="flex items-center gap-3 px-3 py-2 cursor-pointer bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer bg-gray-600 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors rounded-t"
                     onClick={() => setExpanded(s => ({ ...s, [groupTitle]: !s[groupTitle] }))}
                   >
                     <div className="font-medium flex items-center gap-2">
@@ -391,9 +436,9 @@ export default function ScheduleControl() {
 
                   {isExpanded && (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs table-fixed">
+                      <table className="w-full text-xs table-fixed text-gray-900 dark:text-gray-100">
                         <thead>
-                          <tr className="text-left bg-gray-50 border-b">
+                          <tr className="text-left bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
                             <th className="p-2 w-[10%]">Data Vencimento</th>
                             <th className="p-2 w-[15%]">Caixa de Lançamento</th>
                             <th className="p-2 w-[20%]">Cliente</th>
@@ -409,7 +454,7 @@ export default function ScheduleControl() {
                           {groupItems.map(r => (
                             <tr
                               key={r.id}
-                              className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                              className={`border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-400' : 'bg-white dark:bg-gray-800'}`}
                               onClick={(e) => handleSelect(e, r.id)}
                               onDoubleClick={() => openModal(r)}
                               onContextMenu={(e) => {
@@ -449,7 +494,7 @@ export default function ScheduleControl() {
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="bg-gray-100 font-bold border-t-2">
+                          <tr className="bg-gray-100 dark:bg-gray-900 font-bold border-t-2 dark:border-gray-700">
                             <td className="p-2" colSpan={5}></td>
                             <td className="p-2 text-right text-green-700">R$ {formatMoneyBr(totalRec)}</td>
                             <td className="p-2 text-right text-red-700">R$ {formatMoneyBr(totalDesp)}</td>
@@ -464,11 +509,11 @@ export default function ScheduleControl() {
             })}
           </div>
         ) : (
-          <div className="bg-white border rounded">
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs table-fixed">
+              <table className="w-full text-xs table-fixed text-gray-900 dark:text-gray-100">
                 <thead>
-                  <tr className="text-left">
+                  <tr className="text-left bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
                     <th className="p-2 w-[10%]">Data Vencimento</th>
                     <th className="p-2 w-[15%]">Caixa de Lançamento</th>
                     <th className="p-2 w-[20%]">Cliente</th>
@@ -484,7 +529,7 @@ export default function ScheduleControl() {
                   {rows.data.map(r => (
                     <tr
                       key={r.id}
-                      className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                      className={`border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-400' : 'bg-white dark:bg-gray-800'}`}
                       onClick={(e) => handleSelect(e, r.id)}
                       onDoubleClick={() => openModal(r)}
                       onContextMenu={(e) => {
@@ -525,7 +570,7 @@ export default function ScheduleControl() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-gray-100 font-bold border-t-2">
+                  <tr className="bg-gray-100 dark:bg-gray-900 font-bold border-t-2 dark:border-gray-700">
                     <td className="p-2" colSpan={5}>TOTAIS ({rows.totalRecords} registros)</td>
                     <td className="p-2 text-right text-green-700">R$ {formatMoneyBr(rows.totalReceitas)}</td>
                     <td className="p-2 text-right text-red-700">R$ {formatMoneyBr(rows.totalDespesas)}</td>
@@ -541,80 +586,80 @@ export default function ScheduleControl() {
       {
         modal && (
           <div className="fixed inset-0 z-50">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setModal(null)} aria-hidden="true"></div>
-            <div className="absolute left-1/2 top-10 -translate-x-1/2 bg-white border rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto text-xs">
-              <div className="font-medium mb-4 text-lg border-b pb-2">Lançamento para o Livro Caixa</div>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(null)} aria-hidden="true"></div>
+            <div className="absolute left-1/2 top-10 -translate-x-1/2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-2xl p-6 max-h-[90vh] overflow-y-auto text-xs text-gray-900 dark:text-gray-100 shadow-xl">
+              <div className="font-medium mb-4 text-lg border-b dark:border-gray-700 pb-2">Lançamento para o Livro Caixa</div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 {/* Row 1: Operação | Espécie */}
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Operação</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 capitalize text-xs" value={modal.operacao} disabled />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Operação</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 capitalize text-xs text-gray-900 dark:text-gray-100" value={modal.operacao} disabled />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Espécie</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 capitalize text-xs" value={modal.especie} disabled />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Espécie</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 capitalize text-xs text-gray-900 dark:text-gray-100" value={modal.especie} disabled />
                 </div>
 
                 {/* Row 2: Cliente (Full) */}
                 <div className="md:col-span-2">
-                  <label className="text-xs block text-gray-600 font-medium">Cliente</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.cliente} disabled />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Cliente</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100" value={modal.cliente} disabled />
                 </div>
 
                 {/* Row 3: Grupo Compromisso | Compromisso */}
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Grupo Compromisso</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.grupoCompromisso} disabled />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Grupo Compromisso</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100" value={modal.grupoCompromisso} disabled />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Compromisso</label>
-                  <input className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modal.compromisso} disabled />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Compromisso</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100" value={modal.compromisso} disabled />
                 </div>
 
                 {/* Row 4: Histórico (Full) */}
                 <div className="md:col-span-2">
-                  <label className="text-xs block text-gray-600 font-medium">Histórico</label>
-                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalHistorico} onChange={e => setModalHistorico(e.target.value)} />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Histórico</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={modalHistorico} onChange={e => setModalHistorico(e.target.value)} />
                 </div>
 
                 {/* Row 5: Detalhe | Nota Fiscal */}
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Detalhe</label>
-                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalDetalhes} onChange={e => setModalDetalhes(e.target.value)} />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Detalhe</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={modalDetalhes} onChange={e => setModalDetalhes(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Nota Fiscal</label>
-                  <input className="w-full border rounded px-3 py-2 text-xs" value={modalNotaFiscal} onChange={e => setModalNotaFiscal(e.target.value)} />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Nota Fiscal</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={modalNotaFiscal} onChange={e => setModalNotaFiscal(e.target.value)} />
                 </div>
 
                 {/* Row 6: Data Vencimento | Data Lançamento */}
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Data Vencimento</label>
-                  <input type="date" className="w-full border rounded px-3 py-2 bg-gray-50 text-xs" value={modalData} disabled />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Data Vencimento</label>
+                  <input type="date" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100" value={modalData} disabled />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Data Pagamento</label>
-                  <input type="date" className="w-full border rounded px-3 py-2 text-xs" value={modalDataLancamento} onChange={e => setModalDataLancamento(e.target.value)} />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Data Pagamento</label>
+                  <input type="date" className="w-full border dark:border-gray-600 rounded px-3 py-2 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={modalDataLancamento} onChange={e => setModalDataLancamento(e.target.value)} />
                 </div>
 
                 {/* Row 7: Valor | Caixa Lançamento */}
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Valor (R$)</label>
-                  <input type="number" step="0.01" className="w-full border rounded px-3 py-2 font-semibold text-xs" value={modalValor} onChange={e => setModalValor(Number(e.target.value))} />
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Valor (R$)</label>
+                  <input type="number" step="0.01" className="w-full border dark:border-gray-600 rounded px-3 py-2 font-semibold text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={modalValor} onChange={e => setModalValor(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="text-xs block text-gray-600 font-medium">Caixa Lançamento</label>
-                  <select className="w-full border rounded px-3 py-2 text-xs" value={modalContaId} onChange={e => setModalContaId(e.target.value)}>
+                  <label className="text-xs block text-gray-600 dark:text-gray-300 font-medium">Caixa Lançamento</label>
+                  <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={modalContaId} onChange={e => setModalContaId(e.target.value)}>
                     <option value="">Selecione...</option>
                     {caixas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button className="rounded border px-4 py-2 hover:bg-gray-50" onClick={() => setModal(null)}>Cancelar</button>
-                <button className="bg-black text-white rounded px-4 py-2 hover:bg-gray-800" onClick={() => {
+              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
+                <button className="rounded border dark:border-gray-600 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => setModal(null)}>Cancelar</button>
+                <button className="bg-black text-white rounded px-4 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" onClick={() => {
                   if (!modalContaId) { alert('Selecione uma conta'); return }
                   setShowConfirmModal(true)
                 }}>Confirmar Lançamento</button>
@@ -623,12 +668,12 @@ export default function ScheduleControl() {
             {/* Custom Confirmation Modal */}
             {showConfirmModal && (
               <div className="absolute inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-                <div className="bg-white border rounded shadow-lg p-6 w-[300px] text-center">
-                  <h3 className="font-semibold text-lg mb-4 text-gray-800">Confirmação</h3>
-                  <p className="text-sm text-gray-600 mb-6">Deseja confirmar o lançamento deste item no Livro Caixa?</p>
+                <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[300px] text-center">
+                  <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100">Confirmação</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">Deseja confirmar o lançamento deste item no Livro Caixa?</p>
                   <div className="flex justify-center gap-3">
                     <button
-                      className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                      className="px-4 py-2 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
                       onClick={() => setShowConfirmModal(false)}
                     >
                       Não
@@ -697,12 +742,12 @@ export default function ScheduleControl() {
             {/* Update Schedule Confirmation Modal */}
             {showUpdateScheduleModal && (
               <div className="absolute inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-                <div className="bg-white border rounded shadow-lg p-6 w-[350px] text-center">
-                  <h3 className="font-semibold text-lg mb-4 text-gray-800">Atualizar Agendamento?</h3>
-                  <p className="text-sm text-gray-600 mb-6">O valor informado é diferente do previsto. Deseja atualizar o valor fixo para os próximos lançamentos deste agendamento?</p>
+                <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[350px] text-center">
+                  <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100">Atualizar Agendamento?</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">O valor informado é diferente do previsto. Deseja atualizar o valor fixo para os próximos lançamentos deste agendamento?</p>
                   <div className="flex justify-center gap-3">
                     <button
-                      className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                      className="px-4 py-2 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200"
                       onClick={async () => {
                         // NÃO: Confirma apenas este, mantendo agendamento igual
                         if (!pendingConfirmation) return
@@ -795,9 +840,9 @@ export default function ScheduleControl() {
       {/* Linked Items Modal */}
       {showLinkedItemsModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-          <div className="bg-white border rounded shadow-lg p-0 w-[95%] max-w-[1000px] max-h-[90vh] flex flex-col text-xs">
-            <div className="flex items-center justify-between p-2 bg-[#f0f9eb] border-b">
-              <div className="flex items-center gap-2 font-bold text-gray-800 text-sm">
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-0 w-[95%] max-w-[1000px] max-h-[90vh] flex flex-col text-xs text-gray-900 dark:text-gray-100">
+            <div className="flex items-center justify-between p-2 bg-[#f0f9eb] dark:bg-green-900/30 border-b dark:border-gray-700">
+              <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-gray-100 text-sm">
                 <Icon name="check" className="w-5 h-5 text-green-600" />
                 Itens do Agendamento
               </div>
@@ -812,16 +857,16 @@ export default function ScheduleControl() {
             </div>
 
             <div className="overflow-auto flex-1 p-0">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-[#e0e0e0] sticky top-0 z-10 font-bold border-b border-gray-300">
+              <table className="w-full text-left border-collapse text-gray-900 dark:text-gray-100">
+                <thead className="bg-[#e0e0e0] dark:bg-gray-700 sticky top-0 z-10 font-bold border-b border-gray-300 dark:border-gray-600">
                   <tr>
-                    <th className="px-2 py-1 border-r border-gray-300">Situação</th>
-                    <th className="px-2 py-1 border-r border-gray-300">Data Prevista</th>
-                    <th className="px-2 py-1 border-r border-gray-300">Valor Previsto</th>
-                    <th className="px-2 py-1 border-r border-gray-300">Compromisso</th>
-                    <th className="px-2 py-1 border-r border-gray-300">Histórico</th>
-                    <th className="px-2 py-1 border-r border-gray-300">Data Pagamento</th>
-                    <th className="px-2 py-1 border-r border-gray-300">Valor Realizado</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Situação</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Data Prevista</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Valor Previsto</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Compromisso</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Histórico</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Data Pagamento</th>
+                    <th className="px-2 py-1 border-r border-gray-300 dark:border-gray-600">Valor Realizado</th>
                     <th className="px-2 py-1">Parcela</th>
                   </tr>
                 </thead>
@@ -844,7 +889,7 @@ export default function ScheduleControl() {
                       statusText = 'Saltado/Cancelado'
                       statusClass = 'text-gray-500 italic line-through'
                     }
-                    const rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]'
+                    const rowClass = idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-[#f9f9f9] dark:bg-gray-700'
 
                     // Formatting
                     const valorPrevisto = formatMoneyBr(item.valor)
@@ -866,19 +911,19 @@ export default function ScheduleControl() {
                     const parcelaDisplay = (item.agendamento?.parcelas > 1) ? `${idx + 1}/${item.agendamento.parcelas}` : ''
 
                     return (
-                      <tr key={item.id} className={`${rowClass} hover:bg-yellow-50 border-b border-gray-200 text-[#000000] ${isSkipped ? 'opacity-60 bg-gray-50' : ''}`}>
-                        <td className={`px-2 py-1 border-r border-gray-200 whitespace-nowrap ${statusClass}`}>
+                      <tr key={item.id} className={`${rowClass} hover:bg-yellow-50 dark:hover:bg-gray-600 border-b border-gray-200 dark:border-gray-700 text-[#000000] dark:text-gray-100 ${isSkipped ? 'opacity-60 bg-gray-50 dark:bg-gray-800' : ''}`}>
+                        <td className={`px-2 py-1 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap ${statusClass}`}>
                           <div className="flex items-center gap-1">
                             <Icon name={statusIcon} className="w-3 h-3" />
                             {statusText}
                           </div>
                         </td>
-                        <td className="px-2 py-1 border-r border-gray-200">{toBr(item.data_vencimento)}</td>
-                        <td className="px-2 py-1 border-r border-gray-200 text-red-600 font-medium whitespace-nowrap">R$ {valorPrevisto}</td>
-                        <td className="px-2 py-1 border-r border-gray-200 text-green-700">{compromisso}</td>
-                        <td className="px-2 py-1 border-r border-gray-200 text-blue-700 uppercase font-medium">{item.historico}</td>
-                        <td className="px-2 py-1 border-r border-gray-200">{dataPagamento}</td>
-                        <td className="px-2 py-1 border-r border-gray-200 text-right whitespace-nowrap">{valorRealizado ? `R$ ${valorRealizado}` : ''}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 dark:border-gray-700">{toBr(item.data_vencimento)}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 dark:border-gray-700 text-red-600 dark:text-red-400 font-medium whitespace-nowrap">R$ {valorPrevisto}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 dark:border-gray-700 text-green-700 dark:text-green-400">{compromisso}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 dark:border-gray-700 text-blue-700 dark:text-blue-400 uppercase font-medium">{item.historico}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 dark:border-gray-700">{dataPagamento}</td>
+                        <td className="px-2 py-1 border-r border-gray-200 dark:border-gray-700 text-right whitespace-nowrap">{valorRealizado ? `R$ ${valorRealizado}` : ''}</td>
                         <td className="px-2 py-1 text-right">{parcelaDisplay}</td>
                       </tr>
                     )
@@ -893,23 +938,23 @@ export default function ScheduleControl() {
       {/* Bulk Confirm Modal */}
       {showBulkConfirm && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-          <div className="bg-white border rounded shadow-lg p-6 w-[800px] max-h-[90vh] flex flex-col text-xs">
-            <h3 className="font-semibold text-lg mb-4 text-gray-800 border-b pb-2">Confirmação de Registro em Lote</h3>
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[800px] max-h-[90vh] flex flex-col text-xs text-gray-900 dark:text-gray-100">
+            <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100 border-b dark:border-gray-700 pb-2">Confirmação de Registro em Lote</h3>
 
-            <div className="grid grid-cols-4 gap-4 mb-4 bg-gray-50 p-4 rounded border">
+            <div className="grid grid-cols-4 gap-4 mb-4 bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
               <div>
-                <label className="block text-gray-600 font-medium mb-1">Data de Pagamento</label>
+                <label className="block text-gray-600 dark:text-gray-300 font-medium mb-1">Data de Pagamento</label>
                 <input
                   type="date"
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   value={bulkDate}
                   onChange={e => setBulkDate(e.target.value)}
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-gray-600 font-medium mb-1">Caixa de Lançamento</label>
+                <label className="block text-gray-600 dark:text-gray-300 font-medium mb-1">Caixa de Lançamento</label>
                 <select
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   value={bulkAccount}
                   onChange={e => setBulkAccount(e.target.value)}
                 >
@@ -918,26 +963,26 @@ export default function ScheduleControl() {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-600 font-medium mb-1">Total Selecionado</label>
-                <div className="w-full border rounded px-2 py-1 bg-gray-100 font-bold text-right">
+                <label className="block text-gray-600 dark:text-gray-300 font-medium mb-1">Total Selecionado</label>
+                <div className="w-full border dark:border-gray-600 rounded px-2 py-1 bg-gray-100 dark:bg-gray-900 font-bold text-right text-gray-900 dark:text-gray-100">
                   R$ {formatMoneyBr(rows.allData.filter(r => r.conferido).reduce((acc, curr) => acc + (curr.receita || curr.despesa || 0), 0))}
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto border rounded mb-4">
-              <table className="w-full text-left">
-                <thead className="bg-gray-100 sticky top-0">
+            <div className="flex-1 overflow-y-auto border dark:border-gray-700 rounded mb-4">
+              <table className="w-full text-left text-gray-900 dark:text-gray-100">
+                <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
                   <tr>
-                    <th className="p-2 border-b">Favorecido / Cliente</th>
-                    <th className="p-2 border-b">Compromisso</th>
-                    <th className="p-2 border-b">Vencimento</th>
-                    <th className="p-2 border-b text-right">Valor Item</th>
+                    <th className="p-2 border-b dark:border-gray-600">Favorecido / Cliente</th>
+                    <th className="p-2 border-b dark:border-gray-600">Compromisso</th>
+                    <th className="p-2 border-b dark:border-gray-600">Vencimento</th>
+                    <th className="p-2 border-b dark:border-gray-600 text-right">Valor Item</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.allData.filter(r => r.conferido).map(item => (
-                    <tr key={item.id} className="border-b hover:bg-gray-50">
+                    <tr key={item.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                       <td className="p-2 truncate max-w-[200px]">{item.cliente}</td>
                       <td className="p-2 truncate max-w-[200px]">{item.compromisso}</td>
                       <td className="p-2">{toBr(item.vencimento)}</td>
@@ -1074,7 +1119,7 @@ export default function ScheduleControl() {
                 setEditValueModal({ open: true, item: contextMenu.item, value: val })
                 setContextMenu(null)
               }}>
-                <Icon name="edit" className="w-4 h-4" />
+                <Icon name="dollar" className="w-4 h-4" />
                 Alterar Valor Previsto
               </button>
               <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
@@ -1082,7 +1127,7 @@ export default function ScheduleControl() {
                 setEditDateModal({ open: true, item: contextMenu.item, date: d })
                 setContextMenu(null)
               }}>
-                <Icon name="edit" className="w-4 h-4" />
+                <Icon name="calendar" className="w-4 h-4" />
                 Alterar Data Vencimento
               </button>
 

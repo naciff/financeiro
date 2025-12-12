@@ -26,7 +26,7 @@ export function Tabs({ tabs, activeId, onChange, disabled }: { tabs: Tab[]; acti
             aria-controls={`panel-${t.id}`}
             id={`tab-${t.id}`}
             aria-disabled={disabled ? true : undefined}
-            className={`px-3 py-2 rounded border transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${isActive ? 'bg-fourtek-blue text-white' : 'bg-white hover:bg-gray-50'} ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+            className={`px-3 py-2 rounded border dark:border-gray-600 transition-colors duration-300 text-xs md:text-sm whitespace-nowrap ${isActive ? 'bg-fourtek-blue text-white shadow-sm' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
             onClick={() => { if (!disabled) onChange(t.id) }}
             onKeyDown={e => {
               if (disabled) return

@@ -149,84 +149,84 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Contas</h1>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Contas</h1>
       {notice.text && (
         <div className={`p-3 rounded border ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{notice.text}</div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {!showForm && (
-          <div className="bg-white border rounded p-4">
-            <button className="bg-black text-white rounded px-3 py-2" onClick={() => setShowForm(true)} aria-label="Inserir">Incluir</button>
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
+            <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" onClick={() => setShowForm(true)} aria-label="Inserir">Incluir</button>
           </div>
         )}
         {showForm && (
-          <form onSubmit={onCreate} className="bg-white border rounded p-4 space-y-3">
-            <div className="font-medium">Nova conta</div>
-            <label className="text-sm" htmlFor="tipo">Tipo</label>
-            <select id="tipo" className="w-full border rounded px-3 py-2" value={tipo} onChange={e => { setTipo(e.target.value); setDirty(true) }}>
+          <form onSubmit={onCreate} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
+            <div className="font-medium text-gray-900 dark:text-gray-100">Nova conta</div>
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="tipo">Tipo</label>
+            <select id="tipo" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => { setTipo(e.target.value); setDirty(true) }}>
               <option value="banco">Banco</option>
               <option value="carteira">Carteira</option>
               <option value="cartao">Cartão</option>
             </select>
             {tipo === 'cartao' && (
               <div>
-                <label className="text-sm" htmlFor="dia_venc">Data de vencimento (DD)</label>
-                <input id="dia_venc" className="w-full border rounded px-3 py-2" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
+                <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="dia_venc">Data de vencimento (DD)</label>
+                <input id="dia_venc" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
                   const v = e.target.value.replace(/\D/g, '').slice(0, 2)
                   const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
                   setDiaVencimento(n as any); setDirty(true)
                 }} />
               </div>
             )}
-            <label className="text-sm" htmlFor="nome">Nome</label>
-            <input id="nome" className="w-full border rounded px-3 py-2" value={nome} onChange={e => { setNome(e.target.value); setDirty(true) }} />
-            <label className="text-sm" htmlFor="cor">Cor</label>
-            <input id="cor" type="color" className="w-full h-10 border rounded px-1 py-1" value={cor} onChange={e => { setCor(e.target.value); setDirty(true) }} />
-            <label className="text-sm" htmlFor="principal">Conta Principal</label>
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="nome">Nome</label>
+            <input id="nome" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => { setNome(e.target.value); setDirty(true) }} />
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="cor">Cor</label>
+            <input id="cor" type="color" className="w-full h-10 border dark:border-gray-600 rounded px-1 py-1 bg-white dark:bg-gray-700" value={cor} onChange={e => { setCor(e.target.value); setDirty(true) }} />
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="principal">Conta Principal</label>
             <div className="flex items-center gap-2">
               <input id="principal" type="checkbox" checked={principal} onChange={e => { setPrincipal(e.target.checked); setDirty(true) }} />
-              <span className="text-sm text-gray-600">Marcar como conta principal</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Marcar como conta principal</span>
             </div>
-            <label className="text-sm" htmlFor="situacao">Situação</label>
-            <select id="situacao" className="w-full border rounded px-3 py-2" value={situacao} onChange={e => { setSituacao(e.target.value as any); setDirty(true) }}>
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="situacao">Situação</label>
+            <select id="situacao" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={situacao} onChange={e => { setSituacao(e.target.value as any); setDirty(true) }}>
               <option value="ativo">Ativo</option>
               <option value="inativo">Inativo</option>
             </select>
             {tipo === 'banco' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-sm" htmlFor="banco_codigo">Banco (código)</label>
-                  <input id="banco_codigo" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="000" value={bancoCodigo} onChange={e => { setBancoCodigo(e.target.value.replace(/\D/g, '').slice(0, 3)); setDirty(true) }} />
+                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="banco_codigo">Banco (código)</label>
+                  <input id="banco_codigo" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="000" value={bancoCodigo} onChange={e => { setBancoCodigo(e.target.value.replace(/\D/g, '').slice(0, 3)); setDirty(true) }} />
                 </div>
                 <div>
-                  <label className="text-sm" htmlFor="agencia">Agência</label>
-                  <input id="agencia" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => { setAgencia(maskAgencia(e.target.value)); setDirty(true) }} />
+                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="agencia">Agência</label>
+                  <input id="agencia" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => { setAgencia(maskAgencia(e.target.value)); setDirty(true) }} />
                 </div>
                 <div>
-                  <label className="text-sm" htmlFor="conta">Conta</label>
-                  <input id="conta" className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => { setConta(maskConta(e.target.value)); setDirty(true) }} />
+                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="conta">Conta</label>
+                  <input id="conta" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => { setConta(maskConta(e.target.value)); setDirty(true) }} />
                 </div>
               </div>
             )}
-            <label className="text-sm" htmlFor="saldo_inicial">Saldo inicial</label>
-            <input id="saldo_inicial" className="w-full border rounded px-3 py-2" type="number" step="0.01" value={saldoInicial} onChange={e => { setSaldoInicial(parseFloat(e.target.value)); setDirty(true) }} />
-            <label className="text-sm" htmlFor="observacoes">Observações</label>
-            <input id="observacoes" className="w-full border rounded px-3 py-2" value={observacoes} onChange={e => { setObservacoes(e.target.value); setDirty(true) }} />
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="saldo_inicial">Saldo inicial</label>
+            <input id="saldo_inicial" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" step="0.01" value={saldoInicial} onChange={e => { setSaldoInicial(parseFloat(e.target.value)); setDirty(true) }} />
+            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="observacoes">Observações</label>
+            <input id="observacoes" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => { setObservacoes(e.target.value); setDirty(true) }} />
             <div className="flex justify-end gap-2">
-              <button type="button" className="rounded border px-3 py-2" onClick={() => {
+              <button type="button" className="rounded border dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => {
                 if (dirty && !confirm('Cancelar alterações pendentes?')) return
                 setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
               }}>Cancelar</button>
-              <button className="bg-black text-white rounded px-3 py-2" type="submit">Salvar</button>
+              <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" type="submit">Salvar</button>
             </div>
           </form>
         )}
-        <div className="bg-white border rounded p-4">
-          <div className="font-medium mb-2">Saldos</div>
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
+          <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Saldos</div>
           {!hasBackend && accounts.length === 0 && (
-            <div className="text-sm text-gray-600">Nenhuma conta cadastrada (modo local). Use "Incluir" para adicionar.</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Nenhuma conta cadastrada (modo local). Use "Incluir" para adicionar.</div>
           )}
-          <ul className="space-y-2">
+          <ul className="space-y-2 text-gray-900 dark:text-gray-100">
             {balances
               .map(b => {
                 const acct = accounts.find(a => a.id === b.account_id)
@@ -240,9 +240,9 @@ export default function Accounts() {
           </ul>
         </div>
       </div>
-      <div className="bg-white border rounded p-4">
-        <div className="font-medium mb-2">Contas</div>
-        <table className="w-full text-sm">
+      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
+        <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Contas</div>
+        <table className="w-full text-sm text-gray-900 dark:text-gray-100">
           <thead>
             <tr className="text-left">
               <th className="p-2">Nome</th>
@@ -259,7 +259,7 @@ export default function Accounts() {
             {accounts
               .sort((a, b) => a.nome.localeCompare(b.nome))
               .map(a => (
-                <tr key={a.id} className={`border-t cursor-pointer hover:bg-gray-50 ${a.ativo === false ? 'text-gray-400' : 'text-black'}`} onDoubleClick={() => openEdit(a)}>
+                <tr key={a.id} className={`border-t dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${a.ativo === false ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-gray-100'}`} onDoubleClick={() => openEdit(a)}>
                   <td className="p-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: a.cor || '#000000' }}></div>
@@ -271,29 +271,31 @@ export default function Accounts() {
                   <td className="p-2">{a.tipo.charAt(0).toUpperCase() + a.tipo.slice(1).replace('cartao', 'Cartão')}</td>
                   <td className="p-2">{a.ativo === false ? 'Inativo' : 'Ativo'}</td>
                   <td className="p-2">
-                    <input type="checkbox" checked={!!a.principal}
-                      onChange={async () => {
-                        const next = !a.principal
+                    <div className="flex items-center gap-2">
+                      <input id="principal" type="checkbox" checked={!!a.principal}
+                        onChange={async () => {
+                          const next = !a.principal
 
-                        if (hasBackend) {
-                          const res = await setAccountPrincipal(a.id, next)
-                          if (res.error) {
-                            alert(res.error.message)
+                          if (hasBackend) {
+                            const res = await setAccountPrincipal(a.id, next)
+                            if (res.error) {
+                              alert(res.error.message)
+                            }
+                            // Reload to get updated state from backend
+                            await load()
+                          } else {
+                            // Local storage only
+                            setAccounts(prev => prev.map(x => x.id === a.id ? { ...x, principal: next } : x))
+                            store.updateAccount(a.id, { principal: next })
                           }
-                          // Reload to get updated state from backend
-                          await load()
-                        } else {
-                          // Local storage only
-                          setAccounts(prev => prev.map(x => x.id === a.id ? { ...x, principal: next } : x))
-                          store.updateAccount(a.id, { principal: next })
-                        }
-                      }}
-                      aria-label={`Conta Principal ${a.nome}`} />
+                        }}
+                        aria-label={`Conta Principal ${a.nome}`} />
+                    </div>
                   </td>
                   <td className="p-2">{a.tipo === 'cartao' ? (a.dia_vencimento ?? '-') : '-'}</td>
                   <td className="p-2 flex gap-2">
-                    <button className="px-2 py-1 rounded border hover:bg-gray-50" onClick={() => openEdit(a)} aria-label={`Editar ${a.nome}`}>Editar</button>
-                    <button className="px-2 py-1 rounded border hover:bg-gray-50" onClick={() => {
+                    <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => openEdit(a)} aria-label={`Editar ${a.nome}`}>Editar</button>
+                    <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => {
                       if (!confirm('Tem certeza que deseja excluir este registro de caixa?')) return
                       console.log('Excluir click', a?.id)
                       if (hasBackend) {
@@ -316,66 +318,66 @@ export default function Accounts() {
       </div>
       {editOpen && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setEditOpen(false)} aria-hidden="true"></div>
-          <div className="absolute left-1/2 top-20 -translate-x-1/2 bg-white border rounded w-[90%] max-w-md p-4 max-h-[80vh] overflow-y-auto">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditOpen(false)} aria-hidden="true"></div>
+          <div className="absolute left-1/2 top-20 -translate-x-1/2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-md p-4 max-h-[80vh] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-3">
-              <div className="font-medium">Editar Conta</div>
-              <button onClick={() => setEditOpen(false)}>Fechar</button>
+              <div className="font-medium text-gray-900 dark:text-gray-100">Editar Conta</div>
+              <button className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200" onClick={() => setEditOpen(false)}>Fechar</button>
             </div>
             <form onSubmit={saveEdit} className="space-y-3">
-              <label className="text-sm">Tipo</label>
-              <select className="w-full border rounded px-3 py-2" value={tipo} onChange={e => setTipo(e.target.value)}>
+              <label className="text-sm text-gray-700 dark:text-gray-300">Tipo</label>
+              <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => setTipo(e.target.value)}>
                 <option value="banco">Banco</option>
                 <option value="carteira">Carteira</option>
                 <option value="cartao">Cartão</option>
               </select>
               {tipo === 'cartao' && (
                 <div>
-                  <label className="text-sm">Data de vencimento (DD)</label>
-                  <input className="w-full border rounded px-3 py-2" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
+                  <label className="text-sm text-gray-700 dark:text-gray-300">Data de vencimento (DD)</label>
+                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
                     const v = e.target.value.replace(/\D/g, '').slice(0, 2)
                     const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
                     setDiaVencimento(n as any)
                   }} />
                 </div>
               )}
-              <label className="text-sm">Nome</label>
-              <input className="w-full border rounded px-3 py-2" value={nome} onChange={e => setNome(e.target.value)} />
-              <label className="text-sm">Cor</label>
-              <input type="color" className="w-full h-10 border rounded px-1 py-1" value={cor} onChange={e => setCor(e.target.value)} />
-              <label className="text-sm">Conta Principal</label>
+              <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>
+              <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => setNome(e.target.value)} />
+              <label className="text-sm text-gray-700 dark:text-gray-300">Cor</label>
+              <input type="color" className="w-full h-10 border dark:border-gray-600 rounded px-1 py-1 bg-white dark:bg-gray-700" value={cor} onChange={e => setCor(e.target.value)} />
+              <label className="text-sm text-gray-700 dark:text-gray-300">Conta Principal</label>
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={principal} onChange={e => setPrincipal(e.target.checked)} />
-                <span className="text-sm text-gray-600">Marcar como conta principal</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Marcar como conta principal</span>
               </div>
-              <label className="text-sm">Situação</label>
-              <select className="w-full border rounded px-3 py-2" value={situacao} onChange={e => setSituacao(e.target.value as any)}>
+              <label className="text-sm text-gray-700 dark:text-gray-300">Situação</label>
+              <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={situacao} onChange={e => setSituacao(e.target.value as any)}>
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
               </select>
               {tipo === 'banco' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-sm">Banco (código)</label>
-                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="000" value={bancoCodigo} onChange={e => setBancoCodigo(e.target.value.replace(/\D/g, '').slice(0, 3))} />
+                    <label className="text-sm text-gray-700 dark:text-gray-300">Banco (código)</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="000" value={bancoCodigo} onChange={e => setBancoCodigo(e.target.value.replace(/\D/g, '').slice(0, 3))} />
                   </div>
                   <div>
-                    <label className="text-sm">Agência</label>
-                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => setAgencia(maskAgencia(e.target.value))} />
+                    <label className="text-sm text-gray-700 dark:text-gray-300">Agência</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => setAgencia(maskAgencia(e.target.value))} />
                   </div>
                   <div>
-                    <label className="text-sm">Conta</label>
-                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => setConta(maskConta(e.target.value))} />
+                    <label className="text-sm text-gray-700 dark:text-gray-300">Conta</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => setConta(maskConta(e.target.value))} />
                   </div>
                 </div>
               )}
-              <label className="text-sm">Saldo inicial</label>
-              <input className="w-full border rounded px-3 py-2" type="number" step="0.01" value={saldoInicial} onChange={e => setSaldoInicial(parseFloat(e.target.value))} />
-              <label className="text-sm">Observações</label>
-              <input className="w-full border rounded px-3 py-2" value={observacoes} onChange={e => setObservacoes(e.target.value)} />
+              <label className="text-sm text-gray-700 dark:text-gray-300">Saldo inicial</label>
+              <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" step="0.01" value={saldoInicial} onChange={e => setSaldoInicial(parseFloat(e.target.value))} />
+              <label className="text-sm text-gray-700 dark:text-gray-300">Observações</label>
+              <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => setObservacoes(e.target.value)} />
               <div className="flex justify-end gap-2">
-                <button type="button" className="rounded border px-3 py-2" onClick={() => setEditOpen(false)}>Cancelar</button>
-                <button className="bg-black text-white rounded px-3 py-2" type="submit">Salvar</button>
+                <button type="button" className="rounded border dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => setEditOpen(false)}>Cancelar</button>
+                <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" type="submit">Salvar</button>
               </div>
             </form>
           </div>

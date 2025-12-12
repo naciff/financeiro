@@ -18,6 +18,12 @@ export function Header({
   const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const formattedDate = dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
   const [userName, setUserName] = useState('')
+  // Initialize state based on localStorage
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'auto'>(() => {
+    if (localStorage.theme === 'light') return 'light'
+    if (localStorage.theme === 'dark') return 'dark'
+    return 'auto'
+  })
 
   useEffect(() => {
     getProfile().then(r => {
@@ -63,21 +69,55 @@ export function Header({
           </div>
 
           <div className="flex items-center gap-2 ml-4">
-            <button
-              onClick={() => {
-                if (document.documentElement.classList.contains('dark')) {
-                  document.documentElement.classList.remove('dark')
+            {/* Theme Switcher */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-full border border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  setThemeMode('light')
                   localStorage.setItem('theme', 'light')
-                } else {
-                  document.documentElement.classList.add('dark')
+                  document.documentElement.classList.remove('dark')
+                }}
+                className={`p-1.5 rounded-full transition-all ${themeMode === 'light'
+                    ? 'bg-white dark:bg-gray-600 shadow-sm text-yellow-500'
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                title="Claro"
+              >
+                <span className="material-icons-outlined text-lg">light_mode</span>
+              </button>
+              <button
+                onClick={() => {
+                  setThemeMode('auto')
+                  localStorage.removeItem('theme')
+                  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark')
+                  } else {
+                    document.documentElement.classList.remove('dark')
+                  }
+                }}
+                className={`p-1.5 rounded-full transition-all ${themeMode === 'auto'
+                    ? 'bg-white dark:bg-gray-600 shadow-sm text-primary'
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                title="Automático"
+              >
+                <span className="material-icons-outlined text-lg">brightness_auto</span>
+              </button>
+              <button
+                onClick={() => {
+                  setThemeMode('dark')
                   localStorage.setItem('theme', 'dark')
-                }
-              }}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-text-muted-light dark:text-text-muted-dark"
-            >
-              <span className="material-icons-outlined dark:hidden">dark_mode</span>
-              <span className="material-icons-outlined hidden dark:block">light_mode</span>
-            </button>
+                  document.documentElement.classList.add('dark')
+                }}
+                className={`p-1.5 rounded-full transition-all ${themeMode === 'dark'
+                    ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-400'
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                title="Escuro"
+              >
+                <span className="material-icons-outlined text-lg">dark_mode</span>
+              </button>
+            </div>
 
             <button
               onClick={() => supabase?.auth.signOut()}

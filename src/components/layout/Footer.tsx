@@ -5,7 +5,7 @@ export function Footer() {
     <footer
       role="contentinfo"
       aria-label="Rodapé"
-      className="bg-white border-t h-12 flex items-center px-4 text-[0.8rem] text-[#808080] shrink-0"
+      className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 h-12 flex items-center px-4 text-[0.8rem] text-[#808080] dark:text-gray-400 shrink-0 transition-colors duration-200"
     >
       <div className="mx-auto w-full max-w-6xl flex items-center justify-center relative">
         <span>@2026 ContaMestre</span>

@@ -406,15 +406,20 @@ export default function Ledger() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Livro Caixa</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Livro Caixa</h1>
       </div>
 
       <div className="flex gap-3">
+        <div className="flex flex-col gap-1 flex-1">
+          <label className="text-xs font-medium text-gray-700 invisible">Busca</label>
+          <input className="border dark:border-gray-600 rounded px-3 py-2 w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="text" placeholder="Buscar cliente, histórico ou valor" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </div>
+
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700">Caixa</label>
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Caixa</label>
           <div className="relative">
             <select
-              className="border rounded px-3 py-2 appearance-none pr-8 bg-white hover:bg-gray-50 cursor-pointer min-w-[150px]"
+              className="border dark:border-gray-600 rounded px-3 py-2 appearance-none pr-8 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer min-w-[150px] text-gray-900 dark:text-gray-100"
               value={accountFilter}
               onChange={e => setAccountFilter(e.target.value)}
             >
@@ -430,10 +435,10 @@ export default function Ledger() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700">Tipo Operação</label>
+          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Tipo Operação</label>
           <div className="relative">
             <select
-              className="border rounded px-3 py-2 appearance-none pr-8 bg-white hover:bg-gray-50 cursor-pointer min-w-[200px]"
+              className="border dark:border-gray-600 rounded px-3 py-2 appearance-none pr-8 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer min-w-[200px] text-gray-900 dark:text-gray-100"
               value={opFilter}
               onChange={e => setOpFilter(e.target.value)}
             >
@@ -452,14 +457,11 @@ export default function Ledger() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-1 flex-1">
-          <label className="text-xs font-medium text-gray-700 invisible">Busca</label>
-          <input className="border rounded px-3 py-2 w-full" type="text" placeholder="Buscar cliente, histórico ou valor" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-        </div>
+
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-700 invisible">Ação</label>
           <button
-            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors whitespace-nowrap"
+            className="px-4 py-2 bg-black dark:bg-gray-900 text-white rounded hover:bg-gray-800 dark:hover:bg-black transition-colors whitespace-nowrap"
             onClick={openModal}
           >
             + Incluir
@@ -470,15 +472,15 @@ export default function Ledger() {
       {/* Filtros e Abas */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
-          <div className="flex border rounded overflow-hidden">
+          <div className="flex border dark:border-gray-600 rounded overflow-hidden">
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'simple' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-3 py-1 text-sm ${filterMode === 'simple' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
               onClick={() => setFilterMode('simple')}
             >
               Simplificada
             </button>
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'custom' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-3 py-1 text-sm ${filterMode === 'custom' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
               onClick={() => setFilterMode('custom')}
             >
               Personalizada
@@ -487,18 +489,18 @@ export default function Ledger() {
         </div>
 
         {selectedIds.size > 1 && (
-          <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
-            <div className="text-[10px] font-bold text-green-800 uppercase border-b border-green-300 leading-tight mb-0.5">
+          <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
+            <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
               SOMA ITENS ({selectedIds.size})
             </div>
-            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
+            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
               {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
             </div>
           </div>
         )}
 
         {filterMode === 'simple' ? (
-          <div className="flex overflow-x-auto border-b">
+          <div className="flex overflow-x-auto border-b dark:border-gray-700">
             {months.map(m => {
               const val = m.toISOString().slice(0, 7)
               const label = m.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()
@@ -506,7 +508,7 @@ export default function Ledger() {
               return (
                 <button
                   key={val}
-                  className={`px-4 py-2 text-xs font-medium whitespace-nowrap border-r ${isSelected ? 'bg-orange-100 border-b-2 border-b-orange-400 text-orange-800' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
+                  className={`px-4 py-2 text-xs font-medium whitespace-nowrap border-r dark:border-gray-700 ${isSelected ? 'bg-orange-100 dark:bg-orange-900/40 border-b-2 border-b-orange-400 dark:border-b-orange-500 text-orange-800 dark:text-orange-200' : 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200'}`}
                   onClick={() => setSelectedMonth(val)}
                 >
                   {label}
@@ -515,21 +517,21 @@ export default function Ledger() {
             })}
           </div>
         ) : (
-          <div className="flex items-center gap-4 bg-gray-50 p-3 rounded border">
+          <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 p-3 rounded border dark:border-gray-700">
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" name="dateFilterType" checked={dateFilterType === 'payment'} onChange={() => setDateFilterType('payment')} />
-                <span className="text-sm font-medium">Data Vencimento</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Vencimento</span>
               </label>
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" name="dateFilterType" checked={dateFilterType === 'launch'} onChange={() => setDateFilterType('launch')} />
-                <span className="text-sm font-medium">Data Pagamento</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Pagamento</span>
               </label>
             </div>
             <div className="flex items-center gap-2">
-              <input type="date" max="9999-12-31" className="border rounded px-2 py-1 text-sm" value={startDate} onChange={e => setStartDate(e.target.value)} />
-              <span className="text-sm">a</span>
-              <input type="date" max="9999-12-31" className="border rounded px-2 py-1 text-sm" value={endDate} onChange={e => setEndDate(e.target.value)} />
+              <input type="date" max="9999-12-31" className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">a</span>
+              <input type="date" max="9999-12-31" className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={endDate} onChange={e => setEndDate(e.target.value)} />
               <button
                 onClick={() => {
                   if (startDate && startDate.length > 10) return alert('Data Inicial inválida. Verifique o ano.')
@@ -545,25 +547,25 @@ export default function Ledger() {
         )}
       </div>
       {msg && <div className="text-sm text-green-700">{msg}</div>}
-      <div className="bg-white border rounded">
+      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded text-gray-900 dark:text-gray-100">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="bg-gray-50 dark:bg-gray-700">
             <tr className="text-left">
-              <th className="p-2">Data</th>
-              <th className="p-2">Caixa</th>
-              <th className="p-2">Cliente</th>
-              <th className="p-2">Compromisso</th>
-              <th className="p-2">Histórico</th>
-              <th className="p-2 text-right">Receitas</th>
-              <th className="p-2 text-right">Despesas</th>
-              <th className="p-2">Espécie</th>
+              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Data</th>
+              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Caixa</th>
+              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Cliente</th>
+              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Compromisso</th>
+              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Histórico</th>
+              <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-200">Receitas</th>
+              <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-200">Despesas</th>
+              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Espécie</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y dark:divide-gray-700">
             {filteredTxs.map(tx => (
               <tr
                 key={tx.id}
-                className={`border-t hover:bg-gray-50 cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 ring-2 ring-blue-400' : ''}`}
+                className={`border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400' : ''}`}
                 onClick={(e) => handleSelect(e, tx.id)}
                 onDoubleClick={() => openModal(tx)}
                 onContextMenu={(e) => { handleContextMenu(e, tx) }}
@@ -573,17 +575,17 @@ export default function Ledger() {
                 <td className="p-2">{tx.cliente?.nome || clients.find(c => c.id === tx.cliente_id)?.nome || '-'}</td>
                 <td className="p-2">{tx.compromisso?.nome || tx.compromisso_id || '-'}</td>
                 <td className="p-2">{tx.historico}</td>
-                <td className="p-2 text-green-600 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_entrada))}` : ''}</td>
-                <td className="p-2 text-red-600 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_saida))}` : ''}</td>
+                <td className="p-2 text-green-600 dark:text-green-400 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_entrada))}` : ''}</td>
+                <td className="p-2 text-red-600 dark:text-red-400 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_saida))}` : ''}</td>
                 <td className="p-2">{tx.especie ? (tx.especie.charAt(0).toUpperCase() + tx.especie.slice(1).replace('_', ' ')) : '-'}</td>
               </tr>
             ))}
           </tbody>
-          <tfoot>
-            <tr className="bg-gray-100 font-bold border-t-2">
+          <tfoot className="bg-gray-100 dark:bg-gray-800 font-bold border-t-2 dark:border-gray-600">
+            <tr>
               <td className="p-2" colSpan={5}>TOTAIS ({filteredTxs.length} registros)</td>
-              <td className="p-2 text-right text-green-700">R$ {formatMoneyBr(filteredTotals.receitas)}</td>
-              <td className="p-2 text-right text-red-700">R$ {formatMoneyBr(filteredTotals.despesas)}</td>
+              <td className="p-2 text-right text-green-700 dark:text-green-400">R$ {formatMoneyBr(filteredTotals.receitas)}</td>
+              <td className="p-2 text-right text-red-700 dark:text-red-400">R$ {formatMoneyBr(filteredTotals.despesas)}</td>
               <td className="p-2"></td>
             </tr>
           </tfoot>
@@ -592,24 +594,24 @@ export default function Ledger() {
 
       {contextMenu && (
         <div
-          className="fixed bg-white border rounded shadow-xl z-50 py-1"
+          className="fixed bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-xl z-50 py-1"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
             const item = contextMenu.tx
             if (item) openModal(item)
             setContextMenu(null)
           }}>
             <Icon name="edit" className="w-4 h-4" /> Alterar
           </button>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { handleReverse(); setContextMenu(null) }}>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
             <Icon name="trash" className="w-4 h-4" /> Excluir
           </button>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { handleDuplicate(); setContextMenu(null) }}>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400" onClick={() => { handleDuplicate(); setContextMenu(null) }}>
             <Icon name="copy" className="w-4 h-4" /> Duplicar
           </button>
-          <div className="border-t my-1"></div>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-600" onClick={() => { handleReverse(); setContextMenu(null) }}>
+          <div className="border-t dark:border-gray-700 my-1"></div>
+          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-600 dark:text-gray-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
             <Icon name="undo" className="w-4 h-4" /> Estornar
           </button>
         </div>
@@ -617,9 +619,9 @@ export default function Ledger() {
 
       {showReverseConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-          <div className="bg-white border rounded shadow-lg p-6 w-[300px] text-center">
-            <h3 className="font-semibold text-lg mb-4 text-gray-800">Estornar Lançamento</h3>
-            <p className="text-sm text-gray-600 mb-6">Deseja realmente estornar este lançamento? A ação será desfeita.</p>
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[300px] text-center">
+            <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100">Estornar Lançamento</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Deseja realmente estornar este lançamento? A ação será desfeita.</p>
             <div className="flex justify-center gap-3">
               <button
                 className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"

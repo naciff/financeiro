@@ -149,14 +149,14 @@ export default function Profile() {
     }
 
     return (
-        <div className="max-w-2xl mx-auto bg-white border rounded p-6 shadow-sm">
-            <h1 className="text-xl font-semibold mb-6 pb-2 border-b">Meu Perfil</h1>
+        <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
+            <h1 className="text-xl font-semibold mb-6 pb-2 border-b dark:border-gray-700 text-gray-900 dark:text-gray-100">Meu Perfil</h1>
 
             <form onSubmit={updateProfile} className="space-y-6">
 
                 {/* Avatar Section */}
                 <div className="flex flex-col items-center gap-4 mb-6">
-                    <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border">
+                    <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden border dark:border-gray-600">
                         {avatarUrl ? (
                             (avatarUrl.startsWith('http') || avatarUrl.startsWith('blob:')) ?
                                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> :
@@ -166,7 +166,7 @@ export default function Profile() {
                         )}
                     </div>
                     <div>
-                        <label className="cursor-pointer bg-gray-50 border px-4 py-2 rounded text-sm hover:bg-gray-100 transition-colors">
+                        <label className="cursor-pointer bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 px-4 py-2 rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors">
                             {uploading ? 'Enviando...' : 'Alterar foto'}
                             <input
                                 type="file"
@@ -181,35 +181,36 @@ export default function Profile() {
 
                 <div className="grid gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome</label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             placeholder="Seu nome completo"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">E-mail</label>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                            className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                             placeholder="seu@email.com"
+                            disabled
                         />
-                        <p className="text-xs text-gray-500 mt-1">Para alterar seu email de login, entre em contato com o suporte.</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Para alterar seu email de login, entre em contato com o suporte.</p>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Celular</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Celular</label>
                         <input
                             type="tel"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
-                            className="w-full border rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             placeholder="(00) 00000-0000"
                         />
                     </div>
@@ -219,7 +220,7 @@ export default function Profile() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800 transition-colors disabled:opacity-50"
+                        className="bg-black dark:bg-gray-900 text-white px-6 py-2 rounded hover:bg-gray-800 dark:hover:bg-black transition-colors disabled:opacity-50"
                     >
                         {loading ? 'Salvando...' : 'Salvar Alterações'}
                     </button>

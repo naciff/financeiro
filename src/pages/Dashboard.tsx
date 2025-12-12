@@ -51,19 +51,18 @@ export default function Dashboard() {
         <div className="relative">
           <input
             type="month"
-            className="pl-4 pr-10 py-2 rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-main-light dark:text-text-main-dark text-sm focus:ring-primary focus:border-primary"
+            className="px-4 py-2 rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-main-light dark:text-text-main-dark text-sm focus:ring-primary focus:border-primary"
             value={selectedMonth}
             onChange={e => setSelectedMonth(e.target.value)}
           />
-          <span className="material-icons-outlined absolute right-2 top-2 text-text-muted-light dark:text-text-muted-dark pointer-events-none text-lg">calendar_today</span>
         </div>
       </div>
 
       {/* Top Metrics - 4 columns with Icons */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 mr-4">
-            <span className="material-icons-outlined text-2xl">arrow_downward</span>
+          <div className="text-green-600 mr-4">
+            <span className="material-icons-outlined text-4xl">arrow_downward</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total entrada (Fixa/Mês)</p>
@@ -71,8 +70,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 mr-4">
-            <span className="material-icons-outlined text-2xl">arrow_upward</span>
+          <div className="text-red-600 mr-4">
+            <span className="material-icons-outlined text-4xl">arrow_upward</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total despesas (Fixa/Mês)</p>
@@ -80,8 +79,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 mr-4">
-            <span className="material-icons-outlined text-2xl">receipt_long</span>
+          <div className="text-blue-600 mr-4">
+            <span className="material-icons-outlined text-4xl">receipt_long</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total de despesas lançadas</p>
@@ -89,8 +88,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 mr-4">
-            <span className="material-icons-outlined text-2xl">savings</span>
+          <div className="text-green-600 mr-4">
+            <span className="material-icons-outlined text-4xl">savings</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão divisão de lucro Anual</p>
@@ -102,8 +101,8 @@ export default function Dashboard() {
       {/* Totais do Livro Caixa + Previsão - 4 columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 mr-4">
-            <span className="material-icons-outlined text-2xl">attach_money</span>
+          <div className="text-blue-600 mr-4">
+            <span className="material-icons-outlined text-4xl">attach_money</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total recebido</p>
@@ -111,8 +110,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 mr-4">
-            <span className="material-icons-outlined text-2xl">money_off</span>
+          <div className="text-red-600 mr-4">
+            <span className="material-icons-outlined text-4xl">money_off</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total pago</p>
@@ -120,8 +119,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 mr-4">
-            <span className="material-icons-outlined text-2xl">account_balance_wallet</span>
+          <div className="text-gray-600 mr-4">
+            <span className="material-icons-outlined text-4xl">account_balance_wallet</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Saldo Atual</p>
@@ -129,8 +128,8 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="p-3 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 mr-4">
-            <span className="material-icons-outlined text-2xl">trending_up</span>
+          <div className="text-gray-600 mr-4">
+            <span className="material-icons-outlined text-4xl">trending_up</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão Saldo Mês Atual</p>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
 import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule } from '../services/db'
+import { supabase } from '../lib/supabase'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
@@ -151,6 +152,7 @@ export default function Schedules() {
 
   const data = useMemo(() => {
     const source = hasBackend ? remoteSchedules : store.schedules
+    console.log('DEBUG: Source Schedules Length:', source.length)
     const arr = source.map((s: any) => {
       const start = new Date(s.ano_mes_inicial)
       const end = new Date(s.ano_mes_inicial)
@@ -207,23 +209,33 @@ export default function Schedules() {
         operacao: s.operacao,
         tipo: s.tipo,
         caixa: caixaNome,
-        caixa_cor: caixaCor
+        caixa_cor: caixaCor,
+        raw_vencimento: s.proxima_vencimento // Hidden field for sorting
       }
     })
     const byTab = arr.filter(r => {
       const isConcluido = r.status === 'Concluído'
       if (activeTab === 'concluidos') return isConcluido
       // Active tabs should NOT show concluded items
-      return r.operacao === activeTab && !isConcluido
+      const opMatch = (r.operacao || '').toLowerCase() === activeTab.toLowerCase()
+      if (!isConcluido && !opMatch && activeTab === 'despesa') {
+        // Debug: Check if we are losing items here
+        if (r.historico?.toLowerCase().includes('dízimo') || r.historico?.toLowerCase().includes('dizimo')) {
+          console.warn('DEBUG: Item found but filtered out:', r, { activeTab, itemOp: r.operacao, isConcluido })
+        }
+      }
+      return opMatch && !isConcluido
     })
     // Debug log removed
     const byType = typeFilter ? byTab.filter(r => r.tipo === typeFilter) : byTab
     const byPeriod = periodFilter ? byType.filter(r => (r.tipo === 'variavel' ? 'determinado' : r.periodo) === periodFilter) : byType
     const filt = byPeriod.filter(r => [r.cliente, r.historico, r.especie, r.caixa, String(r.valor_total), String(r.valor_parcela)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
     const sorted = [...filt].sort((a, b) => {
-      const av = (a as any)[sort.key]
-      const bv = (b as any)[sort.key]
-      return (sort.dir === 'asc' ? 1 : -1) * (av > bv ? 1 : av < bv ? -1 : 0)
+      const isDate = sort.key === 'vencimento'
+      const av = isDate ? ((a as any).raw_vencimento || '') : (a as any)[sort.key]
+      const bv = isDate ? ((b as any).raw_vencimento || '') : (b as any)[sort.key]
+      if (av === bv) return 0
+      return (sort.dir === 'asc' ? 1 : -1) * (av > bv ? 1 : -1)
     })
     const totalRecords = sorted.length
     const totalPages = Math.ceil(totalRecords / pageSize)
@@ -715,11 +727,11 @@ export default function Schedules() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Agendamentos</h1>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Agendamentos</h1>
       {loadError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 flex items-center justify-between">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded p-3 flex items-center justify-between">
           <span>Erro ao carregar: {loadError}</span>
-          <button className="px-2 py-1 rounded border" onClick={() => { setLoadError(''); (async () => { try { if (hasBackend) { const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(), listCommitmentGroups(), listAccounts(), listCashboxes(), listSchedules()]); if (cRes.error) throw cRes.error; if (gRes.error) throw gRes.error; if (accRes.error) throw accRes.error; if (cbRes.error) throw cbRes.error; if (sRes.error) throw sRes.error; setClientes((cRes.data as any) || []); setGrupos((gRes.data as any) || []); setContas((accRes.data as any) || []); setCaixas((cbRes.data as any) || []); setRemoteSchedules((sRes.data as any) || []); } else { setClientes(store.clients.map(c => ({ id: c.id, nome: c.nome }))); setGrupos(store.commitment_groups); setCompromissos(store.commitments); setContas(store.accounts.map(a => ({ id: a.id, nome: a.nome, ativo: a.ativo !== false, principal: !!a.principal }))); setCaixas(store.cashboxes.map(c => ({ id: c.id, nome: c.nome }))); } console.log('Schedules: retry carregado com sucesso') } catch (err: any) { setLoadError(err?.message || 'Falha ao carregar dados'); console.error('Schedules: erro no retry', err) } })() }}>Tentar novamente</button>
+          <button className="px-2 py-1 rounded border dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50" onClick={() => { setLoadError(''); (async () => { try { if (hasBackend) { const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(), listCommitmentGroups(), listAccounts(), listCashboxes(), listSchedules()]); if (cRes.error) throw cRes.error; if (gRes.error) throw gRes.error; if (accRes.error) throw accRes.error; if (cbRes.error) throw cbRes.error; if (sRes.error) throw sRes.error; setClientes((cRes.data as any) || []); setGrupos((gRes.data as any) || []); setContas((accRes.data as any) || []); setCaixas((cbRes.data as any) || []); setRemoteSchedules((sRes.data as any) || []); } else { setClientes(store.clients.map(c => ({ id: c.id, nome: c.nome }))); setGrupos(store.commitment_groups); setCompromissos(store.commitments); setContas(store.accounts.map(a => ({ id: a.id, nome: a.nome, ativo: a.ativo !== false, principal: !!a.principal }))); setCaixas(store.cashboxes.map(c => ({ id: c.id, nome: c.nome }))); } console.log('Schedules: retry carregado com sucesso') } catch (err: any) { setLoadError(err?.message || 'Falha ao carregar dados'); console.error('Schedules: erro no retry', err) } })() }}>Tentar novamente</button>
         </div>
       )}
 
@@ -737,21 +749,21 @@ export default function Schedules() {
       />
 
       <div role="toolbar" aria-label="Ações" className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-white border rounded px-3 py-2">
-          <Icon name="search" className="w-4 h-4" />
-          <input className="outline-none w-64" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2">
+          <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <input className="outline-none w-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
         </div>
-        <div className="flex items-center gap-2 bg-white border rounded px-3 py-2">
-          <label className="text-sm" htmlFor="typeFilter">Tipo</label>
-          <select id="typeFilter" className="border rounded px-2 py-1" value={typeFilter} onChange={e => { setTypeFilter(e.target.value as any); setPage(1) }}>
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="typeFilter">Tipo</label>
+          <select id="typeFilter" className="border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={typeFilter} onChange={e => { setTypeFilter(e.target.value as any); setPage(1) }}>
             <option value="">Todos</option>
             <option value="fixo">Fixo</option>
             <option value="variavel">Variável</option>
           </select>
         </div>
-        <div className="flex items-center gap-2 bg-white border rounded px-3 py-2">
-          <label className="text-sm" htmlFor="periodFilter">Período</label>
-          <select id="periodFilter" className="border rounded px-2 py-1" value={periodFilter} onChange={e => { setPeriodFilter(e.target.value as any); setPage(1) }}>
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2">
+          <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="periodFilter">Período</label>
+          <select id="periodFilter" className="border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={periodFilter} onChange={e => { setPeriodFilter(e.target.value as any); setPage(1) }}>
             <option value="">Todos</option>
             <option value="mensal">Mensal</option>
             <option value="anual">Anual</option>
@@ -759,21 +771,67 @@ export default function Schedules() {
           </select>
         </div>
         {(search || typeFilter || periodFilter) && (
-          <button className="text-sm bg-gray-100 hover:bg-gray-200 border rounded px-3 py-2 text-gray-700" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter(''); setPage(1) }}>
+          <button className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter(''); setPage(1) }}>
             Limpar filtros
           </button>
         )}
 
         {selectedIds.size > 1 && (
-          <div className="ml-2 bg-green-100 border border-green-300 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
-            <div className="text-[10px] font-bold text-green-800 uppercase border-b border-green-300 leading-tight mb-0.5">
+          <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
+            <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
               SOMA ITENS ({selectedIds.size})
             </div>
-            <div className={`text-sm font-bold ${data.selectionSum >= 0 ? 'text-green-600' : 'text-red-600'} leading-tight`}>
+            <div className={`text-sm font-bold ${data.selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
               {data.selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(data.selectionSum))}
             </div>
           </div>
         )}
+        <button
+          className="px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded text-sm font-medium flex items-center gap-2"
+          onClick={async () => {
+            alert('Iniciando busca do ID...')
+            try {
+              if (!hasBackend) { alert('Debug apenas online'); return; }
+              const targetId = 'fd108910-9d89-4f40-9343-d6afb6428f5e'
+
+              const { data, error } = await supabase
+                .from('schedules')
+                .select('*')
+                .eq('id', targetId)
+
+              if (error) {
+                alert('Erro ao buscar ID: ' + error.message)
+              } else if (!data || data.length === 0) {
+                alert('AGENDAMENTO NÃO ENCONTRADO! O registro pai (Schedule) não existe, mas os lançamentos (Financials) existem. Isso é um agendamento órfão.')
+              } else {
+                const d = data[0]
+                const currentUser = (await supabase.auth.getUser()).data.user?.id
+                alert(`
+AGENDAMENTO ENCONTRADO!
+ID: ${d.id}
+Histórico: ${d.historico}
+Operação: ${d.operacao}
+Situação DB: ${d.situacao} (1=Ativo, 2=Concluido)
+User ID Item: ${d.user_id}
+User ID Atual: ${currentUser}
+MATCH?: ${d.user_id === currentUser ? 'SIM' : 'NÃO - INVISÍVEL NA LISTA'}
+Prox. Vencimento: ${d.proxima_vencimento} (${d.proxima_vencimento ? 'Válido' : 'NULL/VAZIO!'})
+
+CLASSIFICAÇÃO:
+Tipo: ${d.tipo} (fixo vs variavel)
+Periodo: ${d.periodo}
+Parcelas: ${d.parcelas}
+Inicio: ${d.ano_mes_inicial}
+                  `)
+              }
+            } catch (err: any) {
+              alert('Erro Try/Catch: ' + err.message)
+            }
+          }}
+        >
+          <Icon name="search" className="w-4 h-4" />
+          Debug ID Específico
+        </button>
         <button className="flex items-center gap-2 bg-black text-white rounded px-3 py-2" onClick={() => { resetForm(); const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); setAnoMesInicial(`${yyyy}-${mm}-${dd}`); setShowForm('create') }} aria-label="Incluir">
           <Icon name="add" className="w-4 h-4" /> Incluir
         </button>
@@ -790,7 +848,7 @@ export default function Schedules() {
         <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
           <Icon name="trash" className="w-4 h-4" /> Excluir
         </button>
-        <button className="flex items-center justify-center bg-white border border-gray-300 rounded p-2 text-gray-700 hover:bg-gray-50" onClick={() => {
+        <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => {
           // Export CSV
           const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
           const rows = data.data.map(r => [
@@ -815,273 +873,275 @@ export default function Schedules() {
         }} title="Exportar CSV" aria-label="Exportar CSV">
           <Icon name="excel" className="w-5 h-5" />
         </button>
-        <button className="flex items-center justify-center bg-white border border-gray-300 rounded p-2 text-gray-700 hover:bg-gray-50" onClick={() => window.print()} title="Exportar PDF" aria-label="Exportar PDF">
+        <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => window.print()} title="Exportar PDF" aria-label="Exportar PDF">
           <Icon name="pdf" className="w-5 h-5" />
         </button>
       </div>
 
-      {showForm !== 'none' && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl my-8">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 rounded-t-lg flex items-center justify-between z-10">
-              <div className="font-semibold text-lg">{showForm === 'create' ? 'Novo Agendamento' : 'Editar Agendamento'}</div>
-              <button className="text-gray-500 hover:text-black" onClick={() => setShowForm('none')}>
-                <Icon name="x" className="w-5 h-5" />
-              </button>
-            </div>
+      {
+        showForm !== 'none' && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl my-8 border dark:border-gray-700">
+              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 rounded-t-lg flex items-center justify-between z-10">
+                <div className="font-semibold text-lg text-gray-900 dark:text-gray-100">{showForm === 'create' ? 'Novo Agendamento' : 'Editar Agendamento'}</div>
+                <button className="text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-gray-200" onClick={() => setShowForm('none')}>
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
+              </div>
 
-            <div className="p-6">
-              <form onSubmit={showForm === 'create' ? onCreate : onUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700" htmlFor="operacao">Operação</label>
-                    <select id="operacao" ref={operacaoRef} className="w-full border rounded px-3 py-2 text-sm bg-gray-50" value={operacao} disabled>
-                      <option value="despesa">Despesa</option>
-                      <option value="receita">Receita</option>
-                      <option value="aporte">Aporte</option>
-                      <option value="retirada">Retirada</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Tipo</label>
-                    <select className="w-full border rounded px-3 py-2 text-sm" value={tipo} onChange={e => { setTipo(e.target.value) }}>
-                      <option value="fixo">Fixo</option>
-                      <option value="variavel">Variável</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Espécie</label>
-                    <select className="w-full border rounded px-3 py-2 text-sm" value={especie} onChange={e => { setEspecie(e.target.value) }}>
-                      <option value="dinheiro">Dinheiro</option>
-                      <option value="pix">PIX</option>
-                      <option value="cartao">Cartão</option>
-                      <option value="boleto">Boleto</option>
-                      <option value="transferencia">Transferência</option>
-                      <option value="debito_automatico">Débito Automático</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Ano/Mês</label>
-                    <select className="w-full border rounded px-3 py-2 text-sm" value={refChoice} onChange={e => { setRefChoice(e.target.value as any) }}>
-                      <option value="vencimento">Ano/Mês Vencimento</option>
-                      <option value="anterior">Ano/Mês Anterior</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 relative">
-                  <label className="text-sm font-medium text-gray-700">Cliente <span className="text-red-600">*</span></label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 border rounded px-3 py-2 bg-white">
-                      <input className="w-full outline-none" placeholder="Digite pelo menos 3 letras para buscar" value={clienteBusca} onChange={async e => {
-                        const v = e.target.value
-                        setClienteBusca(v)
-                        if (v.length >= 3) {
-                          if (hasBackend) {
-                            const r = await (await import('../services/db')).searchClients(v)
-                            if (!r.error && r.data) setClientes(r.data as any)
-                          } else {
-                            setClientes(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
-                          }
-                        }
-                      }} />
+              <div className="p-6">
+                <form onSubmit={showForm === 'create' ? onCreate : onUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="operacao">Operação</label>
+                      <select id="operacao" ref={operacaoRef} className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-400" value={operacao} disabled>
+                        <option value="despesa">Despesa</option>
+                        <option value="receita">Receita</option>
+                        <option value="aporte">Aporte</option>
+                        <option value="retirada">Retirada</option>
+                      </select>
                     </div>
-                    <button type="button" className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 hover:bg-gray-800" onClick={() => setClientModal(true)} title="Novo Cliente">
-                      <Icon name="add" className="w-4 h-4" />
-                    </button>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo</label>
+                      <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => { setTipo(e.target.value) }}>
+                        <option value="fixo">Fixo</option>
+                        <option value="variavel">Variável</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Espécie</label>
+                      <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={especie} onChange={e => { setEspecie(e.target.value) }}>
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                        <option value="cartao">Cartão</option>
+                        <option value="boleto">Boleto</option>
+                        <option value="transferencia">Transferência</option>
+                        <option value="debito_automatico">Débito Automático</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Ano/Mês</label>
+                      <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={refChoice} onChange={e => { setRefChoice(e.target.value as any) }}>
+                        <option value="vencimento">Ano/Mês Vencimento</option>
+                        <option value="anterior">Ano/Mês Anterior</option>
+                      </select>
+                    </div>
                   </div>
-                  {clienteBusca.length >= 3 && clientes.length > 0 && (
-                    <ul className="absolute z-20 bg-white border rounded mt-1 w-full max-h-48 overflow-auto shadow-lg">
-                      {clientes.map(c => (
-                        <li key={c.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => { setClienteId(c.id); setClienteNome(c.nome); setClienteBusca(c.nome); setClientes([]); validate() }}>{c.nome}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {errors.clienteId && <div className="text-xs text-red-600 mt-1">{errors.clienteId}</div>}
-                </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Grupo de Compromisso <span className="text-red-600">*</span></label>
-                  <select className={`w-full border rounded px-3 py-2 ${errors.grupoId ? 'border-red-500 bg-red-50' : ''}`} value={grupoId} onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}>
-                    <option value="">Selecione</option>
-                    {grupos.filter(g => (g.operacao || (g as any).tipo) === activeTab).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                  </select>
-                  {errors.grupoId && <div className="text-xs text-red-600 mt-1">{errors.grupoId}</div>}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Compromisso <span className="text-red-600">*</span></label>
-                  <select className={`w-full border rounded px-3 py-2 ${errors.compromissoId ? 'border-red-500 bg-red-50' : ''}`} value={compromissoId} onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}>
-                    <option value="">Selecione</option>
-                    {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
-                  {errors.compromissoId && <div className="text-xs text-red-600 mt-1">{errors.compromissoId}</div>}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Histórico <span className="text-red-600">*</span></label>
-                  <input className={`w-full border rounded px-3 py-2 ${errors.historico ? 'border-red-500 bg-red-50' : ''}`} placeholder="Descrição" value={historico} onChange={e => { setHistorico(e.target.value); setErrors({ ...errors, historico: '' }) }} />
-                  {errors.historico && <div className="text-xs text-red-600 mt-1">{errors.historico}</div>}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Caixa Lançamento <span className="text-red-600">*</span></label>
-                  <select className={`w-full border rounded px-3 py-2 ${errors.caixaId ? 'border-red-500 bg-red-50' : ''}`} value={caixaId} onChange={e => {
-                    const selectedId = e.target.value
-                    setCaixaId(selectedId)
-                    setErrors({ ...errors, caixaId: '' })
-                    const selectedAccount = contas.find(c => c.id === selectedId)
-                    if (selectedAccount && selectedAccount.tipo === 'cartao' && (selectedAccount as any).dia_vencimento) {
-                      const dueDay = (selectedAccount as any).dia_vencimento
-                      const now = new Date()
-                      const year = now.getFullYear()
-                      const month = now.getMonth() + 1
-                      const dueDate = `${String(dueDay).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
-                      setDateDisplay(dueDate)
-                      setProxima(`${year}-${String(month).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`)
-                    }
-                  }}>
-                    <option value="">Selecione</option>
-                    {contas.filter(c => c.ativo !== false).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
-                  {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Detalhes</label>
-                  <input className="w-full border rounded px-3 py-2" value={detalhes} onChange={e => setDetalhes(e.target.value)} />
-                </div>
-
-                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Valor <span className="text-red-600">*</span></label>
-                    <input className={`w-full border rounded px-3 py-2 ${(!valor || valor <= 0) ? 'border-red-500 bg-red-50' : ''}`} type="number" inputMode="decimal" min={0.01} step="0.01" value={valor} onChange={e => { setValor(parseFloat(e.target.value) || 0) }} />
-                    {(!valor || valor <= 0) && <div className="text-xs text-red-600 mt-1">Valor deve ser maior que 0</div>}
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Data Vencimento <span className="text-red-600">*</span></label>
-                    <div className="relative">
-                      <input
-                        className="w-full border rounded px-3 py-2 pr-10"
-                        placeholder="DD/MM/AAAA"
-                        value={dateDisplay}
-                        onChange={e => {
-                          let v = e.target.value
-                          v = v.replace(/\D/g, '')
-                          if (v.length > 8) v = v.slice(0, 8)
-                          if (v.length > 4) v = `${v.slice(0, 2)}/${v.slice(2, 4)}/${v.slice(4)}`
-                          else if (v.length > 2) v = `${v.slice(0, 2)}/${v.slice(2)}`
-                          setDateDisplay(v)
-                          if (v.length === 10) {
-                            const m = v.match(/^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/)
-                            if (m) {
-                              const iso = `${m[3]}-${m[2]}-${m[1]}`
-                              const d = new Date(iso)
-                              if (!Number.isNaN(d.getTime())) {
-                                setProxima(iso)
-                                setErrors(prev => { const { proxima, ...rest } = prev; return rest })
-                              }
+                  <div className="md:col-span-2 relative">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Cliente <span className="text-red-600 dark:text-red-400">*</span></label>
+                    <div className="flex gap-2">
+                      <div className="flex-1 border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700">
+                        <input className="w-full outline-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Digite pelo menos 3 letras para buscar" value={clienteBusca} onChange={async e => {
+                          const v = e.target.value
+                          setClienteBusca(v)
+                          if (v.length >= 3) {
+                            if (hasBackend) {
+                              const r = await (await import('../services/db')).searchClients(v)
+                              if (!r.error && r.data) setClientes(r.data as any)
+                            } else {
+                              setClientes(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
                             }
-                          } else {
-                            setProxima('')
                           }
-                        }}
-                      />
-                      <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1 cursor-pointer text-gray-400 hover:text-gray-600">
-                        <Icon name="calendar" className="w-5 h-5" />
+                        }} />
+                      </div>
+                      <button type="button" className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setClientModal(true)} title="Novo Cliente">
+                        <Icon name="add" className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {clienteBusca.length >= 3 && clientes.length > 0 && (
+                      <ul className="absolute z-20 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded mt-1 w-full max-h-48 overflow-auto shadow-lg text-gray-900 dark:text-gray-100">
+                        {clientes.map(c => (
+                          <li key={c.id} className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => { setClienteId(c.id); setClienteNome(c.nome); setClienteBusca(c.nome); setClientes([]); validate() }}>{c.nome}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {errors.clienteId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.clienteId}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Grupo de Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
+                    <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.grupoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={grupoId} onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}>
+                      <option value="">Selecione</option>
+                      {grupos.filter(g => (g.operacao || (g as any).tipo) === activeTab).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                    </select>
+                    {errors.grupoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.grupoId}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
+                    <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.compromissoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={compromissoId} onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}>
+                      <option value="">Selecione</option>
+                      {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                    {errors.compromissoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.compromissoId}</div>}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Histórico <span className="text-red-600 dark:text-red-400">*</span></label>
+                    <input className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.historico ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} placeholder="Descrição" value={historico} onChange={e => { setHistorico(e.target.value); setErrors({ ...errors, historico: '' }) }} />
+                    {errors.historico && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.historico}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Caixa Lançamento <span className="text-red-600 dark:text-red-400">*</span></label>
+                    <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.caixaId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={caixaId} onChange={e => {
+                      const selectedId = e.target.value
+                      setCaixaId(selectedId)
+                      setErrors({ ...errors, caixaId: '' })
+                      const selectedAccount = contas.find(c => c.id === selectedId)
+                      if (selectedAccount && selectedAccount.tipo === 'cartao' && (selectedAccount as any).dia_vencimento) {
+                        const dueDay = (selectedAccount as any).dia_vencimento
+                        const now = new Date()
+                        const year = now.getFullYear()
+                        const month = now.getMonth() + 1
+                        const dueDate = `${String(dueDay).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
+                        setDateDisplay(dueDate)
+                        setProxima(`${year}-${String(month).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`)
+                      }
+                    }}>
+                      <option value="">Selecione</option>
+                      {contas.filter(c => c.ativo !== false).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                    {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Detalhes</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={detalhes} onChange={e => setDetalhes(e.target.value)} />
+                  </div>
+
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Valor <span className="text-red-600 dark:text-red-400">*</span></label>
+                      <input className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${(!valor || valor <= 0) ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} type="number" inputMode="decimal" min={0.01} step="0.01" value={valor} onChange={e => { setValor(parseFloat(e.target.value) || 0) }} />
+                      {(!valor || valor <= 0) && <div className="text-xs text-red-600 dark:text-red-400 mt-1">Valor deve ser maior que 0</div>}
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Vencimento <span className="text-red-600 dark:text-red-400">*</span></label>
+                      <div className="relative">
                         <input
-                          type="date"
-                          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                          className="w-full border dark:border-gray-600 rounded px-3 py-2 pr-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                          placeholder="DD/MM/AAAA"
+                          value={dateDisplay}
                           onChange={e => {
-                            if (e.target.value) {
-                              const selectedDate = e.target.value
-                              setProxima(selectedDate)
-                              const [year, month, day] = selectedDate.split('-')
-                              setDateDisplay(`${day}/${month}/${year}`)
-                              setErrors(prev => { const { proxima, ...rest } = prev; return rest })
+                            let v = e.target.value
+                            v = v.replace(/\D/g, '')
+                            if (v.length > 8) v = v.slice(0, 8)
+                            if (v.length > 4) v = `${v.slice(0, 2)}/${v.slice(2, 4)}/${v.slice(4)}`
+                            else if (v.length > 2) v = `${v.slice(0, 2)}/${v.slice(2)}`
+                            setDateDisplay(v)
+                            if (v.length === 10) {
+                              const m = v.match(/^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/)
+                              if (m) {
+                                const iso = `${m[3]}-${m[2]}-${m[1]}`
+                                const d = new Date(iso)
+                                if (!Number.isNaN(d.getTime())) {
+                                  setProxima(iso)
+                                  setErrors(prev => { const { proxima, ...rest } = prev; return rest })
+                                }
+                              }
+                            } else {
+                              setProxima('')
                             }
                           }}
                         />
-                      </label>
+                        <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1 cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                          <Icon name="calendar" className="w-5 h-5" />
+                          <input
+                            type="date"
+                            className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                            onChange={e => {
+                              if (e.target.value) {
+                                const selectedDate = e.target.value
+                                setProxima(selectedDate)
+                                const [year, month, day] = selectedDate.split('-')
+                                setDateDisplay(`${day}/${month}/${year}`)
+                                setErrors(prev => { const { proxima, ...rest } = prev; return rest })
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{tipo === 'variavel' ? 'Parcelas' : 'Período'}</label>
+                      {tipo === 'variavel' ? (
+                        <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" min={1} max={48} value={parcelas} onChange={e => { const n = Math.min(48, Math.max(1, parseInt(e.target.value) || 1)); setParcelas(n) }} />
+                      ) : (
+                        <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={periodoFix} onChange={e => { setPeriodoFix(e.target.value as any) }}>
+                          <option value="mensal">Mensal</option>
+                          <option value="semestral">Semestral</option>
+                          <option value="anual">Anual</option>
+                        </select>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Nota Fiscal</label>
+                      <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="Somente números" value={notaFiscal} onChange={e => setNotaFiscal(e.target.value.replace(/\D/g, '').slice(0, 15))} />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">{tipo === 'variavel' ? 'Parcelas' : 'Período'}</label>
-                    {tipo === 'variavel' ? (
-                      <input className="w-full border rounded px-3 py-2" type="number" min={1} max={48} value={parcelas} onChange={e => { const n = Math.min(48, Math.max(1, parseInt(e.target.value) || 1)); setParcelas(n) }} />
-                    ) : (
-                      <select className="w-full border rounded px-3 py-2" value={periodoFix} onChange={e => { setPeriodoFix(e.target.value as any) }}>
-                        <option value="mensal">Mensal</option>
-                        <option value="semestral">Semestral</option>
-                        <option value="anual">Anual</option>
-                      </select>
-                    )}
+
+                  <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
+                    <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => setShowForm('none')}>Cancelar</button>
+                    <button className="bg-black dark:bg-gray-900 hover:bg-gray-800 dark:hover:bg-black text-white rounded px-4 py-2 font-medium transition-colors shadow-sm" type="submit">{showForm === 'create' ? 'Salvar Agendamento' : 'Salvar Alterações'}</button>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Nota Fiscal</label>
-                    <input className="w-full border rounded px-3 py-2" inputMode="numeric" placeholder="Somente números" value={notaFiscal} onChange={e => setNotaFiscal(e.target.value.replace(/\D/g, '').slice(0, 15))} />
-                  </div>
-                </div>
+                </form>
 
-                <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t">
-                  <button className="bg-gray-100 hover:bg-gray-200 text-black border border-gray-300 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => setShowForm('none')}>Cancelar</button>
-                  <button className="bg-black hover:bg-gray-800 text-white rounded px-4 py-2 font-medium transition-colors shadow-sm" type="submit">{showForm === 'create' ? 'Salvar Agendamento' : 'Salvar Alterações'}</button>
-                </div>
-              </form>
+                {msg && <div className={`mt-4 p-3 rounded ${msgType === 'error' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800' : 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'}`}>{msg}</div>}
 
-              {msg && <div className={`mt-4 p-3 rounded ${msgType === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{msg}</div>}
-
-              {preview.length > 0 && (
-                <div className="mt-6 bg-gray-50 border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3 border-b pb-2">
-                    <div className="font-semibold text-gray-700">Cronograma de Pagamentos</div>
-                    <div className="flex gap-2">
-                      <button className="text-xs bg-white border rounded px-2 py-1 hover:bg-gray-100" onClick={() => {
-                        const csv = 'Parcela;Data;Valor\n' + preview.map((r, i) => `${i + 1};${r.date};${r.valor.toFixed(2)}`).join('\n')
-                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a'); a.href = url; a.download = 'cronograma.csv'; a.click(); URL.revokeObjectURL(url)
-                      }}>CSV</button>
+                {preview.length > 0 && (
+                  <div className="mt-6 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3 border-b dark:border-gray-700 pb-2">
+                      <div className="font-semibold text-gray-700 dark:text-gray-200">Cronograma de Pagamentos</div>
+                      <div className="flex gap-2">
+                        <button className="text-xs bg-white dark:bg-gray-700 dark:text-gray-200 border dark:border-gray-600 rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => {
+                          const csv = 'Parcela;Data;Valor\n' + preview.map((r, i) => `${i + 1};${r.date};${r.valor.toFixed(2)}`).join('\n')
+                          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a'); a.href = url; a.download = 'cronograma.csv'; a.click(); URL.revokeObjectURL(url)
+                        }}>CSV</button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100 sticky top-0">
-                        <tr>
-                          <th className="px-2 py-1 text-left">Parcela</th>
-                          <th className="px-2 py-1 text-left">Data</th>
-                          <th className="px-2 py-1 text-right">Valor</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {preview.map((r, i) => (
-                          <tr key={i} className="border-t hover:bg-white">
-                            <td className="px-2 py-1">{i + 1}</td>
-                            <td className="px-2 py-1">{toBr(r.date)}</td>
-                            <td className="px-2 py-1 text-right">R$ {formatMoneyBr(r.valor)}</td>
+                    <div className="max-h-48 overflow-y-auto">
+                      <table className="w-full text-sm text-gray-900 dark:text-gray-100">
+                        <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
+                          <tr>
+                            <th className="px-2 py-1 text-left">Parcela</th>
+                            <th className="px-2 py-1 text-left">Data</th>
+                            <th className="px-2 py-1 text-right">Valor</th>
                           </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="font-bold bg-gray-100 sticky bottom-0 border-t">
-                        <tr>
-                          <td colSpan={2} className="px-2 py-1 text-right">Total:</td>
-                          <td className="px-2 py-1 text-right">R$ {formatMoneyBr(preview.reduce((acc, c) => acc + c.valor, 0))}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y dark:divide-gray-700">
+                          {preview.map((r, i) => (
+                            <tr key={i} className="border-t dark:border-gray-700 hover:bg-white dark:hover:bg-gray-700">
+                              <td className="px-2 py-1">{i + 1}</td>
+                              <td className="px-2 py-1">{toBr(r.date)}</td>
+                              <td className="px-2 py-1 text-right">R$ {formatMoneyBr(r.valor)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="font-bold bg-gray-100 dark:bg-gray-700 sticky bottom-0 border-t dark:border-gray-600">
+                          <tr>
+                            <td colSpan={2} className="px-2 py-1 text-right">Total:</td>
+                            <td className="px-2 py-1 text-right">R$ {formatMoneyBr(preview.reduce((acc, c) => acc + c.valor, 0))}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {
         changesLog.length > 0 && (
-          <div className="mt-4 bg-white border rounded p-4">
-            <div className="font-medium mb-2">Histórico de alterações</div>
-            <ul className="list-disc pl-5 text-sm">
+          <div className="mt-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
+            <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Histórico de alterações</div>
+            <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
               {changesLog.map((c, i) => <li key={i}>{c}</li>)}
             </ul>
           </div>
@@ -1089,7 +1149,7 @@ export default function Schedules() {
       }
 
 
-      <div className="bg-white border rounded">
+      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded">
         <div className="flex items-center justify-between p-2">
           <div className="font-medium">Caixas</div>
           <div className="flex gap-2">
@@ -1134,8 +1194,8 @@ export default function Schedules() {
               const isExpanded = accountExpanded[k] !== false // default to true
               const totalCaixa = list.reduce((sum, r) => sum + Number(r.valor_total), 0)
               return (
-                <div key={k} className="mb-4 border rounded">
-                  <div className="flex items-center gap-3 px-3 py-2 cursor-pointer bg-gray-100" onClick={() => setAccountExpanded(s => ({ ...s, [k]: !s[k] }))}>
+                <div key={k} className="mb-4 border rounded dark:border-gray-700">
+                  <div className="flex items-center gap-3 px-3 py-2 cursor-pointer bg-gray-100 dark:bg-gray-800 dark:text-gray-200" onClick={() => setAccountExpanded(s => ({ ...s, [k]: !s[k] }))}>
                     <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className="w-4 h-4" />
                     {(() => {
                       // Get color from the first item in the list (they all have the same caixa)
@@ -1147,16 +1207,16 @@ export default function Schedules() {
                       )
                     })()}
                     <div className="font-medium">Caixa Lançamento: {k}</div>
-                    <div className="ml-auto text-sm text-gray-600">{list.length} itens</div>
-                    <button className="px-2 py-1 rounded border" onClick={e => { e.stopPropagation(); setAccountExpanded(s => ({ ...s, [k]: !isExpanded })) }} aria-label="Expandir/Colapsar">
+                    <div className="ml-auto text-sm text-gray-600 dark:text-gray-400">{list.length} itens</div>
+                    <button className="px-2 py-1 rounded border dark:border-gray-600 dark:hover:bg-gray-700" onClick={e => { e.stopPropagation(); setAccountExpanded(s => ({ ...s, [k]: !isExpanded })) }} aria-label="Expandir/Colapsar">
                       <Icon name={isExpanded ? 'minus' : 'add'} className="w-4 h-4" />
                     </button>
                   </div>
                   {isExpanded && (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs text-gray-900 dark:text-gray-100">
                         <thead>
-                          <tr className="text-left">
+                          <tr className="text-left bg-white dark:bg-gray-900">
                             {[
                               ['data_referencia', 'Data Referência'],
                               ['cliente', 'Cliente'],
@@ -1168,7 +1228,7 @@ export default function Schedules() {
                               ['qtd', 'Qtd'],
                               ['valor_total', 'Valor Total'],
                             ].map(([key, label]) => (
-                              <th key={key} className={`p-2 ${['valor_parcela', 'qtd', 'valor_total'].includes(key as string) ? 'text-right' : ''} ${key === 'data_referencia' ? 'w-[100px]' : key === 'cliente' ? 'w-[180px]' : key === 'historico' ? 'w-[200px]' : key === 'vencimento' ? 'w-[100px]' : key === 'periodo' ? 'w-[120px]' : key === 'data_final' ? 'w-[100px]' : key === 'valor_parcela' ? 'w-[110px]' : key === 'qtd' ? 'w-[60px]' : key === 'valor_total' ? 'w-[110px]' : ''}`}>
+                              <th key={key} className={`p-2 font-semibold ${['valor_parcela', 'qtd', 'valor_total'].includes(key as string) ? 'text-right' : ''} ${key === 'data_referencia' ? 'w-[100px]' : key === 'cliente' ? 'w-[180px]' : key === 'historico' ? 'w-[200px]' : key === 'vencimento' ? 'w-[100px]' : key === 'periodo' ? 'w-[120px]' : key === 'data_final' ? 'w-[100px]' : key === 'valor_parcela' ? 'w-[110px]' : key === 'qtd' ? 'w-[60px]' : key === 'valor_total' ? 'w-[110px]' : ''}`}>
                                 <button onClick={() => toggleSort(key as string)} aria-label={`Ordenar por ${label}`}>{label}</button>
                               </th>
                             ))}
@@ -1176,7 +1236,7 @@ export default function Schedules() {
                         </thead>
                         <tbody>
                           {list.map(r => (
-                            <tr key={r.id} className={`border-t cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 ring-2 ring-blue-400' : 'hover:bg-gray-50'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onDoubleClick={() => { setSelectedId(r.id); onEditOpen() }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: r.id }) }} title="Clique com botão direito para opções">
+                            <tr key={r.id} className={`border-t border-gray-200 dark:border-gray-700 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onDoubleClick={() => { setSelectedId(r.id); onEditOpen() }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: r.id }) }} title="Clique com botão direito para opções">
                               <td className="p-2 w-[100px]">{r.data_referencia}</td>
                               <td className="p-2 w-[180px] break-words whitespace-normal" title={r.cliente}>{r.cliente}</td>
                               <td className="p-2 w-[200px] break-words whitespace-normal" title={r.historico}>{r.historico}</td>
@@ -1190,7 +1250,7 @@ export default function Schedules() {
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="bg-gray-50 font-medium">
+                          <tr className="bg-gray-50 dark:bg-gray-800 font-medium border-t dark:border-gray-700">
                             <td className="p-2 text-right" colSpan={6}>Total do Caixa</td>
                             <td className="p-2 text-right">R$ {formatMoneyBr(list.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}</td>
                             <td className="p-2 text-right"></td>
@@ -1204,14 +1264,14 @@ export default function Schedules() {
               )
             })
           })()}
-          <div className="sticky bottom-0 bg-gradient-to-r from-blue-50 to-blue-100 border-t-2 border-blue-300 text-xs font-bold">
+          <div className="sticky bottom-0 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 border-t-2 border-blue-300 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100">
             <div className="flex justify-end p-2 items-center">
-              <div className="mr-2 text-gray-700 uppercase">Totais Gerais:</div>
-              <div className="w-[110px] text-right text-blue-700">
+              <div className="mr-2 text-gray-700 dark:text-gray-300 uppercase">Totais Gerais:</div>
+              <div className="w-[110px] text-right text-blue-700 dark:text-blue-400">
                 R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}
               </div>
               <div className="w-[60px]"></div>
-              <div className="w-[110px] text-right text-green-700">
+              <div className="w-[110px] text-right text-green-700 dark:text-green-400">
                 R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_total), 0))}
               </div>
             </div>
@@ -1223,7 +1283,7 @@ export default function Schedules() {
         clientModal && (
           <div className="fixed inset-0 z-50">
             <div className="absolute inset-0 bg-black/40" onClick={() => setClientModal(false)} aria-hidden="true"></div>
-            <div className="absolute left-1/2 top-20 -translate-x-1/2 bg-white border rounded w-[90%] max-w-lg max-h-[80vh] overflow-auto p-4">
+            <div className="absolute left-1/2 top-20 -translate-x-1/2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-lg max-h-[80vh] overflow-auto p-4 text-gray-900 dark:text-gray-100">
               <div className="flex items-center justify-between mb-3">
                 <div className="font-medium">Novo Cliente</div>
                 <button onClick={() => setClientModal(false)}>Fechar</button>
@@ -1299,25 +1359,29 @@ export default function Schedules() {
           </div>
         )
       }
-      {showDeleteConfirm && (
-        <ConfirmModal
-          isOpen={showDeleteConfirm}
-          title="Excluir Agendamento"
-          onConfirm={confirmDelete}
-          onClose={() => setShowDeleteConfirm(false)}
-          message="Tem certeza que deseja excluir este agendamento?"
-        />
-      )}
+      {
+        showDeleteConfirm && (
+          <ConfirmModal
+            isOpen={showDeleteConfirm}
+            title="Excluir Agendamento"
+            onConfirm={confirmDelete}
+            onClose={() => setShowDeleteConfirm(false)}
+            message="Tem certeza que deseja excluir este agendamento?"
+          />
+        )
+      }
 
-      {showDeactivateConfirm && (
-        <ConfirmModal
-          isOpen={showDeactivateConfirm}
-          title="Desativar Agendamento"
-          onConfirm={confirmDeactivate}
-          onClose={() => { setShowDeactivateConfirm(false); setDeactivateId(null) }}
-          message="Tem certeza que deseja desativar este agendamento? Os lançamentos futuros serão cancelados."
-        />
-      )}
+      {
+        showDeactivateConfirm && (
+          <ConfirmModal
+            isOpen={showDeactivateConfirm}
+            title="Desativar Agendamento"
+            onConfirm={confirmDeactivate}
+            onClose={() => { setShowDeactivateConfirm(false); setDeactivateId(null) }}
+            message="Tem certeza que deseja desativar este agendamento? Os lançamentos futuros serão cancelados."
+          />
+        )
+      }
 
       <AlertModal
         isOpen={alertInfo.open}
@@ -1325,38 +1389,40 @@ export default function Schedules() {
         onClose={() => setAlertInfo({ open: false, msg: '' })}
       />
 
-      {contextMenu && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
-          <div className="fixed z-50 bg-white border rounded shadow-lg py-1 text-sm font-medium" style={{ top: contextMenu.y, left: contextMenu.x }}>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => { onEditOpen(); setContextMenu(null) }}>
-              <Icon name="edit" className="w-4 h-4" /> Alterar
-            </button>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={() => { onDelete(); setContextMenu(null) }}>
-              <Icon name="trash" className="w-4 h-4" /> Excluir
-            </button>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
-              <Icon name="copy" className="w-4 h-4" /> Duplicar
-            </button>
-            {activeTab !== 'concluidos' && (
-              <>
-                <div className="border-t my-1"></div>
-                <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => { onDeactivate(contextMenu.id); setContextMenu(null) }}>
-                  <Icon name="x" className="w-4 h-4" /> Desativar Agendamento Selecionado
-                </button>
-              </>
-            )}
-            {activeTab === 'concluidos' && (
-              <>
-                <div className="border-t my-1"></div>
-                <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => { onReactivate(contextMenu.id); setContextMenu(null) }}>
-                  <Icon name="undo" className="w-4 h-4" /> Reativar Agendamento Selecionado
-                </button>
-              </>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+      {
+        contextMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+            <div className="fixed z-50 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg py-1 text-sm font-medium" style={{ top: contextMenu.y, left: contextMenu.x }}>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => { onEditOpen(); setContextMenu(null) }}>
+                <Icon name="edit" className="w-4 h-4" /> Alterar
+              </button>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => { onDelete(); setContextMenu(null) }}>
+                <Icon name="trash" className="w-4 h-4" /> Excluir
+              </button>
+              <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400" onClick={() => { onDuplicate(contextMenu.id); setContextMenu(null) }}>
+                <Icon name="copy" className="w-4 h-4" /> Duplicar
+              </button>
+              {activeTab !== 'concluidos' && (
+                <>
+                  <div className="border-t dark:border-gray-700 my-1"></div>
+                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400" onClick={() => { onDeactivate(contextMenu.id); setContextMenu(null) }}>
+                    <Icon name="x" className="w-4 h-4" /> Desativar Agendamento Selecionado
+                  </button>
+                </>
+              )}
+              {activeTab === 'concluidos' && (
+                <>
+                  <div className="border-t dark:border-gray-700 my-1"></div>
+                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400" onClick={() => { onReactivate(contextMenu.id); setContextMenu(null) }}>
+                    <Icon name="undo" className="w-4 h-4" /> Reativar Agendamento Selecionado
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )
+      }
+    </div >
   )
 }

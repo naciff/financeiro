@@ -76,10 +76,10 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scale-in">
+    <div className="min-h-screen bg-neutral-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md animate-scale-in">
         {/* Header with FourTek Logo */}
-        <div className="p-6 text-center border-b border-gray-100">
+        <div className="p-6 text-center border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-center mb-2">
             <img
               src="/logo-new.png"
@@ -93,13 +93,13 @@ export default function Register() {
         {/* Registration Form */}
         <form onSubmit={onSubmit} className="p-6 space-y-4">
           <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Nome Completo
             </label>
             <input
               id="fullName"
               type="text"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
+              className="w-full px-3 py-2 border border-neutral-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
               placeholder="Digite seu nome completo"
               value={fullName}
               onChange={e => setFullName(e.target.value)}
@@ -108,13 +108,13 @@ export default function Register() {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Email
             </label>
             <input
               id="email"
               type="email"
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
+              className="w-full px-3 py-2 border border-neutral-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
               placeholder="Digite seu email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -123,14 +123,14 @@ export default function Register() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Senha
             </label>
             <div className="relative">
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
+                className="w-full px-3 py-2 border border-neutral-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 placeholder="Digite sua senha"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -138,7 +138,7 @@ export default function Register() {
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
@@ -156,14 +156,14 @@ export default function Register() {
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Confirmar Senha
             </label>
             <div className="relative">
               <input
                 id="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200"
+                className="w-full px-3 py-2 border border-neutral-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#014d6d] focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 placeholder="Confirme sua senha"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
@@ -171,7 +171,7 @@ export default function Register() {
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               >
                 {showConfirmPassword ? (
@@ -189,8 +189,8 @@ export default function Register() {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md p-3">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
           )}
 
@@ -203,9 +203,9 @@ export default function Register() {
           </button>
 
           <div className="text-center">
-            <span className="text-sm text-neutral-600">
+            <span className="text-sm text-neutral-600 dark:text-gray-400">
               Já tem uma conta?{' '}
-              <Link to="/login" className="text-[#014d6d] hover:text-[#013c55] font-medium transition-colors duration-200">
+              <Link to="/login" className="text-[#014d6d] dark:text-[#359EFF] hover:text-[#013c55] dark:hover:text-[#60b2ff] font-medium transition-colors duration-200">
                 Faça login
               </Link>
             </span>
