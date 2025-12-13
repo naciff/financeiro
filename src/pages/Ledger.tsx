@@ -4,6 +4,7 @@ import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
 import { Icon } from '../components/ui/Icon'
+import { PageInfo } from '../components/ui/PageInfo'
 import { formatMoneyBr } from '../utils/format'
 import { TransactionModal } from '../components/modals/TransactionModal'
 import { TransactionAttachments } from '../components/TransactionAttachments'
@@ -406,67 +407,106 @@ export default function Ledger() {
 
   return (
     <div className="space-y-6">
-      <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
-        Na tela de Livro Caixa, o usuário encontra o registro detalhado de todas as movimentações financeiras diárias, incluindo entradas e saídas.
-      </p>
-
-      <div className="flex gap-3">
-        <div className="flex flex-col gap-1 flex-1">
-          <label className="text-xs font-medium text-gray-700 invisible">Busca</label>
-          <input className="border dark:border-gray-600 rounded px-3 py-2 w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="text" placeholder="Buscar cliente, histórico ou valor" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Caixa</label>
-          <div className="relative">
-            <select
-              className="border dark:border-gray-600 rounded px-3 py-2 appearance-none pr-8 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer min-w-[150px] text-gray-900 dark:text-gray-100"
-              value={accountFilter}
-              onChange={e => setAccountFilter(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{acc.nome}</option>
-              ))}
-            </select>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Tipo Operação</label>
-          <div className="relative">
-            <select
-              className="border dark:border-gray-600 rounded px-3 py-2 appearance-none pr-8 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer min-w-[200px] text-gray-900 dark:text-gray-100"
-              value={opFilter}
-              onChange={e => setOpFilter(e.target.value)}
-            >
-              <option>Todas</option>
-              <option>Somente Receitas</option>
-              <option>Somente Despesas</option>
-              <option>Somente Aporte/Ret./Transf.</option>
-              <option>Despesas e Retiradas</option>
-              <option>Receitas e Aportes</option>
-              <option>Somente Aporte</option>
-              <option>Somente Retiradas</option>
-              <option>Somente Transferências</option>
-            </select>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700 invisible">Ação</label>
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Actions, Search, Filters */}
+        <div className="flex flex-wrap items-center gap-2 w-full">
+          {/* Action Buttons */}
           <button
-            className="px-4 py-2 bg-black dark:bg-gray-900 text-white rounded hover:bg-gray-800 dark:hover:bg-black transition-colors whitespace-nowrap"
-            onClick={openModal}
+            className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
+            onClick={() => openModal()}
           >
-            + Incluir
+            <Icon name="add" className="w-4 h-4" /> Incluir
           </button>
+
+          <button
+            className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors whitespace-nowrap"
+            onClick={() => {
+              const id = Array.from(selectedIds)[0]
+              const tx = txs.find(t => t.id === id)
+              if (tx) openModal(tx)
+            }}
+            disabled={selectedIds.size !== 1}
+          >
+            <Icon name="edit" className="w-4 h-4" /> Alterar
+          </button>
+
+          <button
+            className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors whitespace-nowrap"
+            onClick={() => {
+              const id = Array.from(selectedIds)[0]
+              const tx = txs.find(t => t.id === id)
+              if (tx) {
+                setPendingTx(tx)
+                setShowReverseConfirm(true)
+              }
+            }}
+            disabled={selectedIds.size !== 1}
+          >
+            <Icon name="trash" className="w-4 h-4" /> Excluir
+          </button>
+
+          {/* Search Field - Grows to fill space */}
+          <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2 min-w-[200px]">
+            <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <input
+              className="outline-none w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+              placeholder="Buscar cliente, histórico ou valor"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
+              <select
+                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[100px]"
+                value={accountFilter}
+                onChange={e => setAccountFilter(e.target.value)}
+              >
+                <option value="">Caixa: Todos</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
+              <select
+                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+                value={opFilter}
+                onChange={e => setOpFilter(e.target.value)}
+              >
+                <option>Tipo: Todas</option>
+                <option>Somente Receitas</option>
+                <option>Somente Despesas</option>
+                <option>Somente Aporte/Ret./Transf.</option>
+                <option>Despesas e Retiradas</option>
+                <option>Receitas e Aportes</option>
+                <option>Somente Aporte</option>
+                <option>Somente Retiradas</option>
+                <option>Somente Transferências</option>
+              </select>
+              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+            </div>
+          </div>
+
+          {(searchTerm || accountFilter || opFilter !== 'Todas') && (
+            <button
+              className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap"
+              onClick={() => {
+                setSearchTerm('')
+                setAccountFilter('')
+                setOpFilter('Todas')
+              }}
+            >
+              Limpar
+            </button>
+          )}
+
+          <PageInfo>
+            Na tela de Livro Caixa, o usuário encontra o registro detalhado de todas as movimentações financeiras diárias, incluindo entradas e saídas.
+          </PageInfo>
         </div>
       </div>
 

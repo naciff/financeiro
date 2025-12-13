@@ -4,6 +4,7 @@ import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
 import { listSchedules, listTransactions } from '../services/db'
 import { Icon } from '../components/ui/Icon'
+import { PageInfo } from '../components/ui/PageInfo'
 import { formatMoneyBr } from '../utils/format'
 
 type CalendarItem = {
@@ -148,7 +149,19 @@ export default function Calendar() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Calendário Financeiro</h1>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Calendário Financeiro</h1>
+          <PageInfo>
+            Visualize suas finanças em um formato de calendário mensal.
+            <ul className="list-disc pl-4 mt-2 space-y-1">
+              <li>Use as setas para navegar entre os meses.</li>
+              <li>Clique em um dia para ver os detalhes dos lançamentos.</li>
+              <li>Os indicadores coloridos mostram se há Receitas (Azul) ou Despesas (Vermelho) no dia.</li>
+            </ul>
+          </PageInfo>
+        </div>
+      </div>
       <div className="flex items-center gap-4">
         <button className="px-3 py-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={prevMonth} aria-label="Mês anterior">Anterior</button>
         <select

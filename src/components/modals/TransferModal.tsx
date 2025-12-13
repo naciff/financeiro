@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { listAccounts, transfer } from '../../services/db'
 import { hasBackend } from '../../lib/runtime'
 import { useAppStore } from '../../store/AppStore'
+import { Icon } from '../ui/Icon'
 
 type Props = {
     onClose: () => void
@@ -49,7 +50,12 @@ export function TransferModal({ onClose }: Props) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-white rounded p-4 shadow-xl w-full max-w-md">
-                <h2 className="text-xl font-semibold mb-4">Nova Transferência</h2>
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 className="text-xl font-semibold">Nova Transferência</h2>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full">
+                        <Icon name="x" className="w-5 h-5 text-gray-500" />
+                    </button>
+                </div>
                 <form onSubmit={onSubmit} className="space-y-3">
                     <div>
                         <label className="block text-sm font-medium mb-1">Conta de Origem</label>

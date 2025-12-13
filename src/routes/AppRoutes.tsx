@@ -12,6 +12,7 @@ import Notes from '../pages/Notes'
 import Profile from '../pages/Profile'
 import Settings from '../pages/Settings'
 import Cadastro from '../pages/Cadastro'
+import Permissions from '../pages/Permissions'
 import CommitmentGroups from '../pages/CommitmentGroups'
 import Commitments from '../pages/Commitments'
 import Clients from '../pages/Clients'
@@ -38,6 +39,7 @@ export function AppRoutes() {
         <Route path="/notes" element={<Notes />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/permissoes" element={<Permissions />} />
       </Routes>
     </Layout>
   )

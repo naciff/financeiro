@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase'
 import { useEffect, useState } from 'react'
-import { getProfile } from '../../services/db'
+import { useNavigate } from 'react-router-dom'
+import { getProfile, listMyMemberships } from '../../services/db'
+import { useAppStore } from '../../store/AppStore'
 
 export function Header({
   onMenuToggle,
@@ -15,6 +17,7 @@ export function Header({
   onOpenTransaction?: () => void;
   onOpenTransfer?: () => void;
 }) {
+  const store = useAppStore()
   const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const formattedDate = dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
   const [userName, setUserName] = useState('')
@@ -25,13 +28,26 @@ export function Header({
     return 'auto'
   })
 
+  // Org Switcher State
+  const [memberships, setMemberships] = useState<any[]>([])
+  const [showOrgMenu, setShowOrgMenu] = useState(false)
+
   useEffect(() => {
     getProfile().then(r => {
       if (r.data && r.data.name) {
         setUserName(r.data.name.split(' ')[0])
       }
     })
+    listMyMemberships().then(r => {
+      if (r.data) setMemberships(r.data)
+    })
   }, [])
+
+  const currentOrgName = store.activeOrganization
+    ? (memberships.find(m => m.owner_id === store.activeOrganization)?.owner?.name || 'Organização')
+    : 'Pessoal'
+
+  const navigate = useNavigate()
 
   return (
     <header className="bg-surface-light dark:bg-surface-dark shadow-sm sticky top-0 z-10">
@@ -47,10 +63,7 @@ export function Header({
             <span className="material-icons-outlined">menu</span>
           </button>
 
-          <div>
-            <h1 className="text-2xl font-bold text-text-main-light dark:text-text-main-dark">{title}</h1>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark">Olá, {userName || 'Usuário'}</p>
-          </div>
+          <h1 className="text-2xl font-bold text-text-main-light dark:text-text-main-dark">{title}</h1>
         </div>
 
         {/* Right: Actions & User */}
@@ -59,6 +72,69 @@ export function Header({
             <button onClick={onOpenCalculator} className="hover:text-primary transition-colors" title="Calculadora"><span className="material-icons-outlined">calculate</span></button>
             <button onClick={onOpenTransaction} className="hover:text-primary transition-colors" title="Novo Lançamento"><span className="material-icons-outlined">add</span></button>
             <button onClick={onOpenTransfer} className="hover:text-primary transition-colors" title="Transferências"><span className="material-icons-outlined">swap_horiz</span></button>
+          </div>
+
+          <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>
+
+          <div className="hidden md:flex items-center gap-2 mx-1">
+            <p className="text-sm text-text-muted-light dark:text-text-muted-dark">Olá, {userName || 'Usuário'}</p>
+
+            {/* Org Switcher */}
+            <div className="relative">
+              <button
+                onClick={() => setShowOrgMenu(!showOrgMenu)}
+                className="flex items-center gap-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-text-main-light dark:text-text-main-dark"
+              >
+                <span className={`w-2 h-2 rounded-full ${store.activeOrganization ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                {currentOrgName}
+                <span className="material-icons-outlined text-[10px]">expand_more</span>
+              </button>
+
+              {showOrgMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowOrgMenu(false)}></div>
+                  <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded shadow-lg border dark:border-gray-700 z-20 py-1">
+                    <button
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${!store.activeOrganization ? 'font-bold text-blue-600' : 'text-gray-700 dark:text-gray-200'}`}
+                      onClick={() => {
+                        store.setActiveOrganization(null)
+                        setShowOrgMenu(false)
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Pessoal
+                    </button>
+
+                    <button
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200`}
+                      onClick={() => {
+                        navigate('/profile')
+                        setShowOrgMenu(false)
+                      }}
+                    >
+                      <span className="material-icons-outlined text-sm">person</span>
+                      Perfil
+                    </button>
+
+                    {memberships.length > 0 && <div className="border-t dark:border-gray-700 my-1"></div>}
+
+                    {memberships.map(m => (
+                      <button
+                        key={m.owner_id}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${store.activeOrganization === m.owner_id ? 'font-bold text-green-600' : 'text-gray-700 dark:text-gray-200'}`}
+                        onClick={() => {
+                          store.setActiveOrganization(m.owner_id)
+                          setShowOrgMenu(false)
+                        }}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        {m.owner?.name || 'Organização'}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>

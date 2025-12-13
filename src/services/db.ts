@@ -56,7 +56,13 @@ export async function generateSchedule(scheduleId: string) {
   return supabase.rpc('fn_generate_schedule', { sched_id: scheduleId })
 }
 
-export async function listSchedules(limit = 200, options?: { includeConcluded?: boolean, orgId?: string }) {
+export async function listAllCommitments(orgId?: string) {
+  if (!supabase) return { data: [], error: null }
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('commitments').select('id,nome').eq('user_id', userId as any).order('nome')
+}
+
+export async function listSchedules(limit = 200, options?: { includeConcluded?: boolean, orgId?: string, compromissoId?: string, grupoCompromissoId?: string }) {
   if (!supabase) return { data: [], error: null }
   const userId = options?.orgId || (await supabase.auth.getUser()).data.user?.id
   let query = supabase
@@ -72,6 +78,14 @@ export async function listSchedules(limit = 200, options?: { includeConcluded?: 
 
   if (!options?.includeConcluded) {
     query = query.neq('situacao', 2 as any)
+  }
+
+  if (options?.compromissoId) {
+    query = query.eq('compromisso_id', options.compromissoId)
+  }
+
+  if (options?.grupoCompromissoId) {
+    query = query.eq('grupo_compromisso_id', options.grupoCompromissoId)
   }
 
   return query.order('created_at', { ascending: false }).limit(limit)
@@ -569,6 +583,20 @@ export async function listOrganizationMembers() {
   })
 
   return { data: merged, error: null }
+}
+
+export async function updateOrganizationMemberPermissions(id: string, permissions: any) {
+  if (!supabase) return { error: { message: 'Supabase não inicializado' } }
+
+  // Only owner can update. RLS should handle this, but we filter by owner_id just in case or for safety if passing ID.
+  // Actually row ID is unique, but let's ensure we are the owner.
+  const ownerId = (await supabase.auth.getUser()).data.user?.id
+
+  return supabase
+    .from('organization_members')
+    .update({ permissions })
+    .eq('id', id)
+    .eq('owner_id', ownerId as any)
 }
 
 export async function listMyMemberships() {

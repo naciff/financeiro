@@ -3,42 +3,93 @@ import { Sidebar } from '../components/layout/Sidebar'
 import { Footer } from '../components/layout/Footer'
 import { Header } from '../components/layout/Header'
 import { Icon } from '../components/ui/Icon'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CalculatorModal } from '../components/modals/CalculatorModal'
 import { TransferModal } from '../components/modals/TransferModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 import { useLocation } from 'react-router-dom'
+import { useAppStore } from '../store/AppStore'
+import { listMyMemberships } from '../services/db'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const store = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showCalculator, setShowCalculator] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
   const [showTransaction, setShowTransaction] = useState(false)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
-  const nav = [
-    { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { to: '/calendar', label: 'Calendário', icon: 'calendar_today' },
-    { to: '/schedules/control', label: 'Controle e Previsão', icon: 'analytics' },
-    { to: '/ledger', label: 'Livro Caixa', icon: 'book' },
-    { to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
-    { to: '/transfers', label: 'Transferências', icon: 'swap_horiz' },
-    { to: '/reports', label: 'Relatórios', icon: 'description' },
-    { to: '/notes', label: 'Notas', icon: 'notes' },
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getUser().then(r => setCurrentUser(r.data.user?.id || null))
+    }
+  }, [])
+
+  // Auto-select organization
+  useEffect(() => {
+    // Only check if no organization is selected and we haven't manually deselected (optional logic, but for now simple)
+    if (!store.activeOrganization) {
+      listMyMemberships().then(res => {
+        if (res.data && res.data.length > 0) {
+          // If user has memberships, default to the first one
+          // Ideally we could check if user has personal data, but as per plan: auto-switch to first org
+          // To improve UX: maybe only auto-switch if user has NO personal data?
+          // For now, let's auto-switch to first org if it exists, assuming "Personal" is empty for staff users.
+          store.setActiveOrganization(res.data[0].owner_id)
+        }
+      })
+    }
+  }, [store.activeOrganization]) // Run once or when activeOrg changes (to re-eval?) - Actually checking on mount/null is safer.
+
+  const [permissions, setPermissions] = useState<any>(null)
+
+  useEffect(() => {
+    async function checkPermissions() {
+      // 1. Personal Mode or Owner Mode -> Full Access
+      if (!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) {
+        setPermissions(null)
+        return
+      }
+
+      // 2. Member Mode -> Fetch Permissions
+      const { data } = await listMyMemberships()
+      const membership = data?.find(m => m.owner_id === store.activeOrganization)
+      setPermissions(membership?.permissions || {})
+    }
+    checkPermissions()
+  }, [store.activeOrganization, currentUser])
+
+  const navRaw = [
+    { id: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+    { id: 'calendar', to: '/calendar', label: 'Calendário', icon: 'calendar_today' },
+    { id: 'schedules_control', to: '/schedules/control', label: 'Controle e Previsão', icon: 'analytics' },
+    { id: 'ledger', to: '/ledger', label: 'Livro Caixa', icon: 'book' },
+    { id: 'schedules', to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
+    { id: 'transfers', to: '/transfers', label: 'Transferências', icon: 'swap_horiz' },
+    { id: 'reports', to: '/reports', label: 'Relatórios', icon: 'description' },
+    { id: 'notes', to: '/notes', label: 'Notas', icon: 'notes' },
     {
-      to: '/cadastro', label: 'Cadastro', icon: 'app_registration', children: [
+      id: 'cadastro', to: '/cadastro', label: 'Cadastro', icon: 'app_registration', children: [
         { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'home' },
         { to: '/cadastro/grupo-compromisso', label: 'Grupo de Compromisso', icon: 'group' },
         { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'bookmark' },
         { to: '/cadastro/clientes', label: 'Clientes', icon: 'people' },
       ]
     },
-    {
+    // Configurações: Only if Personal (activeOrganization is null) OR Owner
+    ...((!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) ? [{
       to: '/settings', label: 'Configurações', icon: 'settings', children: [
-        { to: '/profile', label: 'Perfil', icon: 'person' },
-        { to: '/settings', label: 'Geral', icon: 'settings_applications' }
+        { to: '/settings', label: 'Geral', icon: 'settings_applications' },
+        { to: '/permissoes', label: 'Usuário e Permissões', icon: 'lock_person' }
       ]
-    },
+    }] : [])
   ]
+
+  const nav = navRaw.filter(item => {
+    if (!permissions) return true // Full access
+    if ((item as any).id && permissions[(item as any).id] === false) return false
+    return true
+  })
   // Determine current title based on path
   const location = useLocation()
   let currentTitle = 'ContaMestre'

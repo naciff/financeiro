@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/AppStore'
 import { supabase } from '../../lib/supabase'
 import { Icon } from '../ui/Icon'
 import { TransactionAttachments } from '../TransactionAttachments'
+import { ClientModal } from './ClientModal'
 
 type Props = {
     onClose: () => void
@@ -19,6 +20,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
     const store = useAppStore()
     const [msg, setMsg] = useState('')
     const [activeTab, setActiveTab] = useState<'details' | 'attachments'>('details')
+    const [showClientModal, setShowClientModal] = useState(false)
 
     // Data
     const [accounts, setAccounts] = useState<any[]>([])
@@ -99,6 +101,16 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
             setCommitments(store.commitments.filter(c => c.grupo_id === formGrupoCompromisso))
         }
     }, [formGrupoCompromisso])
+
+    // Auto-select principal account for new transactions
+    useEffect(() => {
+        if (!initialData && accounts.length > 0 && !formContaId) {
+            const principal = accounts.find(a => a.principal)
+            if (principal) {
+                setFormContaId(principal.id)
+            }
+        }
+    }, [accounts, initialData])
 
 
 
@@ -188,7 +200,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                 <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
                     <h2 className="text-lg font-semibold">{title || (initialData ? 'Editar Transação' : 'Incluir Nova Transação')}</h2>
                     <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full">
-                        <Icon name="close" className="w-5 h-5" />
+                        <Icon name="x" className="w-5 h-5" />
                     </button>
                 </div>
 
@@ -242,11 +254,30 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                             {/* Cliente */}
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium mb-1 dark:text-gray-300">Cliente *</label>
-                                <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
-                                    <option value="">Selecione...</option>
-                                    {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                </select>
+                                <div className="flex gap-2">
+                                    <select className="flex-1 border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
+                                        <option value="">Selecione...</option>
+                                        {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        className="bg-black text-white dark:bg-gray-600 rounded px-3 hover:bg-gray-800 transition-colors"
+                                        title="Novo Cliente"
+                                        onClick={() => setShowClientModal(true)}
+                                    >
+                                        <Icon name="add" className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
+
+                            <ClientModal
+                                isOpen={showClientModal}
+                                onClose={() => setShowClientModal(false)}
+                                onSuccess={(client) => {
+                                    setClients(prev => [{ id: client.id, nome: client.nome }, ...prev])
+                                    setFormCliente(client.id)
+                                }}
+                            />
 
                             {/* Grupo | Compromisso */}
                             <div>

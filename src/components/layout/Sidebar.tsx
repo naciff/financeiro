@@ -37,7 +37,11 @@ export function Sidebar({
   return (
     <div className={`flex flex-col h-full bg-surface-light dark:bg-surface-dark ${isCollapsed ? 'w-16' : 'w-full'} transition-all duration-300`}>
       {/* Header (Brand) */}
-      <div className={`h-16 flex items-center ${isCollapsed ? 'justify-center' : 'px-6'} border-b border-border-light dark:border-border-dark flex-shrink-0 overflow-hidden`}>
+      <div
+        className={`h-16 flex items-center ${isCollapsed ? 'justify-center' : 'px-6'} border-b border-border-light dark:border-border-dark flex-shrink-0 overflow-hidden cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors`}
+        onClick={onToggle}
+        title={isCollapsed ? "Expandir Menu" : "Recolher Menu"}
+      >
         <div className="flex items-center gap-3 overflow-hidden">
           <img src="/favicon.png" alt="Logo" className="w-8 h-8 object-contain shrink-0 dark:hidden" />
           <img src="/favicon-dark.png?v=1" alt="Logo" className="w-8 h-8 object-contain shrink-0 hidden dark:block" />

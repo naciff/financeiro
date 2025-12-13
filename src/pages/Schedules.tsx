@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
-import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault } from '../services/db'
+import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments } from '../services/db'
 import { supabase } from '../lib/supabase'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
+import { PageInfo } from '../components/ui/PageInfo'
 import { Tabs } from '../components/ui/Tabs'
+import { ClientModal } from '../components/modals/ClientModal'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
 
@@ -40,15 +42,6 @@ export default function Schedules() {
   const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([])
   const [clienteNome, setClienteNome] = useState('')
   const [clientModal, setClientModal] = useState(false)
-  const [novoClienteNome, setNovoClienteNome] = useState('')
-  const [cpfCnpj, setCpfCnpj] = useState('')
-  const [docError, setDocError] = useState('')
-  const [docStatus, setDocStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [razaoSocial, setRazaoSocial] = useState('')
-  const [enderecoEmpresa, setEnderecoEmpresa] = useState('')
-  const [atividadePrincipal, setAtividadePrincipal] = useState('')
-  const [novoClienteEmail, setNovoClienteEmail] = useState('')
-  const [novoClienteTelefone, setNovoClienteTelefone] = useState('')
   const [historico, setHistorico] = useState('')
   const [valor, setValor] = useState<number>(0)
   const [proxima, setProxima] = useState('')
@@ -65,6 +58,8 @@ export default function Schedules() {
   const [grupoId, setGrupoId] = useState('')
   const [grupos, setGrupos] = useState<{ id: string; nome: string; operacao?: string }[]>([])
   const [compromissoId, setCompromissoId] = useState('')
+  const [grupoCompromissoFilter, setGrupoCompromissoFilter] = useState('')
+  const [allCommitmentGroups, setAllCommitmentGroups] = useState<{ id: string; nome: string }[]>([])
   const [compromissos, setCompromissos] = useState<{ id: string; nome: string; grupo_id?: string }[]>([])
   const [caixaId, setCaixaId] = useState('')
   const [caixas, setCaixas] = useState<{ id: string; nome: string }[]>([])
@@ -371,57 +366,12 @@ export default function Schedules() {
       .replace(/(\d{3})(\d)/, '$1/$2')
       .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
   }
-  function validarCPF(v: string) {
-    const d = digits(v)
-    if (d.length !== 11 || /^([0-9])\1+$/.test(d)) return false
-    let s = 0; for (let i = 0; i < 9; i++) s += parseInt(d[i]) * (10 - i); let r = (s * 10) % 11; if (r === 10) r = 0; if (r !== parseInt(d[9])) return false
-    s = 0; for (let i = 0; i < 10; i++) s += parseInt(d[i]) * (11 - i); r = (s * 10) % 11; if (r === 10) r = 0; return r === parseInt(d[10])
-  }
-  function validarCNPJ(v: string) {
-    const d = digits(v)
-    if (d.length !== 14 || /^([0-9])\1+$/.test(d)) return false
-    const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-    let s = 0; for (let i = 0; i < 12; i++) s += parseInt(d[i]) * w1[i]; let r = s % 11; const dv1 = r < 2 ? 0 : 11 - r
-    s = 0; for (let i = 0; i < 13; i++) s += parseInt(d[i]) * w2[i]; r = s % 11; const dv2 = r < 2 ? 0 : 11 - r
-    return dv1 === parseInt(d[12]) && dv2 === parseInt(d[13])
-  }
-  async function consultarReceita(cnpj: string) {
-    try {
-      setDocStatus('loading')
-      const d = digits(cnpj)
-      const res = await fetch(`https://www.receitaws.com.br/v1/cnpj/${d}`)
-      if (!res.ok) throw new Error('Erro')
-      const j = await res.json()
-      if (j.status === 'ERROR') throw new Error(j.message || 'Erro')
-      setRazaoSocial(j.nome || '')
-      setEnderecoEmpresa([j.logradouro, j.numero, j.bairro, j.municipio, j.uf].filter(Boolean).join(', '))
-      setAtividadePrincipal((j.atividade_principal && j.atividade_principal[0]?.text) || '')
-      if (!novoClienteNome) setNovoClienteNome(j.nome || '')
-      setDocStatus('success')
-    } catch (e) {
-      setDocStatus('error')
-    }
-  }
-  useEffect(() => {
-    const v = cpfCnpj.trim()
-    if (!v) { setDocError(''); setDocStatus('idle'); return }
-    const d = digits(v)
-    if (tipoPessoa === 'pf') {
-      const ok = d.length === 11 && validarCPF(v)
-      setDocError(ok ? '' : 'CPF inválido')
-      setDocStatus(ok ? 'success' : 'idle')
-    } else {
-      const ok = d.length === 14 && validarCNPJ(v)
-      setDocError(ok ? '' : 'CNPJ inválido')
-      if (ok) consultarReceita(v)
-      else setDocStatus('idle')
-    }
-  }, [cpfCnpj, tipoPessoa])
+
 
   async function fetchRemoteSchedules() {
     if (hasBackend) {
       setLoadError('')
-      const r = await listSchedules(10000, { includeConcluded: true, orgId: store.activeOrganization || undefined })
+      const r = await listSchedules(10000, { includeConcluded: true, orgId: store.activeOrganization || undefined, grupoCompromissoId: grupoCompromissoFilter || undefined })
       if (r.error) {
         setLoadError(r.error.message)
       } else {
@@ -430,9 +380,27 @@ export default function Schedules() {
     }
   }
 
+  // Fetch filter options
+  useEffect(() => {
+    if (hasBackend) {
+      listAllCommitments(store.activeOrganization || undefined).then(r => {
+        if (r.data) setAllCommitments(r.data)
+      })
+    }
+  }, [store.activeOrganization])
+
+  // Fetch filter options (Groups)
+  useEffect(() => {
+    if (hasBackend) {
+      listCommitmentGroups(store.activeOrganization || undefined).then(r => {
+        if (r.data) setAllCommitmentGroups(r.data.map(g => ({ id: g.id, nome: g.nome })))
+      })
+    }
+  }, [store.activeOrganization])
+
   useEffect(() => {
     fetchRemoteSchedules()
-  }, [])
+  }, [grupoCompromissoFilter])
 
   useEffect(() => {
     if (!proxima) return
@@ -729,10 +697,7 @@ export default function Schedules() {
   }
 
   return (
-    <div className="space-y-6">
-      <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
-        A tela de Agendamento foi desenvolvida para organizar compromissos financeiros e prazos importantes de forma prática. Nela pode ser criado agendamentos em diferentes formatos, como mensal, semanal ou diário, permitindo ao usuário planejar suas atividades com clareza.
-      </p>
+    <div className="space-y-4">
       {loadError && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded p-3 flex items-center justify-between">
           <span>Erro ao carregar: {loadError}</span>
@@ -740,152 +705,147 @@ export default function Schedules() {
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <Tabs
-          tabs={[
-            { id: 'despesa', label: 'Despesas' },
-            { id: 'receita', label: 'Receitas' },
-            { id: 'retirada', label: 'Retirada' },
-            { id: 'aporte', label: 'Aporte' },
-            { id: 'concluidos', label: 'Concluídos' },
-          ]}
-          activeId={activeTab}
-          onChange={id => { setActiveTab(id as any); setPage(1) }}
-          disabled={showForm !== 'none'}
-        />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 text-xs md:text-sm transition-colors" onClick={() => { resetForm(); const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); setAnoMesInicial(`${yyyy}-${mm}-${dd}`); setShowForm('create') }} aria-label="Incluir">
+      <div className="flex flex-col gap-2">
+        {/* Row 1: Actions, Search, Filters, Exports */}
+        <div className="flex flex-wrap items-center gap-2 w-full">
+          {/* Action Buttons */}
+          <button className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap" onClick={() => { resetForm(); const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); setAnoMesInicial(`${yyyy}-${mm}-${dd}`); setShowForm('create') }} aria-label="Incluir">
             <Icon name="add" className="w-4 h-4" /> Incluir
           </button>
 
-          <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors" onClick={onEditOpen} disabled={!selectedId} aria-label="Alterar">
+          <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors whitespace-nowrap" onClick={onEditOpen} disabled={!selectedId} aria-label="Alterar">
             <Icon name="edit" className="w-4 h-4" /> Alterar
           </button>
 
           {activeTab === 'concluidos' && selectedId && (
-            <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2 text-xs md:text-sm transition-colors" onClick={() => onReactivate()} aria-label="Reativar">
+            <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap" onClick={() => onReactivate()} aria-label="Reativar">
               <Icon name="undo" className="w-4 h-4" /> Reativar
             </button>
           )}
 
-          <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
+          <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors whitespace-nowrap" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
             <Icon name="trash" className="w-4 h-4" /> Excluir
           </button>
 
-          <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
-            // Export CSV
-            const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
-            const rows = data.data.map(r => [
-              r.data_referencia,
-              r.cliente,
-              r.historico,
-              r.vencimento,
-              r.tipo === 'variavel' ? 'Prazo determinado' : r.periodo,
-              r.data_final,
-              `R$ ${formatMoneyBr(Number(r.valor_parcela))}`,
-              r.qtd,
-              `R$ ${formatMoneyBr(Number(r.valor_total))}`
-            ])
-            const csvContent = [
-              headers.join(';'),
-              ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
-            ].join('\n')
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-            const link = document.createElement('a')
-            if (link.download !== undefined) {
-              const url = URL.createObjectURL(blob)
-              link.setAttribute('href', url)
-              link.setAttribute('download', `agendamentos_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`)
-              link.style.visibility = 'hidden'
-              document.body.appendChild(link)
-              link.click()
-              document.body.removeChild(link)
-            }
-          }} title="Exportar CSV">
-            <Icon name="file-excel" className="w-4 h-4" />
-          </button>
-
-          <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
-            // Generate simplistic PDF 
-            window.print()
-          }} title="Imprimir / Salvar PDF">
-            <Icon name="file-pdf" className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      <div role="toolbar" aria-label="Ações" className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700 invisible">Busca</label>
-          <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2">
+          {/* Search Field - Grows to fill space */}
+          <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2 min-w-[200px]">
             <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            <input className="outline-none w-64 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+            <input className="outline-none w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
           </div>
-        </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="typeFilter">Tipo</label>
-          <div className="relative">
-            <select
-              id="typeFilter"
-              className="border dark:border-gray-600 rounded px-3 py-2 appearance-none pr-8 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer text-gray-900 dark:text-gray-100 min-w-[120px]"
-              value={typeFilter}
-              onChange={e => { setTypeFilter(e.target.value as any); setPage(1) }}
-            >
-              <option value="">Todos</option>
-              <option value="fixo">Fixo</option>
-              <option value="variavel">Variável</option>
-            </select>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+          {/* Filters */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
+              <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100" value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }}>
+                <option value="">Tipo: Todos</option>
+                <option value="fixo">Fixo</option>
+                <option value="variavel">Variável (Parcelado)</option>
+              </select>
+              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+            </div>
+
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
+              <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100" value={periodFilter} onChange={e => { setPeriodFilter(e.target.value); setPage(1) }}>
+                <option value="">Período: Todos</option>
+                <option value="mensal">Mensal</option>
+                <option value="semanal">Semanal</option>
+                <option value="anual">Anual</option>
+                <option value="unico">Único</option>
+                <option value="semestral">Semestral</option>
+              </select>
+              <Icon name="calendar" className="w-3 h-3 text-gray-400 ml-1" />
+            </div>
+
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
+              <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 max-w-[150px] truncate" value={grupoCompromissoFilter} onChange={e => { setGrupoCompromissoFilter(e.target.value); setPage(1) }}>
+                <option value="">Grupo: Todos</option>
+                {allCommitmentGroups.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+              </select>
+              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor="periodFilter">Período</label>
-          <div className="relative">
-            <select
-              id="periodFilter"
-              className="border dark:border-gray-600 rounded px-3 py-2 appearance-none pr-8 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer text-gray-900 dark:text-gray-100 min-w-[140px]"
-              value={periodFilter}
-              onChange={e => { setPeriodFilter(e.target.value as any); setPage(1) }}
-            >
-              <option value="">Todos</option>
-              <option value="mensal">Mensal</option>
-              <option value="semestral">Semestral</option>
-              <option value="anual">Anual</option>
-              <option value="determinado">Prazo Determinado</option>
-            </select>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
-          </div>
-        </div>
+          {/* Export Buttons */}
+          <div className="flex items-center gap-2">
+            <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
+              // Generate simplistic PDF 
+              window.print()
+            }} title="Imprimir / Salvar PDF">
+              <Icon name="file-pdf" className="w-4 h-4" />
+            </button>
 
-        {(search || typeFilter || periodFilter) && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-700 invisible">Ação</label>
-            <button className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter(''); setPage(1) }}>
-              Limpar filtros
+            <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
+              // Export CSV
+              const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
+              const rows = data.data.map(r => [
+                r.data_referencia,
+                r.cliente,
+                r.historico,
+                r.vencimento,
+                r.tipo === 'variavel' ? 'Prazo determinado' : r.periodo,
+                r.data_final,
+                `R$ ${formatMoneyBr(Number(r.valor_parcela))}`,
+                r.qtd,
+                `R$ ${formatMoneyBr(Number(r.valor_total))}`
+              ])
+              const csvContent = [
+                headers.join(';'),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+              ].join('\n')
+
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+              const link = document.createElement('a')
+              if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob)
+                link.setAttribute('href', url)
+                link.setAttribute('download', `agendamentos_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`)
+                link.style.visibility = 'hidden'
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+              }
+            }} title="Exportar CSV">
+              <Icon name="file-excel" className="w-4 h-4" />
             </button>
           </div>
-        )}
 
-        {selectedIds.size > 1 && (
-          <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
-            <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
-              SOMA ITENS ({selectedIds.size})
+          {(search || typeFilter || periodFilter) && (
+            <button className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter(''); setPage(1) }}>
+              Limpar
+            </button>
+          )}
+          <PageInfo>
+            A tela de Agendamento foi desenvolvida para organizar compromissos financeiros e prazos importantes de forma prática. Nela pode ser criado agendamentos em diferentes formatos, como mensal, semanal ou diário, permitindo ao usuário planejar suas atividades com clareza.
+          </PageInfo>
+
+        </div>
+
+        {/* Row 2: Tabs */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Tabs
+            tabs={[
+              { id: 'despesa', label: 'Despesas' },
+              { id: 'receita', label: 'Receitas' },
+              { id: 'retirada', label: 'Retirada' },
+              { id: 'aporte', label: 'Aporte' },
+              { id: 'concluidos', label: 'Concluídos' },
+            ]}
+            activeId={activeTab}
+            onChange={id => { setActiveTab(id as any); setPage(1) }}
+            disabled={showForm !== 'none'}
+          />
+
+          {selectedIds.size > 1 && (
+            <div className="bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 flex items-center gap-2">
+              <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase">
+                SOMA ITENS ({selectedIds.size}):
+              </div>
+              <div className={`text-sm font-bold ${data.selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {data.selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(data.selectionSum))}
+              </div>
             </div>
-            <div className={`text-sm font-bold ${data.selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
-              {data.selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(data.selectionSum))}
-            </div>
-          </div>
-        )}
-
-
+          )}
+        </div>
       </div>
 
       {
@@ -1360,84 +1320,14 @@ export default function Schedules() {
         )}
       </div>
       {
-        clientModal && (
-          <div className="fixed inset-0 z-50">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setClientModal(false)} aria-hidden="true"></div>
-            <div className="absolute left-1/2 top-20 -translate-x-1/2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-lg max-h-[80vh] overflow-auto p-4 text-gray-900 dark:text-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-medium">Novo Cliente</div>
-                <button onClick={() => setClientModal(false)}>Fechar</button>
-              </div>
-              <form onSubmit={async e => {
-                e.preventDefault()
-                if (cpfCnpj && docError) return
-                if (!novoClienteNome && !razaoSocial) return
-                if (hasBackend) {
-                  const r = await createClient({ nome: novoClienteNome || razaoSocial, documento: cpfCnpj || undefined, email: novoClienteEmail || undefined, telefone: novoClienteTelefone || undefined, razao_social: razaoSocial || undefined, endereco: enderecoEmpresa || undefined, atividade_principal: atividadePrincipal || undefined })
-                  if (!r.error && r.data?.id) {
-                    setClientes(prev => [{ id: r.data.id, nome: novoClienteNome || razaoSocial }, ...prev])
-                    setClienteId(r.data.id)
-                  }
-                } else {
-                  const id = store.createClient({ nome: novoClienteNome || razaoSocial, documento: cpfCnpj || undefined, email: novoClienteEmail || undefined, telefone: novoClienteTelefone || undefined, razao_social: razaoSocial || undefined, endereco: enderecoEmpresa || undefined, atividade_principal: atividadePrincipal || undefined })
-                  setClientes(prev => [{ id, nome: novoClienteNome || razaoSocial }, ...prev])
-                  setClienteId(id)
-                }
-                setClientModal(false)
-                setNovoClienteNome(''); setCpfCnpj(''); setRazaoSocial(''); setEnderecoEmpresa(''); setAtividadePrincipal(''); setNovoClienteEmail(''); setNovoClienteTelefone(''); setDocError(''); setDocStatus('idle')
-              }} className="space-y-3">
-                <div>
-                  <label className="text-sm">Nome</label>
-                  <input className="w-full border rounded px-3 py-2" value={novoClienteNome} onChange={e => setNovoClienteNome(e.target.value)} />
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <input id="tp_pf" type="radio" name="tp" checked={tipoPessoa === 'pf'} onChange={() => setTipoPessoa('pf')} />
-                    <label htmlFor="tp_pf" className="text-sm">Pessoa Física</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input id="tp_pj" type="radio" name="tp" checked={tipoPessoa === 'pj'} onChange={() => setTipoPessoa('pj')} />
-                    <label htmlFor="tp_pj" className="text-sm">Pessoa Jurídica</label>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm">CPF/CNPJ <span className="text-gray-500">(Opcional)</span></label>
-                  <input className="w-full border rounded px-3 py-2" value={cpfCnpj} onChange={e => setCpfCnpj(maskCpfCnpj(e.target.value))} aria-invalid={!!docError} />
-                  {docStatus === 'loading' && <div className="text-xs">Consultando Receita...</div>}
-                  {docStatus === 'success' && <div className="text-xs text-green-700">Documento válido</div>}
-                  {docStatus === 'error' && <div className="text-xs text-red-600">Erro na consulta</div>}
-                  {docError && <div className="text-xs text-red-600">{docError}</div>}
-                </div>
-                <div>
-                  <label className="text-sm">Razão Social</label>
-                  <input className="w-full border rounded px-3 py-2" value={razaoSocial} onChange={e => setRazaoSocial(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-sm">Endereço</label>
-                  <input className="w-full border rounded px-3 py-2" value={enderecoEmpresa} onChange={e => setEnderecoEmpresa(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-sm">Atividade Principal</label>
-                  <input className="w-full border rounded px-3 py-2" value={atividadePrincipal} onChange={e => setAtividadePrincipal(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm">Email</label>
-                    <input className="w-full border rounded px-3 py-2" value={novoClienteEmail} onChange={e => setNovoClienteEmail(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-sm">Telefone</label>
-                    <input className="w-full border rounded px-3 py-2" value={novoClienteTelefone} onChange={e => setNovoClienteTelefone(e.target.value)} />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button type="button" className="bg-gray-200 rounded px-3 py-2" onClick={() => setClientModal(false)}>Cancelar</button>
-                  <button className="bg-black text-white rounded px-3 py-2 disabled:opacity-50" type="submit" disabled={!!docError}>Salvar</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )
+        <ClientModal
+          isOpen={clientModal}
+          onClose={() => setClientModal(false)}
+          onSuccess={(client) => {
+            setClientes(prev => [client, ...prev])
+            setClienteId(client.id)
+          }}
+        />
       }
       {
         showDeleteConfirm && (
