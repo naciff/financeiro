@@ -15,6 +15,20 @@ export default function Profile() {
     const [phone, setPhone] = useState('')
     const [email, setEmail] = useState('')
 
+    function formatPhone(v: string) {
+        v = v.replace(/\D/g, "")
+        if (v.length > 11) v = v.slice(0, 11)
+
+        if (v.length > 10) {
+            return v.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")
+        } else if (v.length > 5) {
+            return v.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3")
+        } else if (v.length > 2) {
+            return v.replace(/^(\d{2})(\d{0,5})/, "($1) $2")
+        }
+        return v
+    }
+
     useEffect(() => {
         if (session) {
             getProfile()
@@ -40,7 +54,7 @@ export default function Profile() {
             if (data) {
                 setName(data.name || '')
                 setAvatarUrl(data.avatar_url)
-                setPhone(data.phone || '')
+                setPhone(formatPhone(data.phone || ''))
                 // If email in profile is empty, fallback to auth email
                 setEmail(data.email || user.email || '')
             } else {
@@ -65,7 +79,7 @@ export default function Profile() {
             const updates = {
                 id: user.id,
                 name,
-                phone,
+                phone: phone.replace(/\D/g, ''), // Save only digits
                 email,
                 updated_at: new Date().toISOString(),
             }
@@ -209,9 +223,10 @@ export default function Profile() {
                         <input
                             type="tel"
                             value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
+                            onChange={(e) => setPhone(formatPhone(e.target.value))}
                             className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                             placeholder="(00) 00000-0000"
+                            maxLength={15}
                         />
                     </div>
                 </div>

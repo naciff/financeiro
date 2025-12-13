@@ -129,10 +129,10 @@ export function Sidebar({
 
       {/* Collapse Toggle (Desktop only) */}
       {!mobile && onToggle && (
-        <div className="p-4 border-t border-border-light dark:border-border-dark">
+        <div className="h-12 border-t border-border-light dark:border-border-dark flex items-center justify-center">
           <button
             onClick={onToggle}
-            className="w-full flex items-center justify-center p-2 text-text-muted-light dark:text-text-muted-dark hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+            className="w-full h-full flex items-center justify-center text-text-muted-light dark:text-text-muted-dark hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <span className="material-icons-outlined">{collapsed ? 'chevron_right' : 'chevron_left'}</span>
           </button>

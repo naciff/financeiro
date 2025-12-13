@@ -564,6 +564,8 @@ export default function ScheduleControl() {
                   // Calculate group total (Expenses only? Or Balance? Usually balance)
                   // Let's sum Receita - Despesa
                   const groupTotal = groupData.reduce((acc, curr) => acc + (curr.receita - curr.despesa), 0)
+                  const groupReceitas = groupData.reduce((acc, curr) => acc + curr.receita, 0)
+                  const groupDespesas = groupData.reduce((acc, curr) => acc + curr.despesa, 0)
 
                   return (
                     <div key={groupTitle} className="border dark:border-gray-700 rounded-lg overflow-hidden">
@@ -598,8 +600,8 @@ export default function ScheduleControl() {
                                 <th className="px-4 py-2 text-left">Cliente</th>
                                 <th className="px-4 py-2 text-left">Compromisso</th>
                                 <th className="px-4 py-2 text-left">Histórico</th>
-                                <th className="px-4 py-2 text-right w-24">Receita</th>
-                                <th className="px-4 py-2 text-right w-24">Despesa</th>
+                                <th className="px-4 py-2 text-right w-36">Receita</th>
+                                <th className="px-4 py-2 text-right w-36">Despesa</th>
                                 <th className="px-4 py-2 text-center w-16">Parcela</th>
                                 <th className="px-4 py-2 text-center w-16">Conferido</th>
                               </tr>
@@ -616,7 +618,7 @@ export default function ScheduleControl() {
                                     setContextMenu({ x: e.clientX, y: e.clientY, item })
                                   }}
                                 >
-                                  <td className="px-4 py-2 align-top">
+                                  <td className="px-4 py-2 align-top whitespace-nowrap">
                                     <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
                                     {!item.conferido && item.diasAtraso > 0 && (
                                       <div className="text-[10px] text-red-500 font-medium mt-0.5">
@@ -681,6 +683,14 @@ export default function ScheduleControl() {
                                 </tr>
                               ))}
                             </tbody>
+                            <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
+                              <tr>
+                                <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
+                                <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(groupReceitas)}</td>
+                                <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(groupDespesas)}</td>
+                                <td colSpan={2}></td>
+                              </tr>
+                            </tfoot>
                           </table>
                         </div>
                       )}
@@ -703,8 +713,8 @@ export default function ScheduleControl() {
                         <th className="px-4 py-2 text-left">Cliente</th>
                         <th className="px-4 py-2 text-left">Compromisso</th>
                         <th className="px-4 py-2 text-left">Histórico</th>
-                        <th className="px-4 py-2 text-right w-24">Receita</th>
-                        <th className="px-4 py-2 text-right w-24">Despesa</th>
+                        <th className="px-4 py-2 text-right w-36">Receita</th>
+                        <th className="px-4 py-2 text-right w-36">Despesa</th>
                         <th className="px-4 py-2 text-center w-16">Parcela</th>
                         <th className="px-4 py-2 text-center w-16">Conferido</th>
                       </tr>
@@ -721,7 +731,7 @@ export default function ScheduleControl() {
                             setContextMenu({ x: e.clientX, y: e.clientY, item })
                           }}
                         >
-                          <td className="px-4 py-2 align-top">
+                          <td className="px-4 py-2 align-top whitespace-nowrap">
                             <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
                             {!item.conferido && item.diasAtraso > 0 && (
                               <div className="text-[10px] text-red-500 font-medium mt-0.5">
@@ -786,6 +796,14 @@ export default function ScheduleControl() {
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
+                        <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(rows.totalReceitas)}</td>
+                        <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(rows.totalDespesas)}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>

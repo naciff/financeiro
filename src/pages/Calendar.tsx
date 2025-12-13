@@ -151,45 +151,42 @@ export default function Calendar() {
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Calendário Financeiro</h1>
-          <PageInfo>
-            Visualize suas finanças em um formato de calendário mensal.
-            <ul className="list-disc pl-4 mt-2 space-y-1">
-              <li>Use as setas para navegar entre os meses.</li>
-              <li>Clique em um dia para ver os detalhes dos lançamentos.</li>
-              <li>Os indicadores coloridos mostram se há Receitas (Azul) ou Despesas (Vermelho) no dia.</li>
-            </ul>
-          </PageInfo>
+          <button className="px-2 py-1 text-sm border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={prevMonth} aria-label="Mês anterior">Anterior</button>
+          <select
+            className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            aria-label="Selecionar mês"
+          >
+            {monthOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <button className="px-2 py-1 text-sm border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={nextMonth} aria-label="Próximo mês">Próximo</button>
         </div>
+        <PageInfo>
+          Visualize suas finanças em um formato de calendário mensal.
+          <ul className="list-disc pl-4 mt-2 space-y-1">
+            <li>Use as setas para navegar entre os meses.</li>
+            <li>Clique em um dia para ver os detalhes dos lançamentos.</li>
+            <li>Os indicadores coloridos mostram se há Receitas (Azul) ou Despesas (Vermelho) no dia.</li>
+          </ul>
+        </PageInfo>
       </div>
-      <div className="flex items-center gap-4">
-        <button className="px-3 py-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={prevMonth} aria-label="Mês anterior">Anterior</button>
-        <select
-          className="border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          value={month}
-          onChange={e => setMonth(e.target.value)}
-          aria-label="Selecionar mês"
-        >
-          {monthOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
-        <button className="px-3 py-2 border dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={nextMonth} aria-label="Próximo mês">Próximo</button>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total a pagar:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAPagar)}</div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total a pagar:</div>
+          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAPagar)}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total a receber:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAReceber)}</div>
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total a receber:</div>
+          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAReceber)}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total já pago:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalPago)}</div>
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total já pago:</div>
+          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalPago)}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total já recebido:</div>
-          <div className="text-lg font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalRecebido)}</div>
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total já recebido:</div>
+          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalRecebido)}</div>
         </div>
       </div>
       {loading && <div role="status" aria-live="polite" className="text-sm text-gray-600 dark:text-gray-400">Carregando…</div>}

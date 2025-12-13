@@ -61,7 +61,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navRaw = [
     { id: 'dashboard', to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { id: 'calendar', to: '/calendar', label: 'Calendário', icon: 'calendar_today' },
+    { id: 'calendar', to: '/calendar', label: 'Calendário Financeiro', icon: 'calendar_today' },
     { id: 'schedules_control', to: '/schedules/control', label: 'Controle e Previsão', icon: 'analytics' },
     { id: 'ledger', to: '/ledger', label: 'Livro Caixa', icon: 'book' },
     { id: 'schedules', to: '/schedules', label: 'Agendamentos', icon: 'schedule' },

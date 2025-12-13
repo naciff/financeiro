@@ -351,7 +351,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                 </div>
 
                 {/* Footer Actions */}
-                <div className="border-t dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-750 flex justify-end gap-2">
+                <div className="border-t dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
                     <button
                         className="px-4 py-2 border rounded hover:bg-gray-100 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600 transition-colors"
                         onClick={onClose}

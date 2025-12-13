@@ -51,7 +51,7 @@ export function Header({
 
   return (
     <header className="bg-surface-light dark:bg-surface-dark shadow-sm sticky top-0 z-10">
-      <div className="px-8 py-2 flex items-center justify-between">
+      <div className="h-16 px-8 flex items-center justify-between">
 
         {/* Left: Mobile Toggle & Title */}
         <div className="flex items-center gap-4">
