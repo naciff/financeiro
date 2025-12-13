@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { Icon } from '../components/ui/Icon'
 import { formatMoneyBr } from '../utils/format'
 import { TransactionModal } from '../components/modals/TransactionModal'
+import { TransactionAttachments } from '../components/TransactionAttachments'
 
 export default function Ledger() {
   const store = useAppStore()
@@ -27,7 +28,7 @@ export default function Ledger() {
   const [editingId, setEditingId] = useState<string | null>(null)
 
   // Filtros Avançados
-  const [filterMode, setFilterMode] = useState<'simple' | 'custom'>('simple')
+  const [filterMode, setFilterMode] = useState<'simple' | 'custom' | 'attachments'>('simple')
   const [dateFilterType, setDateFilterType] = useState<'payment' | 'launch'>('payment')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -405,9 +406,9 @@ export default function Ledger() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Livro Caixa</h1>
-      </div>
+      <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
+        Na tela de Livro Caixa, o usuário encontra o registro detalhado de todas as movimentações financeiras diárias, incluindo entradas e saídas.
+      </p>
 
       <div className="flex gap-3">
         <div className="flex flex-col gap-1 flex-1">
@@ -485,6 +486,12 @@ export default function Ledger() {
             >
               Personalizada
             </button>
+            <button
+              className={`px-3 py-1 text-sm ${filterMode === 'attachments' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              onClick={() => setFilterMode('attachments')}
+            >
+              Comprovantes Digitalizados
+            </button>
           </div>
         </div>
 
@@ -547,114 +554,141 @@ export default function Ledger() {
         )}
       </div>
       {msg && <div className="text-sm text-green-700">{msg}</div>}
-      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded text-gray-900 dark:text-gray-100">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr className="text-left">
-              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Data</th>
-              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Caixa</th>
-              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Cliente</th>
-              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Compromisso</th>
-              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Histórico</th>
-              <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-200">Receitas</th>
-              <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-200">Despesas</th>
-              <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Espécie</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y dark:divide-gray-700">
-            {filteredTxs.map(tx => (
-              <tr
-                key={tx.id}
-                className={`border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400' : ''}`}
-                onClick={(e) => handleSelect(e, tx.id)}
-                onDoubleClick={() => openModal(tx)}
-                onContextMenu={(e) => { handleContextMenu(e, tx) }}
-              >
-                <td className="p-2">{toBr(tx.data_lancamento)}</td>
-                <td className="p-2">{labelAccount(tx.conta_id)}</td>
-                <td className="p-2">{tx.cliente?.nome || clients.find(c => c.id === tx.cliente_id)?.nome || '-'}</td>
-                <td className="p-2">{tx.compromisso?.nome || tx.compromisso_id || '-'}</td>
-                <td className="p-2">{tx.historico}</td>
-                <td className="p-2 text-green-600 dark:text-green-400 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_entrada))}` : ''}</td>
-                <td className="p-2 text-red-600 dark:text-red-400 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_saida))}` : ''}</td>
-                <td className="p-2">{tx.especie ? (tx.especie.charAt(0).toUpperCase() + tx.especie.slice(1).replace('_', ' ')) : '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot className="bg-gray-100 dark:bg-gray-800 font-bold border-t-2 dark:border-gray-600">
-            <tr>
-              <td className="p-2" colSpan={5}>TOTAIS ({filteredTxs.length} registros)</td>
-              <td className="p-2 text-right text-green-700 dark:text-green-400">R$ {formatMoneyBr(filteredTotals.receitas)}</td>
-              <td className="p-2 text-right text-red-700 dark:text-red-400">R$ {formatMoneyBr(filteredTotals.despesas)}</td>
-              <td className="p-2"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
 
-      {contextMenu && (
-        <div
-          className="fixed bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-xl z-50 py-1"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-        >
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
-            const item = contextMenu.tx
-            if (item) openModal(item)
-            setContextMenu(null)
-          }}>
-            <Icon name="edit" className="w-4 h-4" /> Alterar
-          </button>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
-            <Icon name="trash" className="w-4 h-4" /> Excluir
-          </button>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400" onClick={() => { handleDuplicate(); setContextMenu(null) }}>
-            <Icon name="copy" className="w-4 h-4" /> Duplicar
-          </button>
-          <div className="border-t dark:border-gray-700 my-1"></div>
-          <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-600 dark:text-gray-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
-            <Icon name="undo" className="w-4 h-4" /> Estornar
-          </button>
-        </div>
-      )}
 
-      {showReverseConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[300px] text-center">
-            <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100">Estornar Lançamento</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Deseja realmente estornar este lançamento? A ação será desfeita.</p>
-            <div className="flex justify-center gap-3">
-              <button
-                className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
-                onClick={() => setShowReverseConfirm(false)}
-              >
-                Não
-              </button>
-              <button
-                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
-                onClick={confirmReverse}
-              >
-                Sim
-              </button>
-            </div>
+      <div className={`flex gap-4 items-start ${filterMode === 'attachments' ? 'h-[calc(100vh-250px)]' : ''}`}>
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded text-gray-900 dark:text-gray-100 flex-1 h-full overflow-hidden flex flex-col">
+          <div className="overflow-auto flex-1">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                <tr className="text-left">
+                  <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Data</th>
+                  <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Caixa</th>
+                  <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Cliente</th>
+                  <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Compromisso</th>
+                  <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Histórico</th>
+                  <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-200">Receitas</th>
+                  <th className="p-2 text-right font-semibold text-gray-700 dark:text-gray-200">Despesas</th>
+                  <th className="p-2 font-semibold text-gray-700 dark:text-gray-200">Espécie</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y dark:divide-gray-700">
+                {filteredTxs.map(tx => (
+                  <tr
+                    key={tx.id}
+                    className={`border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${selectedIds.has(tx.id) ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400' : ''}`}
+                    onClick={(e) => handleSelect(e, tx.id)}
+                    onDoubleClick={() => openModal(tx)}
+                    onContextMenu={(e) => { handleContextMenu(e, tx) }}
+                  >
+                    <td className="p-2">{toBr(tx.data_lancamento)}</td>
+                    <td className="p-2">{labelAccount(tx.conta_id)}</td>
+                    <td className="p-2">{tx.cliente?.nome || clients.find(c => c.id === tx.cliente_id)?.nome || '-'}</td>
+                    <td className="p-2">{tx.compromisso?.nome || tx.compromisso_id || '-'}</td>
+                    <td className="p-2">{tx.historico}</td>
+                    <td className="p-2 text-green-600 dark:text-green-400 font-medium text-right">{Number(tx.valor_entrada) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_entrada))}` : ''}</td>
+                    <td className="p-2 text-red-600 dark:text-red-400 font-medium text-right">{Number(tx.valor_saida) > 0 ? `R$ ${formatMoneyBr(Number(tx.valor_saida))}` : ''}</td>
+                    <td className="p-2">{tx.especie ? (tx.especie.charAt(0).toUpperCase() + tx.especie.slice(1).replace('_', ' ')) : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-gray-100 dark:bg-gray-800 font-bold border-t-2 dark:border-gray-600">
+                <tr>
+                  <td className="p-2" colSpan={5}>TOTAIS ({filteredTxs.length} registros)</td>
+                  <td className="p-2 text-right text-green-700 dark:text-green-400">R$ {formatMoneyBr(filteredTotals.receitas)}</td>
+                  <td className="p-2 text-right text-red-700 dark:text-red-400">R$ {formatMoneyBr(filteredTotals.despesas)}</td>
+                  <td className="p-2"></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
-      )}
 
-      {showModal && (
-        <TransactionModal
-          onClose={() => {
-            setShowModal(false)
-            setEditingId(null)
-          }}
-          onSuccess={() => {
-            setShowModal(false)
-            setEditingId(null)
-            load()
-          }}
-          initialData={editingId ? txs.find(t => t.id === editingId) : undefined}
-          title={modalTitle}
-        />
-      )}
-    </div>
+        {filterMode === 'attachments' && (
+          <div className="w-[450px] h-full flex flex-col bg-white dark:bg-gray-800 border dark:border-gray-700 rounded overflow-hidden shadow-lg">
+            <div className="p-2 bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 font-medium text-sm flex justify-between items-center">
+              <span>Comprovantes</span>
+              {selectedIds.size === 0 && <span className="text-gray-400 text-xs font-normal">Selecione um item</span>}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <TransactionAttachments
+                transactionId={selectedIds.size === 1 ? Array.from(selectedIds)[0] : null}
+                readOnly={false}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {
+        contextMenu && (
+          <div
+            className="fixed bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-xl z-50 py-1"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
+              const item = contextMenu.tx
+              if (item) openModal(item)
+              setContextMenu(null)
+            }}>
+              <Icon name="edit" className="w-4 h-4" /> Alterar
+            </button>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
+              <Icon name="trash" className="w-4 h-4" /> Excluir
+            </button>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400" onClick={() => { handleDuplicate(); setContextMenu(null) }}>
+              <Icon name="copy" className="w-4 h-4" /> Duplicar
+            </button>
+            <div className="border-t dark:border-gray-700 my-1"></div>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-600 dark:text-gray-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
+              <Icon name="undo" className="w-4 h-4" /> Estornar
+            </button>
+          </div>
+        )
+      }
+
+      {
+        showReverseConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm rounded">
+            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg p-6 w-[300px] text-center">
+              <h3 className="font-semibold text-lg mb-4 text-gray-800 dark:text-gray-100">Estornar Lançamento</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">Deseja realmente estornar este lançamento? A ação será desfeita.</p>
+              <div className="flex justify-center gap-3">
+                <button
+                  className="px-4 py-2 rounded border hover:bg-gray-50 text-sm"
+                  onClick={() => setShowReverseConfirm(false)}
+                >
+                  Não
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+                  onClick={confirmReverse}
+                >
+                  Sim
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showModal && (
+          <TransactionModal
+            onClose={() => {
+              setShowModal(false)
+              setEditingId(null)
+            }}
+            onSuccess={() => {
+              setShowModal(false)
+              setEditingId(null)
+              load()
+            }}
+            initialData={editingId ? txs.find(t => t.id === editingId) : undefined}
+            title={modalTitle}
+          />
+        )
+      }
+    </div >
   )
 }

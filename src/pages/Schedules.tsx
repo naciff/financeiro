@@ -730,7 +730,9 @@ export default function Schedules() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Agendamentos</h1>
+      <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
+        A tela de Agendamento foi desenvolvida para organizar compromissos financeiros e prazos importantes de forma prática. Nela pode ser criado agendamentos em diferentes formatos, como mensal, semanal ou diário, permitindo ao usuário planejar suas atividades com clareza.
+      </p>
       {loadError && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded p-3 flex items-center justify-between">
           <span>Erro ao carregar: {loadError}</span>
@@ -738,18 +740,81 @@ export default function Schedules() {
         </div>
       )}
 
-      <Tabs
-        tabs={[
-          { id: 'despesa', label: 'Despesas' },
-          { id: 'receita', label: 'Receitas' },
-          { id: 'retirada', label: 'Retirada' },
-          { id: 'aporte', label: 'Aporte' },
-          { id: 'concluidos', label: 'Concluídos' },
-        ]}
-        activeId={activeTab}
-        onChange={id => { setActiveTab(id as any); setPage(1) }}
-        disabled={showForm !== 'none'}
-      />
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <Tabs
+          tabs={[
+            { id: 'despesa', label: 'Despesas' },
+            { id: 'receita', label: 'Receitas' },
+            { id: 'retirada', label: 'Retirada' },
+            { id: 'aporte', label: 'Aporte' },
+            { id: 'concluidos', label: 'Concluídos' },
+          ]}
+          activeId={activeTab}
+          onChange={id => { setActiveTab(id as any); setPage(1) }}
+          disabled={showForm !== 'none'}
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 text-xs md:text-sm transition-colors" onClick={() => { resetForm(); const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); setAnoMesInicial(`${yyyy}-${mm}-${dd}`); setShowForm('create') }} aria-label="Incluir">
+            <Icon name="add" className="w-4 h-4" /> Incluir
+          </button>
+
+          <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors" onClick={onEditOpen} disabled={!selectedId} aria-label="Alterar">
+            <Icon name="edit" className="w-4 h-4" /> Alterar
+          </button>
+
+          {activeTab === 'concluidos' && selectedId && (
+            <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2 text-xs md:text-sm transition-colors" onClick={() => onReactivate()} aria-label="Reativar">
+              <Icon name="undo" className="w-4 h-4" /> Reativar
+            </button>
+          )}
+
+          <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 text-xs md:text-sm transition-colors" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
+            <Icon name="trash" className="w-4 h-4" /> Excluir
+          </button>
+
+          <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
+            // Export CSV
+            const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
+            const rows = data.data.map(r => [
+              r.data_referencia,
+              r.cliente,
+              r.historico,
+              r.vencimento,
+              r.tipo === 'variavel' ? 'Prazo determinado' : r.periodo,
+              r.data_final,
+              `R$ ${formatMoneyBr(Number(r.valor_parcela))}`,
+              r.qtd,
+              `R$ ${formatMoneyBr(Number(r.valor_total))}`
+            ])
+            const csvContent = [
+              headers.join(';'),
+              ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+            ].join('\n')
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+            const link = document.createElement('a')
+            if (link.download !== undefined) {
+              const url = URL.createObjectURL(blob)
+              link.setAttribute('href', url)
+              link.setAttribute('download', `agendamentos_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`)
+              link.style.visibility = 'hidden'
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+            }
+          }} title="Exportar CSV">
+            <Icon name="file-excel" className="w-4 h-4" />
+          </button>
+
+          <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
+            // Generate simplistic PDF 
+            window.print()
+          }} title="Imprimir / Salvar PDF">
+            <Icon name="file-pdf" className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
       <div role="toolbar" aria-label="Ações" className="flex flex-wrap items-center gap-3">
         <div className="flex flex-col gap-1">
@@ -819,100 +884,8 @@ export default function Schedules() {
             </div>
           </div>
         )}
-        <button
-          className="px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 rounded text-sm font-medium flex items-center gap-2"
-          onClick={async () => {
-            if (!hasBackend) { alert('Debug apenas online'); return; }
 
-            const term = prompt('Digite o ID do agendamento OU parte do Histórico (ex: Dizimo) para investigar:')
-            if (!term) return
 
-            alert(`Investigando: "${term}"...`)
-            try {
-              let query = supabase!.from('schedules').select('*')
-
-              // Check if UUID
-              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(term)
-
-              if (isUuid) {
-                query = query.eq('id', term)
-              } else {
-                query = query.ilike('historico', `%${term}%`)
-              }
-
-              const { data, error } = await query
-
-              if (error) {
-                alert('Erro na busca: ' + error.message)
-              } else if (!data || data.length === 0) {
-                alert(`NENHUM REGISTRO ENCONTRADO para "${term}".\nVerifique se o nome está correto ou se foi excluído definitivamente.`)
-              } else {
-                const currentUser = (await supabase!.auth.getUser()).data.user?.id
-                const results = data.map(d => `
---------------------------------------------------
-ENCONTRADO: ${d.historico}
-ID: ${d.id}
-Situação: ${d.situacao} (1=Ativo, 2=Concluido, 3=Inativo?)
-User ID: ${d.user_id} ${d.user_id === currentUser ? '(SEU USUÁRIO ✅)' : '(OUTRO USUÁRIO ❌)'}
-Data Próxima: ${d.proxima_vencimento}
-Operação: ${d.operacao}
-TAB ATUAL: ${activeTab} (Item é '${d.operacao}') -> ${activeTab === d.operacao ? 'Visível na aba' : 'INVISÍVEL nesta aba'}
-`).join('\n')
-
-                alert(`Foram encontrados ${data.length} registros:\n${results}`)
-              }
-            } catch (err: any) {
-              alert('Erro fatal: ' + err.message)
-            }
-          }}
-        >
-          <Icon name="search" className="w-4 h-4" />
-          Debug Item
-        </button>
-        <button className="flex items-center gap-2 bg-black text-white rounded px-3 py-2" onClick={() => { resetForm(); const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); setAnoMesInicial(`${yyyy}-${mm}-${dd}`); setShowForm('create') }} aria-label="Incluir">
-          <Icon name="add" className="w-4 h-4" /> Incluir
-        </button>
-        <button className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onEditOpen} disabled={!selectedId} aria-label="Alterar">
-          <Icon name="edit" className="w-4 h-4" /> Alterar
-        </button>
-
-        {activeTab === 'concluidos' && selectedId && (
-          <button className="flex items-center gap-2 bg-green-600 text-white rounded px-3 py-2" onClick={() => onReactivate()} aria-label="Reativar">
-            <Icon name="undo" className="w-4 h-4" /> Reativar
-          </button>
-        )}
-
-        <button className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50" onClick={onDelete} disabled={!selectedId} aria-label="Excluir">
-          <Icon name="trash" className="w-4 h-4" /> Excluir
-        </button>
-        <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => {
-          // Export CSV
-          const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
-          const rows = data.data.map(r => [
-            r.data_referencia,
-            r.cliente,
-            r.historico,
-            r.vencimento,
-            r.tipo === 'variavel' ? 'Prazo determinado' : r.periodo,
-            r.data_final,
-            `R$ ${formatMoneyBr(Number(r.valor_parcela))}`,
-            r.qtd,
-            `R$ ${formatMoneyBr(Number(r.valor_total))}`
-          ])
-          const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n')
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `agendamentos_${new Date().toISOString().split('T')[0]}.csv`
-          a.click()
-          URL.revokeObjectURL(url)
-        }} title="Exportar CSV" aria-label="Exportar CSV">
-          <Icon name="excel" className="w-5 h-5" />
-        </button>
-        <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => window.print()} title="Exportar PDF" aria-label="Exportar PDF">
-          <Icon name="pdf" className="w-5 h-5" />
-        </button>
       </div>
 
       {

@@ -304,7 +304,9 @@ export default function ScheduleControl() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Controle e Previsão</h1>
+      <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
+        A tela de Controle e Previsão apresenta de forma integrada os indicadores financeiros e operacionais do sistema, permitindo acompanhar em tempo real as entradas e saídas previstas
+      </p>
 
 
 
