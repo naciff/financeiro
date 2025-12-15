@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
@@ -27,6 +27,7 @@ export default function Ledger() {
   const [pendingTx, setPendingTx] = useState<any>(null)
   const [modalTitle, setModalTitle] = useState('Incluir Nova Transação')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTx, setEditingTx] = useState<any>(null)
 
   // Filtros Avançados
   const [filterMode, setFilterMode] = useState<'simple' | 'custom' | 'attachments'>('simple')
@@ -220,30 +221,32 @@ export default function Ledger() {
     resetForm()
     if (tx) {
       setEditingId(tx.id)
-      setModalTitle('Editar Transação')
-      setFormOperacao(tx.operacao)
-      setFormContaId(tx.conta_id || tx.caixa_id || '')
-      setFormEspecie(tx.especie || 'dinheiro')
-      setFormHistorico(tx.historico)
-      setFormValor(Number(tx.valor_saida || tx.valor_entrada || 0))
-      const today = new Date().toISOString().split('T')[0]
-      setFormDataVencimento(tx.data_vencimento ? tx.data_vencimento.split('T')[0] : today)
-      setFormDataLancamento(tx.data_lancamento ? tx.data_lancamento.split('T')[0] : today)
-      setFormStatus(tx.status || 'pendente')
-      setFormCliente(tx.cliente || '')
-      setFormCliente(tx.cliente_id || tx.cliente || '')
-      // Fix: Check various likely column names (schedule uses grupo_id)
-      setFormGrupoCompromisso(tx.grupo_compromisso || tx.grupo_compromisso_id || tx.grupo_id || '')
-      setFormCompromisso(tx.compromisso || tx.compromisso_id || '')
-      setFormNotaFiscal(tx.nota_fiscal || '')
-      setFormDetalhes(tx.detalhes ? (typeof tx.detalhes === 'string' ? tx.detalhes : JSON.stringify(tx.detalhes)) : '')
+      setModalTitle('Carregando...') // Show loading state
+      setShowModal(true)
+
+      if (hasBackend) {
+        getTransaction(tx.id).then(r => {
+          if (r.data) {
+            const fullTx = r.data
+            setEditingTx(fullTx)
+            setModalTitle('Editar Transação')
+            // Only populate local form state as backup (TransactionModal uses initialData)
+            setFormOperacao(fullTx.operacao)
+            // ... other sets if needed for local logic, but TransactionModal is primary
+          }
+        })
+      } else {
+        // Local mode
+        setEditingTx(tx)
+        setModalTitle('Editar Transação')
+      }
     } else {
       setModalTitle('Incluir Nova Transação')
       const today = new Date().toISOString().split('T')[0]
       setFormDataLancamento(today)
       setFormDataVencimento(today)
+      setShowModal(true)
     }
-    setShowModal(true)
   }
 
   function labelAccount(id: string) {
@@ -338,8 +341,13 @@ export default function Ledger() {
       if (searchTerm) {
         const term = searchTerm.toLowerCase()
         const valSearch = parseFloat(searchTerm.replace(',', '.'))
-        const matchText = (t.cliente?.toLowerCase() || '').includes(term) || (t.historico?.toLowerCase() || '').includes(term)
-        const matchValue = !isNaN(valSearch) && (Math.abs(t.valor_entrada - valSearch) < 0.01 || Math.abs(t.valor_saida - valSearch) < 0.01)
+
+        // Safety check: Ensure fields are strings before calling toLowerCase
+        const clientName = (typeof t.cliente === 'object' ? t.cliente?.nome : t.cliente) || ''
+        const hist = (typeof t.historico === 'object' ? t.historico?.nome : t.historico) || '' // Historico usually string but be safe
+
+        const matchText = String(clientName).toLowerCase().includes(term) || String(hist).toLowerCase().includes(term)
+        const matchValue = !isNaN(valSearch) && (Math.abs((t.valor_entrada || 0) - valSearch) < 0.01 || Math.abs((t.valor_saida || 0) - valSearch) < 0.01)
 
         const matchesSearch = matchText || matchValue
         if (!matchesSearch) return false
@@ -464,9 +472,9 @@ export default function Ledger() {
                 value={accountFilter}
                 onChange={e => setAccountFilter(e.target.value)}
               >
-                <option value="">Caixa: Todos</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Caixa: Todos</option>
                 {accounts.map(acc => (
-                  <option key={acc.id} value={acc.id}>{acc.nome}</option>
+                  <option className="dark:bg-gray-800 dark:text-gray-100" key={acc.id} value={acc.id}>{acc.nome}</option>
                 ))}
               </select>
             </div>
@@ -477,15 +485,15 @@ export default function Ledger() {
                 value={opFilter}
                 onChange={e => setOpFilter(e.target.value)}
               >
-                <option>Tipo: Todas</option>
-                <option>Somente Receitas</option>
-                <option>Somente Despesas</option>
-                <option>Somente Aporte/Ret./Transf.</option>
-                <option>Despesas e Retiradas</option>
-                <option>Receitas e Aportes</option>
-                <option>Somente Aporte</option>
-                <option>Somente Retiradas</option>
-                <option>Somente Transferências</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Tipo: Todas</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Receitas</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Despesas</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Aporte/Ret./Transf.</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Despesas e Retiradas</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Receitas e Aportes</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Aporte</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Retiradas</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Transferências</option>
               </select>
               <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
@@ -512,13 +520,13 @@ export default function Ledger() {
 
       {/* Filtros e Abas */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex border dark:border-gray-600 rounded overflow-hidden">
             <button
               className={`px-3 py-1 text-sm ${filterMode === 'simple' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              onClick={() => setFilterMode('simple')}
+              onClick={() => { setFilterMode('simple'); load() }}
             >
-              Simplificada
+              Movimentação
             </button>
             <button
               className={`px-3 py-1 text-sm ${filterMode === 'custom' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
@@ -533,18 +541,18 @@ export default function Ledger() {
               Comprovantes Digitalizados
             </button>
           </div>
-        </div>
 
-        {selectedIds.size > 1 && (
-          <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
-            <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
-              SOMA ITENS ({selectedIds.size})
+          {selectedIds.size > 1 && (
+            <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
+              <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
+                SOMA ITENS ({selectedIds.size})
+              </div>
+              <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
+                {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
+              </div>
             </div>
-            <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
-              {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {filterMode === 'simple' ? (
           <div className="flex overflow-x-auto border-b dark:border-gray-700">
@@ -580,10 +588,17 @@ export default function Ledger() {
               <span className="text-sm text-gray-700 dark:text-gray-300">a</span>
               <input type="date" max="9999-12-31" className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={endDate} onChange={e => setEndDate(e.target.value)} />
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (startDate && startDate.length > 10) return alert('Data Inicial inválida. Verifique o ano.')
                   if (endDate && endDate.length > 10) return alert('Data Final inválida. Verifique o ano.')
+
                   setAppliedDates({ start: startDate, end: endDate })
+
+                  if (hasBackend) {
+                    const field = dateFilterType === 'payment' ? 'data_vencimento' : 'data_lancamento'
+                    const res = await searchTransactions(startDate, endDate, field, store.activeOrganization || undefined)
+                    if (res.data) setTxs(res.data)
+                  }
                 }}
                 className="bg-fourtek-blue text-white px-3 py-1 rounded text-sm hover:bg-blue-700 ml-2"
               >
@@ -718,13 +733,15 @@ export default function Ledger() {
             onClose={() => {
               setShowModal(false)
               setEditingId(null)
+              setEditingTx(null)
             }}
             onSuccess={() => {
               setShowModal(false)
               setEditingId(null)
+              setEditingTx(null)
               load()
             }}
-            initialData={editingId ? txs.find(t => t.id === editingId) : undefined}
+            initialData={editingTx}
             title={modalTitle}
           />
         )

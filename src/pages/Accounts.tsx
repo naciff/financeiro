@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createAccount, listAccountBalances, listAccounts, deleteAccountValidated, setAccountPrincipal, updateAccountFields, getAccountById } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
+import { Icon } from '../components/ui/Icon'
 
 export default function Accounts() {
   const store = useAppStore()
@@ -24,6 +25,8 @@ export default function Accounts() {
   const [editId, setEditId] = useState<string>('')
   const [editOpen, setEditOpen] = useState(false)
   const [notice, setNotice] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' })
+
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   async function load() {
     if (hasBackend) {
@@ -114,6 +117,33 @@ export default function Accounts() {
     }
     setEditOpen(true)
   }
+
+  async function handleToolbarEdit() {
+    if (!selectedId) return
+    const a = accounts.find(acc => acc.id === selectedId)
+    if (a) await openEdit(a)
+  }
+
+  async function handleToolbarDelete() {
+    if (!selectedId) return
+    const a = accounts.find(acc => acc.id === selectedId)
+    if (!a) return
+
+    if (!confirm('Tem certeza que deseja excluir este registro de caixa?')) return
+    console.log('Excluir click', a?.id)
+    if (hasBackend) {
+      deleteAccountValidated(a.id).then(r => {
+        console.log('deleteAccountValidated', r)
+        if ((r as any).error) setNotice({ type: 'error', text: (r as any).error.message })
+        else { setNotice({ type: 'success', text: 'Registro excluído' }); setSelectedId(null); load() }
+      })
+    } else {
+      const res = store.deleteAccount(a.id)
+      if (!res.ok) setNotice({ type: 'error', text: res.reason || 'Falha ao excluir' })
+      else { setNotice({ type: 'success', text: 'Registro excluído' }); setSelectedId(null); load() }
+    }
+  }
+
   function saveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editId) return
@@ -150,79 +180,125 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Contas</h1>
+
       {notice.text && (
         <div className={`p-3 rounded border ${notice.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{notice.text}</div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 w-full">
         {!showForm && (
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
-            <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" onClick={() => setShowForm(true)} aria-label="Inserir">Incluir</button>
+          <button
+            className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
+            onClick={() => setShowForm(true)}
+            aria-label="Inserir"
+          >
+            <Icon name="add" className="w-4 h-4" /> Incluir
+          </button>
+        )}
+
+        <button
+          className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+          disabled={!selectedId}
+          onClick={handleToolbarEdit}
+        >
+          <Icon name="edit" className="w-4 h-4" /> Alterar
+        </button>
+
+        <button
+          className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+          disabled={!selectedId}
+          onClick={handleToolbarDelete}
+        >
+          <Icon name="trash" className="w-4 h-4" /> Excluir
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Form Logic (Keep existing toggle behavior for now, usually it pushes grid down but user asked for toolbar. 
+            The existing layout was grid-cols-2 with form on left/top. Let's keep it but toolbar controls visibility.) 
+        */}
+        {showForm && (
+          <div className="col-span-1 md:col-span-2">
+            <form onSubmit={onCreate} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
+              <div className="font-medium text-gray-900 dark:text-gray-100">Nova conta</div>
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="tipo">Tipo</label>
+              <select id="tipo" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => { setTipo(e.target.value); setDirty(true) }}>
+                <option value="banco">Banco</option>
+                <option value="carteira">Carteira</option>
+                <option value="cartao">Cartão</option>
+              </select>
+              {tipo === 'cartao' && (
+                <div>
+                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="dia_venc">Data de vencimento (DD)</label>
+                  <input id="dia_venc" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                    const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
+                    setDiaVencimento(n as any); setDirty(true)
+                  }} />
+                </div>
+              )}
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="nome">Nome</label>
+              <input id="nome" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => { setNome(e.target.value); setDirty(true) }} />
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="cor">Cor</label>
+              <input id="cor" type="color" className="w-full h-10 border dark:border-gray-600 rounded px-1 py-1 bg-white dark:bg-gray-700" value={cor} onChange={e => { setCor(e.target.value); setDirty(true) }} />
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="principal">Conta Principal</label>
+              <div className="flex items-center gap-2">
+                <input id="principal" type="checkbox" checked={principal} onChange={e => { setPrincipal(e.target.checked); setDirty(true) }} />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Marcar como conta principal</span>
+              </div>
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="situacao">Situação</label>
+              <select id="situacao" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={situacao} onChange={e => { setSituacao(e.target.value as any); setDirty(true) }}>
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+              </select>
+              {tipo === 'banco' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="banco_codigo">Banco (código)</label>
+                    <input id="banco_codigo" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="000" value={bancoCodigo} onChange={e => { setBancoCodigo(e.target.value.replace(/\D/g, '').slice(0, 3)); setDirty(true) }} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="agencia">Agência</label>
+                    <input id="agencia" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => { setAgencia(maskAgencia(e.target.value)); setDirty(true) }} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="conta">Conta</label>
+                    <input id="conta" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => { setConta(maskConta(e.target.value)); setDirty(true) }} />
+                  </div>
+                </div>
+              )}
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="saldo_inicial">Saldo inicial</label>
+              <input id="saldo_inicial" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" step="0.01" value={saldoInicial} onChange={e => { setSaldoInicial(parseFloat(e.target.value)); setDirty(true) }} />
+              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="observacoes">Observações</label>
+              <input id="observacoes" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => { setObservacoes(e.target.value); setDirty(true) }} />
+              <div className="flex justify-end gap-2">
+                <button type="button" className="rounded border dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => {
+                  if (dirty && !confirm('Cancelar alterações pendentes?')) return
+                  setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
+                }}>Cancelar</button>
+                <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" type="submit">Salvar</button>
+              </div>
+            </form>
           </div>
         )}
-        {showForm && (
-          <form onSubmit={onCreate} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
-            <div className="font-medium text-gray-900 dark:text-gray-100">Nova conta</div>
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="tipo">Tipo</label>
-            <select id="tipo" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => { setTipo(e.target.value); setDirty(true) }}>
-              <option value="banco">Banco</option>
-              <option value="carteira">Carteira</option>
-              <option value="cartao">Cartão</option>
-            </select>
-            {tipo === 'cartao' && (
-              <div>
-                <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="dia_venc">Data de vencimento (DD)</label>
-                <input id="dia_venc" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
-                  const v = e.target.value.replace(/\D/g, '').slice(0, 2)
-                  const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
-                  setDiaVencimento(n as any); setDirty(true)
-                }} />
-              </div>
-            )}
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="nome">Nome</label>
-            <input id="nome" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => { setNome(e.target.value); setDirty(true) }} />
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="cor">Cor</label>
-            <input id="cor" type="color" className="w-full h-10 border dark:border-gray-600 rounded px-1 py-1 bg-white dark:bg-gray-700" value={cor} onChange={e => { setCor(e.target.value); setDirty(true) }} />
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="principal">Conta Principal</label>
-            <div className="flex items-center gap-2">
-              <input id="principal" type="checkbox" checked={principal} onChange={e => { setPrincipal(e.target.checked); setDirty(true) }} />
-              <span className="text-sm text-gray-600 dark:text-gray-400">Marcar como conta principal</span>
+
+        {/* Only show Saldos and Table usually... but in grid cols 2 they were side by side. 
+            However, when showForm is true, they might reshuffle. original used `!showForm && ...` for button. 
+            I'll keep Saldos and Table always visible or reflow them.
+            Original structure:
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {!showForm && <div>Button</div>}
+               {showForm && <form... />}
+               <div>Saldos...</div>
             </div>
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="situacao">Situação</label>
-            <select id="situacao" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={situacao} onChange={e => { setSituacao(e.target.value as any); setDirty(true) }}>
-              <option value="ativo">Ativo</option>
-              <option value="inativo">Inativo</option>
-            </select>
-            {tipo === 'banco' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="banco_codigo">Banco (código)</label>
-                  <input id="banco_codigo" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="000" value={bancoCodigo} onChange={e => { setBancoCodigo(e.target.value.replace(/\D/g, '').slice(0, 3)); setDirty(true) }} />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="agencia">Agência</label>
-                  <input id="agencia" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="0000" value={agencia} onChange={e => { setAgencia(maskAgencia(e.target.value)); setDirty(true) }} />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="conta">Conta</label>
-                  <input id="conta" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" pattern="[0-9]*" placeholder="00000000" value={conta} onChange={e => { setConta(maskConta(e.target.value)); setDirty(true) }} />
-                </div>
-              </div>
-            )}
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="saldo_inicial">Saldo inicial</label>
-            <input id="saldo_inicial" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" step="0.01" value={saldoInicial} onChange={e => { setSaldoInicial(parseFloat(e.target.value)); setDirty(true) }} />
-            <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="observacoes">Observações</label>
-            <input id="observacoes" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => { setObservacoes(e.target.value); setDirty(true) }} />
-            <div className="flex justify-end gap-2">
-              <button type="button" className="rounded border dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => {
-                if (dirty && !confirm('Cancelar alterações pendentes?')) return
-                setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
-              }}>Cancelar</button>
-              <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" type="submit">Salvar</button>
-            </div>
-          </form>
-        )}
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
+            <div>Table...</div>  <-- Table was outside the grid-cols-2? No wait.
+            Line 244 in original was OUTSIDE the grid-cols-2 (Line 157).
+            So form/saldos are top, table is bottom.
+            Since I moved Toolbar UP, I should remove the `{!showForm && button}` logic from the grid.
+        */}
+
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 h-fit">
           <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Saldos</div>
           {!hasBackend && accounts.length === 0 && (
             <div className="text-sm text-gray-600 dark:text-gray-400">Nenhuma conta cadastrada (modo local). Use "Incluir" para adicionar.</div>
@@ -241,8 +317,9 @@ export default function Accounts() {
           </ul>
         </div>
       </div>
+
       <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
-        <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Contas</div>
+        {/* <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Contas</div> --> REMOVED as requested */}
         <table className="w-full text-sm text-gray-900 dark:text-gray-100">
           <thead>
             <tr className="text-left">
@@ -253,14 +330,18 @@ export default function Accounts() {
               <th className="p-2">Situação</th>
               <th className="p-2">Conta Principal</th>
               <th className="p-2">Data Vencimento</th>
-              <th className="p-2">Ações</th>
             </tr>
           </thead>
           <tbody>
             {accounts
               .sort((a, b) => a.nome.localeCompare(b.nome))
               .map(a => (
-                <tr key={a.id} className={`border-t dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${a.ativo === false ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-gray-100'}`} onDoubleClick={() => openEdit(a)}>
+                <tr
+                  key={a.id}
+                  className={`border-t dark:border-gray-700 cursor-pointer ${a.ativo === false ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-gray-100'} ${selectedId === a.id ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  onClick={() => setSelectedId(selectedId === a.id ? null : a.id)}
+                  onDoubleClick={() => { setSelectedId(a.id); openEdit(a) }}
+                >
                   <td className="p-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: a.cor || '#000000' }}></div>
@@ -294,24 +375,6 @@ export default function Accounts() {
                     </div>
                   </td>
                   <td className="p-2">{a.tipo === 'cartao' ? (a.dia_vencimento ?? '-') : '-'}</td>
-                  <td className="p-2 flex gap-2">
-                    <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => openEdit(a)} aria-label={`Editar ${a.nome}`}>Editar</button>
-                    <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => {
-                      if (!confirm('Tem certeza que deseja excluir este registro de caixa?')) return
-                      console.log('Excluir click', a?.id)
-                      if (hasBackend) {
-                        deleteAccountValidated(a.id).then(r => {
-                          console.log('deleteAccountValidated', r)
-                          if ((r as any).error) setNotice({ type: 'error', text: (r as any).error.message })
-                          else { setNotice({ type: 'success', text: 'Registro excluído' }); load() }
-                        })
-                      } else {
-                        const res = store.deleteAccount(a.id)
-                        if (!res.ok) setNotice({ type: 'error', text: res.reason || 'Falha ao excluir' })
-                        else { setNotice({ type: 'success', text: 'Registro excluído' }); load() }
-                      }
-                    }} aria-label={`Excluir ${a.nome}`}>Excluir</button>
-                  </td>
                 </tr>
               ))}
           </tbody>

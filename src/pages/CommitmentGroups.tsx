@@ -60,12 +60,85 @@ export default function CommitmentGroups() {
     setEditId(''); setNome(''); setShowForm(false)
   }
 
+
+  const selectedIds = Object.keys(selected).filter(k => selected[k])
+  const canEdit = selectedIds.length === 1
+  const canDelete = selectedIds.length > 0
+
+  function handleEdit() {
+    if (!canEdit) return
+    const id = selectedIds[0]
+    const g = items.find(x => x.id === id)
+    if (g) {
+      setEditId(g.id)
+      setNome(g.nome)
+      setTipo((g.operacao as any) || 'despesa')
+      setShowForm(true)
+    }
+  }
+
+  function handleDelete() {
+    if (!canDelete) return
+    if (!confirm(`Excluir ${selectedIds.length} grupos selecionados?`)) return
+
+    const promise = hasBackend
+      ? Promise.all(selectedIds.map(id => deleteCommitmentGroup(id)))
+      : Promise.resolve(selectedIds.forEach(id => store.deleteCommitmentGroup(id)))
+
+    promise.then(() => {
+      setSelected({})
+      if (hasBackend) {
+        listCommitmentGroups().then(r => { if (!r.error && r.data) setItems(r.data as any) })
+      }
+    })
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Grupo de Compromisso</h1>
-      {!showForm && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4"><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setShowForm(true)} aria-label="Inserir">Incluir</button></div>
-      )}
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 w-full">
+        <button
+          className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
+          onClick={() => setShowForm(true)}
+        >
+          <Icon name="add" className="w-4 h-4" /> Incluir
+        </button>
+
+        <button
+          className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+          disabled={!canEdit}
+          onClick={handleEdit}
+        >
+          <Icon name="edit" className="w-4 h-4" /> Alterar
+        </button>
+
+        <button
+          className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+          disabled={!canDelete}
+          onClick={handleDelete}
+        >
+          <Icon name="trash" className="w-4 h-4" /> Excluir
+        </button>
+
+        <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2 min-w-[200px]">
+          <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <input
+            className="outline-none flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+            placeholder="Buscar por nome"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+          />
+        </div>
+        {search && (
+          <button
+            className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap transition-colors"
+            onClick={() => { setSearch(''); setPage(1) }}
+          >
+            Limpar
+          </button>
+        )}
+      </div>
+
       {showForm && (
         <form onSubmit={editId ? onUpdate : onCreate} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
           <div className="font-medium text-gray-900 dark:text-gray-100">{editId ? 'Editar grupo' : 'Novo grupo'}</div>
@@ -81,29 +154,19 @@ export default function CommitmentGroups() {
           <div className="flex justify-end gap-2"><button type="button" className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { setShowForm(false); setEditId(''); setNome('') }}>Cancelar</button><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" type="submit">Salvar</button></div>
         </form>
       )}
+
       <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
         {loading && <div role="status" aria-live="polite" className="text-sm text-gray-600 dark:text-gray-400 mb-2">Carregando grupos…</div>}
         {error && <div className="text-sm text-red-700 dark:text-red-400 mb-2">Erro ao carregar grupos: {error}</div>}
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-medium text-gray-900 dark:text-gray-100">Grupos</div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded px-3 py-1">
-              <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="groupSearch">Filtro</label>
-              <input id="groupSearch" className="outline-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Buscar" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
-            </div>
-            <button className="px-2 py-1 rounded border dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => {
-              const ids = Object.keys(selected).filter(k => selected[k])
-              if (!ids.length) return
-              if (!confirm(`Excluir ${ids.length} grupos selecionados?`)) return
-              if (hasBackend) Promise.all(ids.map(id => deleteCommitmentGroup(id))).then(() => listCommitmentGroups().then(r => { if (!r.error && r.data) setItems(r.data as any); setSelected({}) }))
-              else { ids.forEach(id => store.deleteCommitmentGroup(id)); setSelected({}) }
-            }}>Excluir selecionados</button>
-          </div>
-        </div>
+
+        {/* Inner header removed, loop types */}
         {(['despesa', 'receita', 'aporte', 'retirada'] as const).map(tipoKey => {
           const grupoIcon = tipoKey === 'despesa' ? 'out' : tipoKey === 'receita' ? 'in' : tipoKey === 'aporte' ? 'deposit' : 'withdraw'
           const cor = tipoKey === 'despesa' ? 'text-red-600 dark:text-red-400' : tipoKey === 'receita' ? 'text-green-600 dark:text-green-400' : tipoKey === 'aporte' ? 'text-blue-600 dark:text-blue-400' : 'text-yellow-600 dark:text-yellow-400'
           const groupItems = items.filter(g => (g.operacao || 'despesa') === tipoKey).filter(g => g.nome.toLowerCase().includes(search.toLowerCase()))
+
+          if (groupItems.length === 0 && search) return null // Hide empty groups when searching? Optional. Leaving standard behavior.
+
           const totalPages = Math.max(1, Math.ceil(groupItems.length / pageSize))
           const current = Math.min(page, totalPages)
           const pageItems = groupItems.slice((current - 1) * pageSize, current * pageSize)
@@ -123,33 +186,38 @@ export default function CommitmentGroups() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                        <th className="p-2">Seleção</th>
+                        <th className="p-2 w-10">Seleção</th>
                         <th className="p-2">Nome</th>
-                        <th className="p-2">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="text-gray-900 dark:text-gray-100">
                       {pageItems.map(g => (
-                        <tr key={g.id} className="border-t dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onDoubleClick={() => { setEditId(g.id); setNome(g.nome); setTipo((g.operacao as any) || 'despesa'); setShowForm(true) }}>
-                          <td className="p-2"><input type="checkbox" checked={!!selected[g.id]} onChange={e => setSelected(s => ({ ...s, [g.id]: e.target.checked }))} aria-label={`Selecionar ${g.nome}`} /></td>
-                          <td className="p-2">{g.nome}</td>
-                          <td className="p-2">
-                            <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 mr-2 text-blue-600 dark:text-blue-400" onClick={() => { setEditId(g.id); setNome(g.nome); setTipo((g.operacao as any) || 'despesa'); setShowForm(true) }} aria-label={`Editar ${g.nome}`}>Editar</button>
-                            <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-red-600 dark:text-red-400" onClick={() => {
-                              if (!confirm('Confirma exclusão?')) return
-                              if (hasBackend) deleteCommitmentGroup(g.id).then(() => listCommitmentGroups().then(r => { if (!r.error && r.data) setItems(r.data as any) }))
-                              else store.deleteCommitmentGroup(g.id)
-                            }} aria-label={`Excluir ${g.nome}`}>Excluir</button>
+                        <tr
+                          key={g.id}
+                          className="border-t dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                          onClick={() => setSelected(s => ({ ...s, [g.id]: !s[g.id] }))}
+                          onDoubleClick={() => { setEditId(g.id); setNome(g.nome); setTipo((g.operacao as any) || 'despesa'); setShowForm(true) }}
+                        >
+                          <td className="p-2" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={!!selected[g.id]}
+                              onChange={e => setSelected(s => ({ ...s, [g.id]: e.target.checked }))}
+                              aria-label={`Selecionar ${g.nome}`}
+                            />
                           </td>
+                          <td className="p-2">{g.nome}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <div className="flex items-center justify-end gap-2 p-2 text-gray-700 dark:text-gray-300">
-                    <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={current === 1}>Anterior</button>
-                    <span>Página {current} de {totalPages}</span>
-                    <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={current === totalPages}>Próxima</button>
-                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-end gap-2 p-2 text-gray-700 dark:text-gray-300">
+                      <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={current === 1}>Anterior</button>
+                      <span>Página {current} de {totalPages}</span>
+                      <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={current === totalPages}>Próxima</button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { hasBackend } from '../lib/runtime'
 import { listClients, createClient, updateClient, deleteClient } from '../services/db'
 import { useAppStore } from '../store/AppStore'
+import { ClientModal } from '../components/modals/ClientModal'
+import { Icon } from '../components/ui/Icon'
 
 export default function Clients() {
   const store = useAppStore()
@@ -12,6 +14,26 @@ export default function Clients() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [editId, setEditId] = useState('')
+
+  const [showClientModal, setShowClientModal] = useState(false)
+
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(100)
+
+  const filteredItems = items.filter(i => i.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedItems = filteredItems.slice(startIndex, endIndex)
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   async function load() {
     setLoading(true); setError(null)
@@ -28,6 +50,7 @@ export default function Clients() {
   useEffect(() => { load() }, [store.activeOrganization])
 
   async function onSave(e: React.FormEvent) {
+    // ... existing onSave code ...
     e.preventDefault()
     if (!nome.trim()) { setError('Nome é obrigatório'); return }
     setError(null)
@@ -49,13 +72,65 @@ export default function Clients() {
     setNome(''); setDoc(''); setEditId(''); setShowForm(false); load()
   }
 
+  function handleEdit() {
+    if (!selectedId) return
+    const c = items.find(x => x.id === selectedId) as any
+    if (c) {
+      setEditId(c.id)
+      setNome(c.nome)
+      setDoc(c.documento || '')
+      setShowForm(true)
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedId) return
+    if (!confirm('Confirma exclusão?')) return
+    if (hasBackend) await deleteClient(selectedId)
+    else setItems(prev => prev.filter((x: any) => x.id !== selectedId))
+    setSelectedId(null)
+    load()
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Clientes</h1>
-      {!showForm && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4"><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setShowForm(true)} aria-label="Inserir">Incluir</button></div>
-      )}
-      {showForm && (
+      {/* Filters & Actions Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 w-full">
+        <button
+          className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
+          onClick={() => setShowClientModal(true)}
+        >
+          <Icon name="add" className="w-4 h-4" /> Incluir
+        </button>
+
+        <button
+          className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+          disabled={!selectedId}
+          onClick={handleEdit}
+        >
+          <Icon name="edit" className="w-4 h-4" /> Alterar
+        </button>
+
+        <button
+          className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+          disabled={!selectedId}
+          onClick={handleDelete}
+        >
+          <Icon name="trash" className="w-4 h-4" /> Excluir
+        </button>
+
+        <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2 min-w-[200px]">
+          <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <input
+            className="outline-none w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+            placeholder="Pesquisa por nome"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {!showForm ? null : (
         <form onSubmit={onSave} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
           <div className="font-medium text-gray-900 dark:text-gray-100">{editId ? 'Editar cliente' : 'Novo cliente'}</div>
           <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>
@@ -66,6 +141,7 @@ export default function Clients() {
           <div className="flex justify-end gap-2"><button type="button" className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { setShowForm(false); setError(null); setEditId('') }}>Cancelar</button><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" type="submit">Salvar</button></div>
         </form>
       )}
+
       <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4">
         {loading && <div role="status" aria-live="polite" className="text-sm text-gray-600 dark:text-gray-400 mb-2">Carregando…</div>}
         {error && <div className="text-sm text-red-700 dark:text-red-400 mb-2">{error}</div>}
@@ -75,24 +151,69 @@ export default function Clients() {
               <tr className="bg-gray-50 dark:bg-gray-700 border-b dark:border-gray-600 text-gray-700 dark:text-gray-300">
                 <th className="p-2">Nome</th>
                 <th className="p-2">CPF/CNPJ</th>
-                <th className="p-2">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-gray-700 text-gray-900 dark:text-gray-100">
-              {items.map((c: any) => (
-                <tr key={c.id} className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }}>
+              {paginatedItems.map((c: any) => (
+                <tr
+                  key={c.id}
+                  className={`border-t dark:border-gray-700 cursor-pointer ${selectedId === c.id ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  onClick={() => setSelectedId(selectedId === c.id ? null : c.id)}
+                  onDoubleClick={() => { setSelectedId(c.id); setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }}
+                >
                   <td className="p-2">{c.nome}</td>
                   <td className="p-2">{c.documento || ''}</td>
-                  <td className="p-2">
-                    <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 mr-2 text-blue-600 dark:text-blue-400" onClick={() => { setEditId(c.id); setNome(c.nome); setDoc(c.documento || ''); setShowForm(true) }} aria-label={`Editar ${c.nome}`}>Editar</button>
-                    <button className="px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-red-600 dark:text-red-400" onClick={async () => { if (!confirm('Confirma exclusão?')) return; if (hasBackend) await deleteClient(c.id); else setItems(prev => prev.filter((x: any) => x.id !== c.id)); load() }} aria-label={`Excluir ${c.nome}`}>Excluir</button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 text-sm text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-2">
+            <span>Itens por página:</span>
+            <select
+              className="border dark:border-gray-600 rounded p-1 bg-white dark:bg-gray-700"
+              value={itemsPerPage}
+              onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1) }}
+            >
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+              <option value={500}>500</option>
+            </select>
+            <span className="ml-2">
+              {filteredItems.length === 0 ? '0' : startIndex + 1} - {Math.min(endIndex, filteredItems.length)} de {filteredItems.length}
+            </span>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              className="px-3 py-1 border dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            >
+              Anterior
+            </button>
+            <button
+              className="px-3 py-1 border dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
       </div>
+
+      <ClientModal
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        onSuccess={(client: { id: string, nome: string }) => {
+          setItems(prev => [client, ...prev])
+          load()
+        }}
+      />
     </div>
   )
 }

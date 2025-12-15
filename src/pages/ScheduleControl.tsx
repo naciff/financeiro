@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect } from 'react'
+
+import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
@@ -8,11 +9,14 @@ import { ScheduleSummaryView } from '../components/schedule/ScheduleSummaryView'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
-import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule } from '../services/db'
+import { BulkTransactionModal } from '../components/modals/BulkTransactionModal'
+import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { useDailyAutomation } from '../hooks/useDailyAutomation'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
+
+const GROUP_TITLES = ['Meses Anteriores', 'Vencidos', 'Próximos Lançamentos']
 
 function toBr(iso: string) {
   if (!iso) return ''
@@ -21,7 +25,7 @@ function toBr(iso: string) {
   if (!dateStr) return ''
   const [yyyy, mm, dd] = dateStr.split('-')
   if (!yyyy || !mm || !dd) return ''
-  return `${dd}/${mm}/${yyyy}`
+  return `${dd} /${mm}/${yyyy} `
 }
 
 export default function ScheduleControl() {
@@ -95,6 +99,8 @@ export default function ScheduleControl() {
     }
     return () => { document.body.style.overflow = 'auto' }
   }, [modal])
+
+  const [partialModal, setPartialModal] = useState<{ open: boolean, item: any } | null>(null)
 
   // Carregar dados do Livro Financeiro (Todos para permitir histórico no resumo)
   useMemo(() => {
@@ -220,10 +226,23 @@ export default function ScheduleControl() {
         diasAtraso: diffDays,
         statusMessage: statusMessage,
         agendamento: s.agendamento, // Pass full object for modal checks
+        parcial: s.agendamento?.parcial || false,
         scheduleId: s.id_agendamento,
         tipo: s.agendamento?.tipo,
         periodo: s.agendamento?.periodo,
-        conferido: s.conferido || false
+        conferido: s.conferido || false,
+        // Fields for TransactionModal (snake_case) - Force string ID
+        cliente_id: s.cliente?.id ? String(s.cliente.id) : (s.cliente_id ? String(s.cliente_id) : ''),
+        grupo_compromisso_id: s.agendamento?.grupo?.id ? String(s.agendamento.grupo.id) : (s.grupo_compromisso_id ? String(s.grupo_compromisso_id) : ''),
+        compromisso_id: s.agendamento?.compromisso?.id ? String(s.agendamento.compromisso.id) : (s.compromisso_id ? String(s.compromisso_id) : ''),
+        // Do not pass objects for 'compromisso' or 'cliente' as they conflict with string names used in Table
+        conta_id: s.caixa_id ? String(s.caixa_id) : '',
+        caixa_id: s.caixa_id ? String(s.caixa_id) : '',
+        valor_entrada: isReceita ? valor : 0,
+        valor_saida: !isReceita ? valor : 0,
+        data_vencimento: vencimentoIso,
+        data_lancamento: s.data_lancamento || vencimentoIso,
+        situacao: s.situacao // Mapear situacao
       }
     }).filter((r): r is NonNullable<typeof r> => r !== null)
       .filter(r => !filterCaixa || r.caixaId === filterCaixa)
@@ -260,7 +279,8 @@ export default function ScheduleControl() {
     // However, if we filter strictly !conferido, items we JUST marked as conferido might disappear instantly?
     // User might want to see them briefly. But 'remote' update usually forces refresh.
     // Let's filter !conferido for the List View to match legacy behavior.
-    const listData = filteredByDate.filter(r => !r.conferido)
+    // Update: User wants to see checked items. But we must HIDE paid items (situacao === 2).
+    const listData = filteredByDate.filter(r => r.situacao !== 2)
 
     // Apply strict search on listData?
     // Search is already applied in 'data' map/filter chain above? 
@@ -324,6 +344,8 @@ export default function ScheduleControl() {
   }
 
   function openModal(item: any) {
+
+
     setModal(item)
     setModalContaId(item.caixaId || '')
     setModalData(item.vencimentoDate.toISOString().split('T')[0])
@@ -371,14 +393,16 @@ export default function ScheduleControl() {
           <button
             className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
             onClick={() => setShowTransactionModal(true)}
-            title="Incluir Nova Transação"
           >
             <Icon name="add" className="w-4 h-4" /> Incluir
           </button>
 
+          {/* Group Expand/Collapse Buttons Moved to Tabs Row */}
+
+
           {rows.allData.some(r => r.conferido) && (
             <button
-              className="flex items-center gap-2 bg-black text-white hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black border dark:border-gray-700 rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white border dark:border-gray-700 rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
               onClick={() => {
                 setBulkDate(new Date().toISOString().split('T')[0])
                 const firstItem = rows.allData.find(r => r.conferido)
@@ -420,45 +444,45 @@ export default function ScheduleControl() {
           <div className="flex items-center gap-2">
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
               <select
-                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[100px]"
+                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[100px]"
                 value={filterCaixa}
                 onChange={e => { setFilterCaixa(e.target.value); setPage(1) }}
               >
-                <option value="">Caixa: Todos</option>
+                <option value="" className="dark:bg-gray-800">Caixa: Todos</option>
                 {caixas.filter(c => c.ativo !== false).map(c => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
+                  <option key={c.id} value={c.id} className="dark:bg-gray-800">{c.nome}</option>
                 ))}
               </select>
             </div>
 
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
               <select
-                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
                 value={filterOp}
                 onChange={e => { setFilterOp(e.target.value); setPage(1) }}
               >
-                <option>Tipo: Todas</option>
-                <option>Somente Receitas</option>
-                <option>Somente Despesas</option>
-                <option>Somente Aporte/Ret./Transf.</option>
-                <option>Despesas e Retiradas</option>
-                <option>Receitas e Aportes</option>
-                <option>Somente Aporte</option>
-                <option>Somente Retiradas</option>
-                <option>Somente Transferências</option>
+                <option className="dark:bg-gray-800">Tipo: Todas</option>
+                <option className="dark:bg-gray-800">Somente Receitas</option>
+                <option className="dark:bg-gray-800">Somente Despesas</option>
+                <option className="dark:bg-gray-800">Somente Aporte/Ret./Transf.</option>
+                <option className="dark:bg-gray-800">Despesas e Retiradas</option>
+                <option className="dark:bg-gray-800">Receitas e Aportes</option>
+                <option className="dark:bg-gray-800">Somente Aporte</option>
+                <option className="dark:bg-gray-800">Somente Retiradas</option>
+                <option className="dark:bg-gray-800">Somente Transferências</option>
               </select>
               <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
 
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
               <select
-                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
                 value={filterGrupo}
                 onChange={e => { setFilterGrupo(e.target.value); setPage(1) }}
               >
-                <option value="">Grupo: Todos</option>
+                <option value="" className="dark:bg-gray-800">Grupo: Todos</option>
                 {grupos.map(g => (
-                  <option key={g.id} value={g.id}>{g.nome}</option>
+                  <option key={g.id} value={g.id} className="dark:bg-gray-800">{g.nome}</option>
                 ))}
               </select>
               <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
@@ -491,7 +515,7 @@ export default function ScheduleControl() {
             {buttons.map(b => (
               <button
                 key={b.id}
-                className={`px-3 py-1 text-sm rounded transition-colors duration-300 whitespace-nowrap border ${filter === b.id ? 'bg-fourtek-blue text-white border-fourtek-blue' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                className={`px-4 py-2 text-sm rounded transition-colors duration-300 whitespace-nowrap border ${filter === b.id ? 'bg-fourtek-blue text-white border-fourtek-blue' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
                 onClick={() => { setFilter(b.id); setPage(1) }}
               >
                 {b.label}
@@ -499,23 +523,27 @@ export default function ScheduleControl() {
             ))}
           </div>
 
-          {selectedIds.size > 1 && (
-            <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
-              <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
-                SOMA ITENS ({selectedIds.size})
+          <div className="flex items-center gap-2">
+            {/* Expand/Collapse buttons moved to tabs row */}
+
+            {selectedIds.size > 1 && (
+              <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
+                <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
+                  SOMA ITENS ({selectedIds.size})
+                </div>
+                <div className={`text - sm font - bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading - tight`}>
+                  {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
+                </div>
               </div>
-              <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
-                {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Tabs */}
       <div className="flex items-center gap-1 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-1 rounded-t-lg">
         <button
-          className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'realizar' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
+          className={`px - 4 py - 2 text - xs md: text - sm font - medium rounded - t - md transition - all ${activeMainTab === 'realizar' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'} `}
           onClick={() => setActiveMainTab('realizar')}
         >
           Previsão à Realizar
@@ -526,577 +554,604 @@ export default function ScheduleControl() {
         >
           Previsão Resumida
         </button>
+
+        {/* Expand/Collapse Buttons moved here */}
+        {filter === 'mesAtual' && activeMainTab === 'realizar' && (
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded border dark:border-gray-700 overflow-hidden ml-auto">
+            <button
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+              onClick={() => setExpanded(GROUP_TITLES.reduce((acc, t) => ({ ...acc, [t]: true }), {}))}
+              title="Recolher Todos"
+            >
+              <Icon name="chevron-right" className="w-4 h-4" />
+            </button>
+            <div className="w-px bg-gray-300 dark:bg-gray-700"></div>
+            <button
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+              onClick={() => setExpanded({})}
+              title="Expandir Todos"
+            >
+              <Icon name="chevron-down" className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {activeMainTab === 'resumida' ? (
-        <ScheduleSummaryView
-          data={rows.summaryData}
-          history={rows.summaryHistory}
-          showHistoryOption={true}
-          accounts={caixas}
-        />
-      ) : (
-        <div className="space-y-4">
-          {
-            filter === 'mesAtual' ? (
-              <div className="space-y-4">
-                {['Meses Anteriores', 'Vencidos', 'Próximos Lançamentos'].map(groupTitle => {
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+      {
+        activeMainTab === 'resumida' ? (
+          <ScheduleSummaryView
+            data={rows.summaryData}
+            history={rows.summaryHistory}
+            showHistoryOption={true}
+            accounts={caixas}
+          />
+        ) : (
+          <div className="space-y-4">
+            {
+              filter === 'mesAtual' ? (
+                <div className="space-y-4">
+                  {GROUP_TITLES.map(groupTitle => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
-                  const groupData = rows.data.filter(r => {
-                    const vencimento = new Date(r.vencimentoDate)
-                    vencimento.setHours(0, 0, 0, 0)
+                    const groupData = rows.data.filter(r => {
+                      const vencimento = new Date(r.vencimentoDate)
+                      vencimento.setHours(0, 0, 0, 0)
 
-                    if (groupTitle === 'Meses Anteriores') {
-                      return vencimento < firstDayOfCurrentMonth && !r.conferido
-                    } else if (groupTitle === 'Vencidos') {
-                      return vencimento >= firstDayOfCurrentMonth && vencimento < today && !r.conferido
-                    } else {
-                      // Próximos Lançamentos
-                      return (vencimento >= today || r.conferido)
-                    }
-                  })
+                      if (groupTitle === 'Meses Anteriores') {
+                        return vencimento < firstDayOfCurrentMonth
+                      } else if (groupTitle === 'Vencidos') {
+                        return vencimento >= firstDayOfCurrentMonth && vencimento < today
+                      } else {
+                        // Próximos Lançamentos (Hoje ou Futuro)
+                        return vencimento >= today
+                      }
+                    })
 
-                  if (groupData.length === 0) return null
+                    if (groupData.length === 0) return null
 
-                  // Calculate group total (Expenses only? Or Balance? Usually balance)
-                  // Let's sum Receita - Despesa
-                  const groupTotal = groupData.reduce((acc, curr) => acc + (curr.receita - curr.despesa), 0)
-                  const groupReceitas = groupData.reduce((acc, curr) => acc + curr.receita, 0)
-                  const groupDespesas = groupData.reduce((acc, curr) => acc + curr.despesa, 0)
+                    // Calculate group total (Expenses only? Or Balance? Usually balance)
+                    // Let's sum Receita - Despesa
+                    const groupTotal = groupData.reduce((acc, curr) => acc + (curr.receita - curr.despesa), 0)
+                    const groupReceitas = groupData.reduce((acc, curr) => acc + curr.receita, 0)
+                    const groupDespesas = groupData.reduce((acc, curr) => acc + curr.despesa, 0)
 
-                  return (
-                    <div key={groupTitle} className="border dark:border-gray-700 rounded-lg overflow-hidden">
-                      <div className="bg-slate-700 dark:bg-slate-800 text-white px-4 py-2 text-sm font-medium flex justify-between items-center cursor-pointer"
-                        onClick={() => setExpanded(prev => ({ ...prev, [groupTitle]: !prev[groupTitle] }))}>
-                        <div className="flex items-center gap-2">
-                          <span>- Situação : {groupTitle}</span>
+                    return (
+                      <div key={groupTitle} className="border dark:border-gray-700 rounded-lg overflow-hidden">
+                        <div className="bg-slate-700 dark:bg-slate-800 text-white px-4 py-2 text-sm font-medium flex justify-between items-center cursor-pointer hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors"
+                          onClick={() => setExpanded(prev => ({ ...prev, [groupTitle]: !prev[groupTitle] }))}>
+                          <div className="flex items-center gap-2">
+                            <Icon name={!expanded[groupTitle] ? 'chevron-down' : 'chevron-right'} className="w-5 h-5" />
+                            <span>Situação: {groupTitle}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className={groupTotal >= 0 ? 'text-green-300' : 'text-red-300'}>
+                              {groupTotal < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(groupTotal))}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className={groupTotal >= 0 ? 'text-green-300' : 'text-red-300'}>
-                            {groupTotal < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(groupTotal))}
-                          </span>
-                        </div>
-                      </div>
 
-                      {/* Always show, or toggle? User image shows expanded. Let's default expand or respect state. 
-                          I'll default expand in state init or just render if not in expanded dict (default open) */}
-                      {(!expanded[groupTitle]) && ( // Default Open: logic inverted or init empty? Let's assume !expanded means OPEN if we change logic, but here likely means CLOSED. 
-                        // Let's fix state: expanded defaults to {}. If not present, is it open? 
-                        // Implementation: onClick toggles. 
-                        // Let's treat undefined as OPEN.
-                        // So if expanded[groupTitle] === false -> Closed. === true -> Open?
-                        // Actually in code usually: expanded[id] ? Open : Closed.
-                        // Let's assume we want them OPEN by default.
-                        // So logic: expanded[groupTitle] !== false (undefined is true)
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
-                              <tr>
-                                <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
-                                <th className="px-4 py-2 text-left">Caixa de Lançamento</th>
-                                <th className="px-4 py-2 text-left">Cliente</th>
-                                <th className="px-4 py-2 text-left">Compromisso</th>
-                                <th className="px-4 py-2 text-left">Histórico</th>
-                                <th className="px-4 py-2 text-right w-36">Receita</th>
-                                <th className="px-4 py-2 text-right w-36">Despesa</th>
-                                <th className="px-4 py-2 text-center w-16">Parcela</th>
-                                <th className="px-4 py-2 text-center w-16">Conferido</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
-                              {groupData.map(item => (
-                                <tr
-                                  key={item.id}
-                                  className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30' : ''
-                                    } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
-                                  onClick={(e) => handleSelect(e, item.id)}
-                                  onContextMenu={(e) => {
-                                    e.preventDefault()
-                                    setContextMenu({ x: e.clientX, y: e.clientY, item })
-                                  }}
-                                >
-                                  <td className="px-4 py-2 align-top whitespace-nowrap">
-                                    <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
-                                    {!item.conferido && item.diasAtraso > 0 && (
-                                      <div className="text-[10px] text-red-500 font-medium mt-0.5">
-                                        Vencido há {item.diasAtraso} dia(s)...
-                                      </div>
-                                    )}
-                                    {!item.conferido && item.diasAtraso === 0 && (
-                                      <div className="text-[10px] text-blue-500 font-medium mt-0.5">
-                                        Vencimento Hoje
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate" title={item.caixa}>
-                                    {item.caixa}
-                                  </td>
-                                  <td className="px-4 py-2 text-slate-700 dark:text-gray-300 font-medium align-top max-w-[150px] truncate" title={item.cliente}>
-                                    {item.cliente}
-                                  </td>
-                                  <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate">
-                                    {item.compromisso}
-                                  </td>
-                                  <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[200px] truncate" title={item.historico}>
-                                    {item.historico}
-                                  </td>
-                                  <td className="px-4 py-2 text-right align-top">
-                                    {item.receita > 0 ? (
-                                      <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.receita)}</span>
-                                    ) : '-'}
-                                  </td>
-                                  <td className="px-4 py-2 text-right align-top">
-                                    {item.despesa > 0 ? (
-                                      <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.despesa)}</span>
-                                    ) : '-'}
-                                  </td>
-                                  <td className="px-4 py-2 text-center text-slate-500 dark:text-gray-500 text-[11px] align-top">
-                                    {item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : ''}
-                                  </td>
-                                  <td className="px-4 py-2 text-center align-top" onClick={e => e.stopPropagation()}>
-                                    <input
-                                      type="checkbox"
-                                      checked={item.conferido}
-                                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                                      onChange={async (e) => {
-                                        const checked = e.target.checked
-                                        if (checked) {
-                                          // Abrir modal de confirmação para baixa
-                                          setModalContaId(item.caixaId)
-                                          setModalData(new Date().toISOString().split('T')[0])
-                                          setModalValor(item.despesa || item.receita)
-                                          setPendingConfirmation({ item, checked: true })
-                                          setShowConfirmModal(true)
-                                        } else {
-                                          // Desmarcar direto?
-                                          if (hasBackend) {
-                                            await updateFinancial(item.id, { situacao: 1, conferido: false })
-                                            listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                                          }
-                                        }
-                                      }}
-                                    />
-                                  </td>
+                        {/* Default Open (expanded[title] falsy means open) */}
+                        {(!expanded[groupTitle]) && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs table-fixed">
+                              <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
+                                <tr>
+                                  <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
+                                  <th className="px-4 py-2 text-left w-[15%]">Caixa de Lançamento</th>
+                                  <th className="px-4 py-2 text-left w-[20%]">Cliente</th>
+                                  <th className="px-4 py-2 text-left w-[15%]">Compromisso</th>
+                                  <th className="px-4 py-2 text-left w-[15%]">Histórico</th>
+                                  <th className="px-4 py-2 text-right w-28">Receita</th>
+                                  <th className="px-4 py-2 text-right w-28">Despesa</th>
+                                  <th className="px-4 py-2 text-center w-16">Parcela</th>
+                                  <th className="px-4 py-2 text-center w-16">Conferido</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                            <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
-                              <tr>
-                                <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
-                                <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(groupReceitas)}</td>
-                                <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(groupDespesas)}</td>
-                                <td colSpan={2}></td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              // Tabela Padrão para outros filtros (não agrupada por Situação/Meses, ou simples)
-              // The user layout seems to prefer the Grouped view for "Mes Atual" which splits "Previous" vs "Next"
-              // For other filters like "Next Month", maybe just one table?
-              // Existing code uses `rows.data.map...` directly. Let's keep that structure for non-'mesAtual'.
-              <div className="border dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
-                      <tr>
-                        <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
-                        <th className="px-4 py-2 text-left">Caixa de Lançamento</th>
-                        <th className="px-4 py-2 text-left">Cliente</th>
-                        <th className="px-4 py-2 text-left">Compromisso</th>
-                        <th className="px-4 py-2 text-left">Histórico</th>
-                        <th className="px-4 py-2 text-right w-36">Receita</th>
-                        <th className="px-4 py-2 text-right w-36">Despesa</th>
-                        <th className="px-4 py-2 text-center w-16">Parcela</th>
-                        <th className="px-4 py-2 text-center w-16">Conferido</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {rows.data.map(item => (
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30' : ''
-                            } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
-                          onClick={(e) => handleSelect(e, item.id)}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            setContextMenu({ x: e.clientX, y: e.clientY, item })
-                          }}
-                        >
-                          <td className="px-4 py-2 align-top whitespace-nowrap">
-                            <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
-                            {!item.conferido && item.diasAtraso > 0 && (
-                              <div className="text-[10px] text-red-500 font-medium mt-0.5">
-                                Vencido há {item.diasAtraso} dia(s)...
-                              </div>
-                            )}
-                            {!item.conferido && item.diasAtraso === 0 && (
-                              <div className="text-[10px] text-blue-500 font-medium mt-0.5">
-                                Vencimento Hoje
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate" title={item.caixa}>
-                            {item.caixa}
-                          </td>
-                          <td className="px-4 py-2 text-slate-700 dark:text-gray-300 font-medium align-top max-w-[150px] truncate" title={item.cliente}>
-                            {item.cliente}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate">
-                            {item.compromisso}
-                          </td>
-                          <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[200px] truncate" title={item.historico}>
-                            {item.historico}
-                          </td>
-                          <td className="px-4 py-2 text-right align-top">
-                            {item.receita > 0 ? (
-                              <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.receita)}</span>
-                            ) : '-'}
-                          </td>
-                          <td className="px-4 py-2 text-right align-top">
-                            {item.despesa > 0 ? (
-                              <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.despesa)}</span>
-                            ) : '-'}
-                          </td>
-                          <td className="px-4 py-2 text-center text-slate-500 dark:text-gray-500 text-[11px] align-top">
-                            {item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : ''}
-                          </td>
-                          <td className="px-4 py-2 text-center align-top" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={item.conferido}
-                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                              onChange={async (e) => {
-                                const checked = e.target.checked
-                                if (checked) {
-                                  // Abrir modal de confirmação para baixa
-                                  setModalContaId(item.caixaId)
-                                  setModalData(new Date().toISOString().split('T')[0])
-                                  setModalValor(item.despesa || item.receita)
-                                  setPendingConfirmation({ item, checked: true })
-                                  setShowConfirmModal(true)
-                                } else {
-                                  // Desmarcar direto?
-                                  if (hasBackend) {
-                                    await updateFinancial(item.id, { situacao: 1, conferido: false })
-                                    listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                                  }
-                                }
-                              }}
-                            />
-                          </td>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
+                                {groupData.map(item => (
+                                  <React.Fragment key={item.id}>
+                                    <tr
+                                      className={`hover: bg - blue - 50 dark: hover: bg - blue - 900 / 20 transition - colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
+                                        } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''} `}
+                                      onClick={(e) => handleSelect(e, item.id)}
+                                      onContextMenu={(e) => {
+                                        e.preventDefault()
+                                        setContextMenu({ x: e.clientX, y: e.clientY, item })
+                                      }}
+                                      onDoubleClick={() => {
+                                        openModal(item)
+                                        setShowTransactionModal(true)
+                                      }}
+                                    >
+                                      <td className="px-4 py-2 align-top whitespace-nowrap">
+                                        <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
+                                        {!item.conferido && item.diasAtraso > 0 && (
+                                          <div className="text-xs text-red-500 font-medium mt-0.5">
+                                            Vencido há {item.diasAtraso} dia(s)...
+                                          </div>
+                                        )}
+                                        {!item.conferido && item.diasAtraso === 0 && (
+                                          <div className="text-xs text-blue-500 font-medium mt-0.5">
+                                            Vencimento Hoje
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="px-4 py-2 align-top truncate text-gray-500 dark:text-gray-400" title={item.caixa}>
+                                        {item.caixa}
+                                      </td>
+                                      <td className="px-4 py-2 align-top truncate font-medium text-slate-700 dark:text-gray-300 transform transition-transform hover:scale-[1.02] origin-left" title={item.cliente}>
+                                        {item.cliente}
+                                      </td>
+                                      <td className="px-4 py-2 align-top truncate text-gray-600 dark:text-gray-400" title={item.compromisso}>
+                                        {item.compromisso}
+                                      </td>
+                                      <td className="px-4 py-2 align-top truncate text-gray-500 dark:text-gray-500" title={item.historico}>
+                                        {item.historico}
+                                      </td>
+                                      <td className="px-4 py-2 align-top text-right text-green-600 dark:text-green-400 whitespace-nowrap">
+                                        {item.receita > 0 ? `R$ ${formatMoneyBr(item.receita)} ` : '-'}
+                                      </td>
+                                      <td className="px-4 py-2 align-top text-right text-red-600 dark:text-red-400 whitespace-nowrap">
+                                        {item.despesa > 0 ? `R$ ${formatMoneyBr(item.despesa)} ` : '-'}
+                                      </td>
+                                      <td className="px-4 py-2 align-top text-center text-gray-400 text-xs">
+                                        {item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : ''}
+                                      </td >
+                                      <td className="px-4 py-2 align-top text-center" onClick={(e) => { e.stopPropagation() }}>
+                                        <input
+                                          type="checkbox"
+                                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                          checked={item.conferido}
+                                          onChange={async (e) => {
+                                            if (hasBackend) {
+                                              // Toggle 'conferido' status directly without modal
+                                              await updateFinancial(item.id, { situacao: 1, conferido: !item.conferido })
+
+                                              // Reload data
+                                              listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                                            }
+                                          }}
+                                        />
+                                      </td>
+                                    </tr >
+                                    {item.agendamento?.parcial && item.agendamento.valor > (item.receita || item.despesa) && (
+                                      <tr className="">
+                                        <td colSpan={9} className="px-4 py-1 text-left font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                          Valor do Compromisso Agendado {formatMoneyBr(item.agendamento.valor)} *** Valor ja Realizado {formatMoneyBr(item.agendamento.valor - (item.receita || item.despesa))}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment >
+                                ))}
+                              </tbody >
+                              <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
+                                <tr>
+                                  <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
+                                  <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(groupReceitas)}</td>
+                                  <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(groupDespesas)}</td>
+                                  <td colSpan={2}></td>
+                                </tr>
+                              </tfoot>
+                            </table >
+                          </div >
+                        )}
+                      </div >
+                    )
+                  })}
+                </div >
+              ) : (
+                // Tabela Padrão para outros filtros (não agrupada por Situação/Meses, ou simples)
+                // The user layout seems to prefer the Grouped view for "Mes Atual" which splits "Previous" vs "Next"
+                // For other filters like "Next Month", maybe just one table?
+                // Existing code uses `rows.data.map...` directly. Let's keep that structure for non-'mesAtual'.
+                <div className="border dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
+                        <tr>
+                          <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
+                          <th className="px-4 py-2 text-left">Caixa de Lançamento</th>
+                          <th className="px-4 py-2 text-left">Cliente</th>
+                          <th className="px-4 py-2 text-left">Compromisso</th>
+                          <th className="px-4 py-2 text-left">Histórico</th>
+                          <th className="px-4 py-2 text-right w-36">Receita</th>
+                          <th className="px-4 py-2 text-right w-36">Despesa</th>
+                          <th className="px-4 py-2 text-center w-16">Parcela</th>
+                          <th className="px-4 py-2 text-center w-16">Conferido</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
-                      <tr>
-                        <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
-                        <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(rows.totalReceitas)}</td>
-                        <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(rows.totalDespesas)}</td>
-                        <td colSpan={2}></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )
-          }
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {rows.data.map(item => (
+                          <React.Fragment key={item.id}>
+                            <tr
+                              className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
+                                } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                              onClick={(e) => handleSelect(e, item.id)}
+                              onContextMenu={(e) => {
+                                e.preventDefault()
+                                setContextMenu({ x: e.clientX, y: e.clientY, item })
+                              }}
+                              onDoubleClick={() => {
+                                openModal(item)
+                                setShowTransactionModal(true)
+                              }}
+                            >
+                              <td className="px-4 py-2 align-top whitespace-nowrap">
+                                <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
+                                {!item.conferido && item.diasAtraso > 0 && (
+                                  <div className="text-xs text-red-500 font-medium mt-0.5">
+                                    Vencido há {item.diasAtraso} dia(s)...
+                                  </div>
+                                )}
+                                {!item.conferido && item.diasAtraso === 0 && (
+                                  <div className="text-xs text-blue-500 font-medium mt-0.5">
+                                    Vencimento Hoje
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate" title={item.caixa}>
+                                {item.caixa}
+                              </td>
+                              <td className="px-4 py-2 text-slate-700 dark:text-gray-300 font-medium align-top max-w-[150px] truncate" title={item.cliente}>
+                                {item.cliente}
+                              </td>
+                              <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate">
+                                {item.compromisso}
+                              </td>
+                              <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[200px] truncate" title={item.historico}>
+                                {item.historico}
+                              </td>
+                              <td className="px-4 py-2 text-right align-top">
+                                {item.receita > 0 ? (
+                                  <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.receita)}</span>
+                                ) : '-'}
+                              </td>
+                              <td className="px-4 py-2 text-right align-top">
+                                {item.despesa > 0 ? (
+                                  <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.despesa)}</span>
+                                ) : '-'}
+                              </td>
+                              <td className="px-4 py-2 text-center text-slate-500 dark:text-gray-500 text-[11px] align-top">
+                                {item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : ''}
+                              </td>
+                              <td className="px-4 py-2 text-center align-top" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={item.conferido}
+                                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                  onChange={async (e) => {
+                                    const checked = e.target.checked
+                                    if (hasBackend) {
 
-          {/* Context Menu */}
-          {
-            contextMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
-                <div
-                  className="fixed z-50 bg-white shadow-lg rounded border p-1 w-48 text-sm"
-                  style={{ top: contextMenu.y, left: contextMenu.x }}
-                >
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-                    setContextMenu(null)
-                    openModal(contextMenu.item)
-                  }}>
-                    <Icon name="edit" className="w-4 h-4" />
-                    Alterar
-                  </button>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => {
-                    // Duplicar logic
-                    const newItem = { ...contextMenu.item, id: undefined, id_livro: undefined }
-                    // ... implementation of duplicate ...
-                    setContextMenu(null)
-                    // For now just alert or open modal with copy
-                    setModal({ ...contextMenu.item, id: undefined })
-                  }}>
-                    <Icon name="copy" className="w-4 h-4" />
-                    Duplicar
-                  </button>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={async () => {
-                    if (confirm('Tem certeza que deseja excluir este lançamento?')) {
-                      if (contextMenu.item.scheduleId) {
-                        if (confirm('Este item pertence a um agendamento. Deseja excluir apenas este lançamento (OK) ou o agendamento completo (Cancel)?')) {
-                          await deleteFinancial(contextMenu.item.id)
-                        } else {
-                          // delete schedule logic is tricky here, usually we just link to schedule page
-                        }
-                      } else {
-                        await deleteFinancial(contextMenu.item.id)
-                      }
+                                      // Toggle 'conferido' status directly without modal
+                                      await updateFinancial(item.id, { situacao: 1, conferido: checked })
+
+                                      // Refresh view
+                                      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => {
+                                        if (!r.error && r.data) setRemote(r.data as any)
+                                      })
+                                    }
+                                  }}
+                                />
+                              </td>
+                            </tr>
+                            {item.agendamento?.parcial && item.agendamento.valor > (item.receita || item.despesa) && (
+                              <tr className="">
+                                <td colSpan={9} className="px-4 py-1 text-left font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                  Valor do Compromisso Agendado {formatMoneyBr(item.agendamento.valor)} *** Valor ja Realizado {formatMoneyBr(item.agendamento.valor - (item.receita || item.despesa))}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
+                        <tr>
+                          <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
+                          <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(rows.totalReceitas)}</td>
+                          <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(rows.totalDespesas)}</td>
+                          <td colSpan={2}></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )
+            }
+
+            {/* Context Menu */}
+            {
+              contextMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+                  <div
+                    className="fixed z-50 bg-white shadow-lg rounded border p-1 w-64 text-sm"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                  >
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
                       setContextMenu(null)
-                      // Refresh
+                      openModal(contextMenu.item)
+                      setShowTransactionModal(true)
+                    }}>
+                      <Icon name="edit" className="w-4 h-4" />
+                      Alterar
+                    </button>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => {
+                      // Duplicar logic
+                      const newItem = { ...contextMenu.item, id: undefined, id_livro: undefined }
+                      // ... implementation of duplicate ...
+                      setContextMenu(null)
+                      // For now just alert or open modal with copy
+                      setModal({ ...contextMenu.item, id: undefined })
+                    }}>
+                      <Icon name="copy" className="w-4 h-4" />
+                      Duplicar
+                    </button>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={async () => {
+                      if (confirm('Tem certeza que deseja excluir este lançamento?')) {
+                        if (contextMenu.item.scheduleId) {
+                          if (confirm('Este item pertence a um agendamento. Deseja excluir apenas este lançamento (OK) ou o agendamento completo (Cancel)?')) {
+                            await deleteFinancial(contextMenu.item.id)
+                          } else {
+                            // delete schedule logic is tricky here, usually we just link to schedule page
+                          }
+                        } else {
+                          await deleteFinancial(contextMenu.item.id)
+                        }
+                        setContextMenu(null)
+                        // Refresh
+                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                      }
+                    }}>
+                      <Icon name="trash" className="w-4 h-4" />
+                      Excluir
+                    </button>
+
+                    <div className="border-t my-1"></div>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => {
+                      setEditValueModal({ open: true, item: contextMenu.item, value: contextMenu.item.despesa || contextMenu.item.receita })
+                      setContextMenu(null)
+                    }}>
+                      <Icon name="dollar-sign" className="w-4 h-4" />
+                      Alterar Valor Previsto
+                    </button>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-purple-600" onClick={() => {
+                      setSkipId(contextMenu.item.id)
+                      setShowSkipConfirm(true)
+                      setContextMenu(null)
+                    }}>
+                      <Icon name="skip-forward" className="w-4 h-4" />
+                      Saltar Lançamento
+                    </button>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+                      const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
+                      setEditDateModal({ open: true, item: contextMenu.item, date: d })
+                      setContextMenu(null)
+                    }}>
+                      <Icon name="calendar" className="w-4 h-4" />
+                      Alterar Data Vencimento
+                    </button>
+
+                    <div className="border-t my-1"></div>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
+                      const item = contextMenu.item
+                      if (item && item.scheduleId) {
+                        navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
+                      } else {
+                        alert('Item sem agendamento vinculado')
+                      }
+                    }}>
+                      <Icon name="calendar" className="w-4 h-4 text-gray-500" />
+                      Ir ao Agendamento do Item
+                    </button>
+                  </div>
+                </>
+              )
+            }
+
+            {/* Edit Value Modal */}
+            {
+              editValueModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                  <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+                    <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
+                    <input
+                      type="number"
+                      className="w-full border rounded px-3 py-2 mb-4"
+                      value={editValueModal.value}
+                      onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
+                      <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                        if (hasBackend) {
+                          await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
+                          setEditValueModal(null)
+                          listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                        } else {
+                          alert('Backend required')
+                        }
+                      }}>Salvar</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            {/* Edit Date Modal */}
+            {
+              editDateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                  <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+                    <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
+                    <input
+                      type="date"
+                      className="w-full border rounded px-3 py-2 mb-4"
+                      value={editDateModal.date}
+                      onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
+                      <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                        if (hasBackend) {
+                          await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
+                          setEditDateModal(null)
+                          listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                        } else {
+                          alert('Backend required')
+                        }
+                      }}>Salvar</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            {/* Skip Confirmation Modal */}
+            {
+              showSkipConfirm && (
+                <ConfirmModal
+                  isOpen={showSkipConfirm}
+                  title="Saltar Lançamento"
+                  message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
+                  onConfirm={async () => {
+                    if (skipId) {
+                      if (hasBackend) {
+                        await updateFinancial(skipId, { situacao: 4 })
+                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                      } else {
+                        alert('Necessário backend')
+                      }
+                    }
+                    setShowSkipConfirm(false)
+                    setSkipId(null)
+                  }}
+                  onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
+                />
+              )
+            }
+
+            {/* Confirm Modal for Provision */}
+            {
+              showConfirmModal && (
+                <ConfirmModal
+                  isOpen={showConfirmModal}
+                  title="Confirmar Baixa"
+                  message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
+                  onClose={() => {
+                    setShowConfirmModal(false)
+                    setPendingConfirmation(null)
+                  }}
+                  onConfirm={async () => {
+                    if (pendingConfirmation && hasBackend) {
+                      // We need to confirm provision
+                      // Check if we need to set specific account/date?
+                      // Using default logic from confirmProvision
+                      await confirmProvision(pendingConfirmation.item.id, { valor: modalValor, data: modalData, cuentaId: modalContaId })
                       listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                     }
-                  }}>
-                    <Icon name="trash" className="w-4 h-4" />
-                    Excluir
-                  </button>
-
-                  <div className="border-t my-1"></div>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => {
-                    setEditValueModal({ open: true, item: contextMenu.item, value: contextMenu.item.despesa || contextMenu.item.receita })
-                    setContextMenu(null)
-                  }}>
-                    <Icon name="dollar-sign" className="w-4 h-4" />
-                    Alterar Valor Previsto
-                  </button>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-purple-600" onClick={() => {
-                    setSkipId(contextMenu.item.id)
-                    setShowSkipConfirm(true)
-                    setContextMenu(null)
-                  }}>
-                    <Icon name="skip-forward" className="w-4 h-4" />
-                    Saltar Lançamento
-                  </button>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-                    const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
-                    setEditDateModal({ open: true, item: contextMenu.item, date: d })
-                    setContextMenu(null)
-                  }}>
-                    <Icon name="calendar" className="w-4 h-4" />
-                    Alterar Data Vencimento
-                  </button>
-
-                  <div className="border-t my-1"></div>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
-                    const item = contextMenu.item
-                    if (item && item.scheduleId) {
-                      navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
-                    } else {
-                      alert('Item sem agendamento vinculado')
-                    }
-                  }}>
-                    <Icon name="calendar" className="w-4 h-4 text-gray-500" />
-                    Ir ao Agendamento do Item
-                  </button>
-                </div>
-              </>
-            )
-          }
-
-          {/* Edit Value Modal */}
-          {
-            editValueModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-                  <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
-                  <input
-                    type="number"
-                    className="w-full border rounded px-3 py-2 mb-4"
-                    value={editValueModal.value}
-                    onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
-                    <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                      if (hasBackend) {
-                        await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
-                        setEditValueModal(null)
-                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                      } else {
-                        alert('Backend required')
-                      }
-                    }}>Salvar</button>
+                    setShowConfirmModal(false)
+                    setPendingConfirmation(null)
+                  }}
+                >
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data do Pagamento/Recebimento</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        value={modalData}
+                        onChange={e => setModalData(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa</label>
+                      <select
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        value={modalContaId}
+                        onChange={e => setModalContaId(e.target.value)}
+                      >
+                        <option value="">Selecione...</option>
+                        {caixas.map(c => (
+                          <option key={c.id} value={c.id}>{c.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valor Realizado</label>
+                      <input
+                        type="number"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        value={modalValor}
+                        onChange={e => setModalValor(parseFloat(e.target.value))}
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
-            )
-          }
+                </ConfirmModal>
+              )
+            }
 
-          {/* Edit Date Modal */}
-          {
-            editDateModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-                  <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
-                  <input
-                    type="date"
-                    className="w-full border rounded px-3 py-2 mb-4"
-                    value={editDateModal.date}
-                    onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
-                    <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                      if (hasBackend) {
-                        await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
-                        setEditDateModal(null)
-                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                      } else {
-                        alert('Backend required')
-                      }
-                    }}>Salvar</button>
-                  </div>
-                </div>
-              </div>
-            )
-          }
-
-          {/* Skip Confirmation Modal */}
-          {
-            showSkipConfirm && (
-              <ConfirmModal
-                isOpen={showSkipConfirm}
-                title="Saltar Lançamento"
-                message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
-                onConfirm={async () => {
-                  if (skipId) {
+            {/* Bulk Confirm Modal */}
+            {
+              showBulkConfirm && (
+                <BulkTransactionModal
+                  isOpen={showBulkConfirm}
+                  items={rows.allData.filter(r => r.conferido)}
+                  accounts={caixas}
+                  onClose={() => setShowBulkConfirm(false)}
+                  onConfirm={async (data) => {
+                    const checkedItems = rows.allData.filter(r => r.conferido)
                     if (hasBackend) {
-                      await updateFinancial(skipId, { situacao: 4 })
-                      listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                    } else {
-                      alert('Necessário backend')
+                      for (const item of checkedItems) {
+                        // Use the date/account from the modal
+                        await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
+                      }
+                      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                     }
-                  }
-                  setShowSkipConfirm(false)
-                  setSkipId(null)
-                }}
-                onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
-              />
-            )
-          }
+                    setShowBulkConfirm(false)
+                  }}
+                />
+              )
+            }
+          </div >
+        )
+      }
 
-          {/* Confirm Modal for Provision */}
-          {showConfirmModal && (
-            <ConfirmModal
-              isOpen={showConfirmModal}
-              title="Confirmar Baixa"
-              message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
-              onClose={() => {
-                setShowConfirmModal(false)
-                setPendingConfirmation(null)
-              }}
-              onConfirm={async () => {
-                if (pendingConfirmation && hasBackend) {
-                  // We need to confirm provision
-                  // Check if we need to set specific account/date?
-                  // Using default logic from confirmProvision
-                  await confirmProvision(pendingConfirmation.item.id, { valor: modalValor, data: modalData, cuentaId: modalContaId })
-                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                }
-                setShowConfirmModal(false)
-                setPendingConfirmation(null)
-              }}
-            >
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data do Pagamento/Recebimento</label>
-                  <input
-                    type="date"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                    value={modalData}
-                    onChange={e => setModalData(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa</label>
-                  <select
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                    value={modalContaId}
-                    onChange={e => setModalContaId(e.target.value)}
-                  >
-                    <option value="">Selecione...</option>
-                    {caixas.map(c => (
-                      <option key={c.id} value={c.id}>{c.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valor Realizado</label>
-                  <input
-                    type="number"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                    value={modalValor}
-                    onChange={e => setModalValor(parseFloat(e.target.value))}
-                  />
-                </div>
-              </div>
-            </ConfirmModal>
-          )}
+      {
+        showTransactionModal && (
+          <TransactionModal
+            onClose={() => { setShowTransactionModal(false); setModal(null) }}
+            initialData={modal ? {
+              ...modal,
+              id: undefined,
+              data_lancamento: undefined,
+              valor_saida: modal.despesa || (modal.tipo === 'despesa' ? modal.valor : 0),
+              valor_entrada: modal.receita || (modal.tipo === 'receita' ? modal.valor : 0),
+              operacao: (modal.operacao || modal.tipo || 'despesa').toLowerCase(),
+              cliente_id: modal.favorecido_id || modal.cliente_id,
+              cliente: modal.favorecido_id || modal.cliente_id,
+              grupo_compromisso_id: modal.grupo_compromisso_id,
+              compromisso_id: modal.compromisso_id,
+              historico: modal.historico,
+              conta_id: modal.caixa_id,
+              data_vencimento: modal.vencimento || modal.data_vencimento
+            } : undefined}
+            financialId={modal?.id}
+            onSuccess={() => {
+              setShowTransactionModal(false)
+              setModal(null)
+              if (hasBackend) {
+                listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+              }
+            }}
+            title={modal ? 'Confirmar/Editar Lançamento' : 'Incluir Nova Transação'}
+          />
+        )
+      }
 
-          {/* Bulk Confirm Modal */}
-          {showBulkConfirm && (
-            <ConfirmModal
-              isOpen={showBulkConfirm}
-              title="Baixar Lançamentos Conferidos"
-              message={`Deseja baixar ${rows.allData.filter(r => r.conferido).length} lançamentos selecionados?`}
-              onClose={() => setShowBulkConfirm(false)}
-              onConfirm={async () => {
-                const checkedItems = rows.allData.filter(r => r.conferido)
-                if (hasBackend) {
-                  for (const item of checkedItems) {
-                    await confirmProvision(item.id, { valor: item.despesa || item.receita, data: bulkDate, cuentaId: bulkAccount })
-                  }
-                  listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                }
-                setShowBulkConfirm(false)
-              }}
-            >
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data da Baixa em Lote</label>
-                  <input
-                    type="date"
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                    value={bulkDate}
-                    onChange={e => setBulkDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa Padrão</label>
-                  <select
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                    value={bulkAccount}
-                    onChange={e => setBulkAccount(e.target.value)}
-                  >
-                    <option value="">Selecione...</option>
-                    {caixas.map(c => (
-                      <option key={c.id} value={c.id}>{c.nome}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </ConfirmModal>
-          )}
-        </div>
-      )}
-
-      {showTransactionModal && (
-        <TransactionModal
-          onClose={() => setShowTransactionModal(false)}
-          onSuccess={() => {
-            setShowTransactionModal(false)
-            setModal(null)
-            window.location.reload()
-          }}
-          title="Incluir Nova Transação"
-        />
-      )}
     </div >
   )
 }
+

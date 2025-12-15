@@ -1,26 +1,29 @@
 import { useEffect, useState } from 'react'
-import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction, listAttachments, addAttachment, deleteAttachment } from '../../services/db'
+import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction, createTransaction, listAttachments, addAttachment, deleteAttachment, updateFinancial } from '../../services/db'
 import { hasBackend } from '../../lib/runtime'
 import { useAppStore } from '../../store/AppStore'
 import { supabase } from '../../lib/supabase'
 import { Icon } from '../ui/Icon'
 import { TransactionAttachments } from '../TransactionAttachments'
 import { ClientModal } from './ClientModal'
+import { PartialConfirmModal } from './PartialConfirmModal'
 
 type Props = {
     onClose: () => void
     onSuccess?: () => void
     initialData?: any
     title?: string
+    financialId?: string
 }
 
-export function TransactionModal({ onClose, onSuccess, initialData, title }: Props) {
+export function TransactionModal({ onClose, onSuccess, initialData, title, financialId }: Props) {
 
 
     const store = useAppStore()
     const [msg, setMsg] = useState('')
     const [activeTab, setActiveTab] = useState<'details' | 'attachments'>('details')
     const [showClientModal, setShowClientModal] = useState(false)
+    const [showPartialConfirm, setShowPartialConfirm] = useState(false)
 
     // Data
     const [accounts, setAccounts] = useState<any[]>([])
@@ -45,14 +48,15 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
     const [formCompromisso, setFormCompromisso] = useState('')
     const [formNotaFiscal, setFormNotaFiscal] = useState('')
     const [formDetalhes, setFormDetalhes] = useState('')
+    const [formParcial, setFormParcial] = useState(false)
 
     useEffect(() => {
         async function loadData() {
             if (hasBackend) {
                 const [a, c, g] = await Promise.all([
-                    listAccounts(),
-                    listClients(),
-                    listCommitmentGroups()
+                    listAccounts(store.activeOrganization || undefined),
+                    listClients(store.activeOrganization || undefined),
+                    listCommitmentGroups(store.activeOrganization || undefined)
                 ])
                 setAccounts(a.data || [])
                 setClients(c.data || [])
@@ -75,11 +79,13 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
             setFormDataVencimento(initialData.data_vencimento ? initialData.data_vencimento.split('T')[0] : today)
             setFormDataLancamento(initialData.data_lancamento ? initialData.data_lancamento.split('T')[0] : today)
             setFormStatus(initialData.status || 'pendente')
-            setFormCliente(initialData.cliente_id || (typeof initialData.cliente === 'string' ? initialData.cliente : initialData.cliente?.id) || '')
-            setFormGrupoCompromisso(initialData.grupo_compromisso_id || initialData.grupo_id || (typeof initialData.grupo_compromisso === 'string' ? initialData.grupo_compromisso : initialData.grupo_compromisso?.id) || '')
-            setFormCompromisso(initialData.compromisso_id || (typeof initialData.compromisso === 'string' ? initialData.compromisso : initialData.compromisso?.id) || '')
+            setFormCliente(initialData.cliente_id || initialData.cliente?.id || (typeof initialData.cliente === 'string' ? initialData.cliente : '') || '')
+            // Check 'grupo' alias from db.ts as well as 'grupo_compromisso' if different
+            setFormGrupoCompromisso(initialData.grupo_compromisso_id || initialData.grupo?.id || initialData.grupo_id || (typeof initialData.grupo_compromisso === 'string' ? initialData.grupo_compromisso : initialData.grupo_compromisso?.id) || '')
+            setFormCompromisso(initialData.compromisso_id || initialData.compromisso?.id || (typeof initialData.compromisso === 'string' ? initialData.compromisso : '') || '')
             setFormNotaFiscal(initialData.nota_fiscal || '')
             setFormDetalhes(initialData.detalhes ? (typeof initialData.detalhes === 'string' ? initialData.detalhes : JSON.stringify(initialData.detalhes)) : '')
+            setFormParcial(!!initialData.parcial)
         } else {
             // Defaults
             const today = new Date().toISOString().split('T')[0]
@@ -143,22 +149,48 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
             especie: formEspecie
         }
 
+        // Logic for Partial Trigger
+        const initialValue = Number(initialData?.valor_saida || initialData?.valor_entrada || 0)
+
+        // If it is a partial item AND value changed significantly
+        if (formParcial && financialId && Math.abs(formValor - initialValue) > 0.01) {
+            setShowPartialConfirm(true)
+            return
+        }
+
+        await executeSave(newTransaction)
+    }
+
+    async function executeSave(transactionData: any, partialAction?: 'keep_open' | 'finalize') {
         if (hasBackend && supabase) {
             let r
             let txId = initialData?.id
 
             if (txId) {
-                r = await updateTransaction(txId, newTransaction)
+                r = await updateTransaction(txId, transactionData, store.activeOrganization || undefined)
             } else {
-                const userId = (await supabase.auth.getUser()).data.user?.id
-                r = await supabase.from('transactions').insert([{ user_id: userId, ...newTransaction }]).select().single()
-                if (r.data) txId = r.data.id
+                r = await createTransaction(transactionData, store.activeOrganization || undefined)
+                if (r.data) {
+                    txId = r.data.id
+                    if (financialId) {
+                        if (partialAction === 'keep_open') {
+                            // Update Financial Item with remaining value and keep it Open (Pending)
+                            const initialValue = Number(initialData?.valor_saida || initialData?.valor_entrada || initialData?.valor || 0)
+                            const paidAmount = Number(transactionData.valor_entrada || transactionData.valor_saida || 0)
+                            const remainder = Math.max(0, initialValue - paidAmount) // Prevent negative values
+
+                            await updateFinancial(financialId, { valor: remainder, situacao: 1 }, store.activeOrganization || undefined)
+                        } else {
+                            // Finalize
+                            await updateFinancial(financialId, { situacao: 2 }, store.activeOrganization || undefined)
+                        }
+                    }
+                }
             }
 
             if (r.error) {
                 setMsg('Erro ao salvar transação: ' + r.error.message)
             } else {
-                // Save pending attachments if any
                 if (pendingAttachments.length > 0 && txId) {
                     for (const file of pendingAttachments) {
                         await addAttachment({
@@ -177,22 +209,15 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                 }, 1000)
             }
         } else {
-            // Local store handling (simplified)
-            if (initialData && initialData.id) {
-                console.warn("Local update not implemented fully")
-            } else {
-                store.createTransaction(newTransaction as any)
-            }
-            setMsg(initialData ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!')
+            // Local store handling
+            store.createTransaction(transactionData)
+            setMsg('Transação criada com sucesso!')
             setTimeout(() => {
                 onClose()
                 if (onSuccess) onSuccess()
             }, 1000)
         }
     }
-
-
-
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 text-left backdrop-blur-sm">
             <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-4xl p-0 max-h-[90vh] overflow-hidden shadow-2xl text-gray-900 dark:text-gray-100 flex flex-col">
@@ -205,7 +230,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                < div className="flex border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800" >
                     <button
                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-primary text-primary bg-white dark:bg-gray-800' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
                         onClick={() => setActiveTab('details')}
@@ -218,140 +243,191 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                     >
                         Comprovantes Digitalizados
                     </button>
-                </div>
+                </div >
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-gray-800">
-                    {msg && <div className={`mb-4 text-sm ${msg.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{msg}</div>}
+                < div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-gray-800" >
+                    {msg && <div className={`mb-4 text-sm ${msg.includes('sucesso') ? 'text-green-600' : 'text-red-600'}`}>{msg}</div>
+                    }
 
-                    {activeTab === 'details' && (
-                        // ... details content same as before
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Operação | Espécie */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Operação *</label>
-                                <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formOperacao} onChange={e => {
-                                    setFormOperacao(e.target.value as any)
-                                }}>
-                                    <option value="despesa">Despesa</option>
-                                    <option value="receita">Receita</option>
-                                    <option value="aporte">Aporte</option>
-                                    <option value="retirada">Retirada</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Espécie</label>
-                                <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
-                                    <option value="dinheiro">Dinheiro</option>
-                                    <option value="pix">PIX</option>
-                                    <option value="cartao">Cartão</option>
-                                    <option value="boleto">Boleto</option>
-                                    <option value="transferencia">Transferência</option>
-                                    <option value="debito_automatico">Débito Automático</option>
-                                </select>
-                            </div>
-
-                            {/* Cliente */}
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Cliente *</label>
-                                <div className="flex gap-2">
-                                    <select className="flex-1 border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
-                                        <option value="">Selecione...</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    {
+                        activeTab === 'details' && (
+                            // ... details content same as before
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Operação | Espécie */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Operação *</label>
+                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formOperacao} onChange={e => {
+                                        setFormOperacao(e.target.value as any)
+                                    }}>
+                                        <option value="despesa">Despesa</option>
+                                        <option value="receita">Receita</option>
+                                        <option value="aporte">Aporte</option>
+                                        <option value="retirada">Retirada</option>
                                     </select>
-                                    <button
-                                        type="button"
-                                        className="bg-black text-white dark:bg-gray-600 rounded px-3 hover:bg-gray-800 transition-colors"
-                                        title="Novo Cliente"
-                                        onClick={() => setShowClientModal(true)}
-                                    >
-                                        <Icon name="add" className="w-4 h-4" />
-                                    </button>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Espécie</label>
+                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
+                                        <option value="dinheiro">Dinheiro</option>
+                                        <option value="pix">PIX</option>
+                                        <option value="cartao">Cartão</option>
+                                        <option value="boleto">Boleto</option>
+                                        <option value="transferencia">Transferência</option>
+                                        <option value="debito_automatico">Débito Automático</option>
+                                    </select>
+                                </div>
+
+                                {/* Cliente */}
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Cliente *</label>
+                                    <div className="flex gap-2">
+                                        <select className="flex-1 border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
+                                            <option value="">Selecione...</option>
+                                            {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            className="bg-black text-white dark:bg-gray-600 rounded px-3 hover:bg-gray-800 transition-colors"
+                                            title="Novo Cliente"
+                                            onClick={() => setShowClientModal(true)}
+                                        >
+                                            <Icon name="add" className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {showClientModal && (
+                                    <ClientModal
+                                        isOpen={showClientModal}
+                                        onClose={() => setShowClientModal(false)}
+                                        onSuccess={(newClient) => {
+                                            setClients(prev => [...prev, newClient])
+                                            setFormCliente(newClient.id!)
+                                            setShowClientModal(false)
+                                        }}
+                                    />
+                                )}
+
+                                <PartialConfirmModal
+                                    isOpen={showPartialConfirm}
+                                    item={{ ...initialData, despesa: initialData?.valor_saida || 0, receita: initialData?.valor_entrada || 0 }}
+                                    currentValue={formValor}
+                                    onClose={() => setShowPartialConfirm(false)}
+                                    onConfirm={async (data) => {
+                                        setFormValor(data.valor)
+                                        setShowPartialConfirm(false)
+
+                                        const isEntrada = formOperacao === 'receita' || formOperacao === 'aporte'
+                                        const txData = {
+                                            conta_id: formContaId,
+                                            operacao: formOperacao,
+                                            historico: formHistorico,
+                                            data_vencimento: formDataVencimento || formDataLancamento,
+                                            data_lancamento: formDataLancamento,
+                                            valor_entrada: isEntrada ? data.valor : 0,
+                                            valor_saida: !isEntrada ? data.valor : 0,
+                                            status: formStatus,
+                                            cliente_id: formCliente,
+                                            grupo_compromisso_id: formGrupoCompromisso,
+                                            compromisso_id: formCompromisso,
+                                            nota_fiscal: formNotaFiscal,
+                                            detalhes: formDetalhes,
+                                            especie: formEspecie
+                                        }
+
+                                        await executeSave(txData, data.action)
+                                    }}
+                                />
+                                {/* Grupo | Compromisso */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Grupo Compromisso *</label>
+                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
+                                        <option value="">Selecione...</option>
+                                        {groups
+                                            .filter(g => !g.tipo || (g.tipo && formOperacao && (g.tipo.toLowerCase() === formOperacao.toLowerCase() || (['despesa', 'retirada'].includes(g.tipo.toLowerCase()) && ['despesa', 'retirada'].includes(formOperacao)) || (['receita', 'aporte'].includes(g.tipo.toLowerCase()) && ['receita', 'aporte'].includes(formOperacao)))))
+                                            .map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Compromisso *</label>
+                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
+                                        <option value="">Selecione...</option>
+                                        {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                    </select>
+                                </div>
+
+                                {/* Histórico */}
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Histórico *</label>
+                                    <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
+                                </div>
+
+                                {/* Detalhe | NF */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Detalhe</label>
+                                    <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Nota Fiscal</label>
+                                    <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
+                                </div>
+
+                                {/* Datas */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Data Vencimento</label>
+                                    <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed dark:bg-gray-900 dark:border-gray-700 dark:text-gray-400" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Data Pagamento</label>
+                                    <input type="date" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
+                                </div>
+
+                                {/* Valor | Caixa */}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Valor *</label>
+                                    <input type="number" step="0.01" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Caixa Lançamento *</label>
+                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
+                                        <option value="">Selecione...</option>
+                                        {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
+                                    </select>
+                                </div>
+
+                                {/* Parcial Read-only */}
+                                <div className="flex items-center mt-2">
+                                    <input
+                                        type="checkbox"
+                                        disabled
+                                        checked={formParcial}
+                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 opacity-60 cursor-not-allowed"
+                                    />
+                                    <label className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300 opacity-60">
+                                        Registro Parcial
+                                    </label>
                                 </div>
                             </div>
+                        )
+                    }
 
-                            <ClientModal
-                                isOpen={showClientModal}
-                                onClose={() => setShowClientModal(false)}
-                                onSuccess={(client) => {
-                                    setClients(prev => [{ id: client.id, nome: client.nome }, ...prev])
-                                    setFormCliente(client.id)
-                                }}
-                            />
-
-                            {/* Grupo | Compromisso */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Grupo Compromisso *</label>
-                                <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
-                                    <option value="">Selecione...</option>
-                                    {groups
-                                        .filter(g => !g.tipo || (g.tipo && formOperacao && (g.tipo.toLowerCase() === formOperacao.toLowerCase() || (['despesa', 'retirada'].includes(g.tipo.toLowerCase()) && ['despesa', 'retirada'].includes(formOperacao)) || (['receita', 'aporte'].includes(g.tipo.toLowerCase()) && ['receita', 'aporte'].includes(formOperacao)))))
-                                        .map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                                </select>
+                    {
+                        activeTab === 'attachments' && (
+                            <div className="h-full p-0 flex-1 overflow-hidden">
+                                <TransactionAttachments
+                                    transactionId={initialData?.id || null}
+                                    pendingAttachments={pendingAttachments}
+                                    onPendingUpload={(file) => setPendingAttachments(prev => [...prev, file])}
+                                    onPendingDelete={(index) => setPendingAttachments(prev => prev.filter((_, i) => i !== index))}
+                                />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Compromisso *</label>
-                                <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
-                                    <option value="">Selecione...</option>
-                                    {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Histórico */}
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Histórico *</label>
-                                <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
-                            </div>
-
-                            {/* Detalhe | NF */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Detalhe</label>
-                                <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Nota Fiscal</label>
-                                <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
-                            </div>
-
-                            {/* Datas */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Data Vencimento</label>
-                                <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed dark:bg-gray-900 dark:border-gray-700 dark:text-gray-400" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Data Pagamento</label>
-                                <input type="date" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
-                            </div>
-
-                            {/* Valor | Caixa */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Valor *</label>
-                                <input type="number" step="0.01" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1 dark:text-gray-300">Caixa Lançamento *</label>
-                                <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
-                                    <option value="">Selecione...</option>
-                                    {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'attachments' && (
-                        <div className="h-full p-0 flex-1 overflow-hidden">
-                            <TransactionAttachments
-                                transactionId={initialData?.id || null}
-                                pendingAttachments={pendingAttachments}
-                                onPendingUpload={(file) => setPendingAttachments(prev => [...prev, file])}
-                                onPendingDelete={(index) => setPendingAttachments(prev => prev.filter((_, i) => i !== index))}
-                            />
-                        </div>
-                    )}
-                </div>
+                        )
+                    }
+                </div >
 
                 {/* Footer Actions */}
-                <div className="border-t dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
+                < div className="border-t dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2" >
                     <button
                         className="px-4 py-2 border rounded hover:bg-gray-100 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600 transition-colors"
                         onClick={onClose}
@@ -362,10 +438,10 @@ export function TransactionModal({ onClose, onSuccess, initialData, title }: Pro
                         className="px-6 py-2 bg-fourtek-blue text-white rounded hover:bg-blue-700 shadow-sm transition-colors"
                         onClick={handleSave}
                     >
-                        Salvar
+                        Confirmar
                     </button>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     )
 }

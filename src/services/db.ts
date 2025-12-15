@@ -146,10 +146,22 @@ export async function listTransactions(limit = 1000, orgId?: string) {
   if (!supabase) return { data: [], error: null }
   const userId = orgId || (await supabase.auth.getUser()).data.user?.id
   return supabase.from('transactions')
-    .select('*, compromisso:compromisso_id(nome), grupo:grupo_compromisso_id(nome), cliente:cliente_id(nome)')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome)')
     .eq('user_id', userId as any)
     .order('data_lancamento', { ascending: false })
     .limit(limit)
+}
+
+export async function searchTransactions(startDate: string, endDate: string, field: 'data_vencimento' | 'data_lancamento', orgId?: string) {
+  if (!supabase) return { data: [], error: null }
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('transactions')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome)')
+    .eq('user_id', userId as any)
+    .gte(field, startDate)
+    .lte(field, endDate)
+    .order('data_lancamento', { ascending: false })
+    .limit(2000)
 }
 
 export async function listFinancials(options?: { status?: number, orgId?: string }) {
@@ -164,6 +176,8 @@ export async function listFinancials(options?: { status?: number, orgId?: string
     agendamento: id_agendamento(
       id,
       tipo,
+      valor,
+      parcial,
       compromisso: compromisso_id(id, nome),
       grupo: grupo_compromisso_id(id, nome)
     )
@@ -194,10 +208,11 @@ export async function deleteFinancial(id: string) {
   return supabase.from('financials').delete().eq('id', id).eq('user_id', userId as any)
 }
 
-export async function updateFinancial(id: string, payload: any) {
+export async function updateFinancial(id: string, payload: any, orgId?: string) {
   if (!supabase) return { data: null, error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('financials').update(payload).eq('id', id).eq('user_id', userId as any)
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  // Remove strict user_id check if relying on ID uniqueness for orgs, similar to transactions
+  return supabase.from('financials').update(payload).eq('id', id).select('id').maybeSingle()
 }
 
 export async function confirmProvision(itemId: string, info: { valor: number, data: string, cuentaId: string }) {
@@ -229,17 +244,29 @@ export async function reverseTransaction(txId: string) {
   return supabase.rpc('fn_reverse_ledger_item', { p_tx_id: txId, p_user_id: userId })
 }
 
-export async function createTransaction(payload: any) {
+
+export async function getTransaction(id: string, orgId?: string) {
   if (!supabase) return { data: null, error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('transactions').insert([{ user_id: userId, ...payload }]).select('id').single()
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('transactions')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome)')
+    .eq('id', id)
+    .eq('user_id', userId as any)
+    .single()
 }
 
-export async function updateTransaction(id: string, payload: any) {
+
+export async function createTransaction(payload: any, orgId?: string) {
   if (!supabase) return { data: null, error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
-  const { id: _, ...rest } = payload // Ensure ID is not in payload
-  return supabase.from('transactions').update(rest).eq('id', id).eq('user_id', userId as any).select('id').single()
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('transactions').insert([{ user_id: userId, ...payload }]).select('id').maybeSingle()
+}
+
+export async function updateTransaction(id: string, payload: any, orgId?: string) {
+  if (!supabase) return { data: null, error: null }
+  // We rely on RLS and ID uniqueness. Removing explicit user_id filter prevents issues if org context differs.
+  const { id: _, ...rest } = payload
+  return supabase.from('transactions').update(rest).eq('id', id).select('id').maybeSingle()
 }
 
 export async function listClients(orgId?: string) {

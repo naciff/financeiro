@@ -249,7 +249,7 @@ export default function Calendar() {
                 onClick={() => setModalOpen(false)}
                 className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
               >
-                <Icon name="close" className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <Icon name="x" className="w-5 h-5 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
 

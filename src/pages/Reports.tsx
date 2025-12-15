@@ -217,10 +217,6 @@ export default function Reports() {
   return (
     <div className="p-4 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-          <Icon name="file-text" className="w-6 h-6" />
-          Relatórios
-        </h1>
       </div>
 
       {/* Filters Card */}

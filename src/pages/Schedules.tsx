@@ -66,6 +66,7 @@ export default function Schedules() {
   const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean; principal?: boolean; tipo?: string; dia_vencimento?: number }[]>([])
   const [contaBusca, setContaBusca] = useState('')
   const [detalhes, setDetalhes] = useState('')
+  const [parcial, setParcial] = useState(false)
   const [refChoice, setRefChoice] = useState<'vencimento' | 'anterior'>('vencimento')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
@@ -208,7 +209,8 @@ export default function Schedules() {
         tipo: s.tipo,
         caixa: caixaNome,
         caixa_cor: caixaCor,
-        raw_vencimento: s.proxima_vencimento // Hidden field for sorting
+        raw_vencimento: s.proxima_vencimento, // Hidden field for sorting
+        parcial: s.parcial || false,
       }
     })
     const byTab = arr.filter(r => {
@@ -271,7 +273,7 @@ export default function Schedules() {
     // Auto-select principal account
     const principalAccount = contas.find(c => c.principal === true)
     setCaixaId(principalAccount?.id || '')
-    setDetalhes(''); setErrors({}); setRefChoice('vencimento')
+    setDetalhes(''); setErrors({}); setRefChoice('vencimento'); setParcial(false)
   }
 
   function validate() {
@@ -460,13 +462,13 @@ export default function Schedules() {
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      const r = await createSchedule({ operacao, tipo, especie, ano_mes_inicial: todayIso, favorecido_id: clienteId || null, grupo_compromisso_id: grupoId || null, compromisso_id: compromissoId || null, historico, caixa_id: caixaId || null, detalhes, valor: valor2, proxima_vencimento: proxima || todayIso, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1 })
+      const r = await createSchedule({ operacao, tipo, especie, ano_mes_inicial: todayIso, favorecido_id: clienteId || null, grupo_compromisso_id: grupoId || null, compromisso_id: compromissoId || null, historico, caixa_id: caixaId || null, detalhes, valor: valor2, proxima_vencimento: proxima || todayIso, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1, parcial })
       if (r.error) { setMsg(r.error.message); setMsgType('error') }
       else { setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); await fetchRemoteSchedules(); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus() }
     } else {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      store.createSchedule({ operacao: operacao as any, tipo: tipo as any, especie, ano_mes_inicial: todayIso, cliente: clienteNome || '', cliente_id: clienteId || '', grupo_compromisso_id: grupoId || undefined, compromisso_id: compromissoId || undefined, caixa_id: caixaId || undefined, detalhes, historico, valor: valor2, proxima_vencimento: proxima || todayIso, periodo: periodo as any, parcelas: tipo === 'variavel' ? parcelas : 1, situacao: 1 })
+      store.createSchedule({ operacao: operacao as any, tipo: tipo as any, especie, ano_mes_inicial: todayIso, cliente: clienteNome || '', cliente_id: clienteId || '', grupo_compromisso_id: grupoId || undefined, compromisso_id: compromissoId || undefined, caixa_id: caixaId || undefined, detalhes, historico, valor: valor2, proxima_vencimento: proxima || todayIso, periodo: periodo as any, parcelas: tipo === 'variavel' ? parcelas : 1, situacao: 1, parcial })
       setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus()
     }
   }
@@ -490,7 +492,7 @@ export default function Schedules() {
     } else {
       setDateDisplay('')
     }
-    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || '')
+    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setParcial(s.parcial || false)
     setShowForm('edit')
   }
 
@@ -585,7 +587,7 @@ export default function Schedules() {
     const cliName = (typeof s.cliente === 'object' && s.cliente?.nome) ? s.cliente.nome : (typeof s.cliente === 'string' ? s.cliente : (hasBackend ? '' : store.clients.find(c => c.id === s.cliente_id)?.nome || ''))
     setClienteNome(cliName); setClienteBusca(cliName); setClientes([]);
 
-    setHistorico(s.historico || ''); setValor(s.valor);
+    setHistorico(s.historico || ''); setValor(s.valor); setParcial(s.parcial || false);
 
     // Reset proximity/due-date to today or keep? 
     // If it's a new entry, maybe we want to set it fresh.
@@ -657,11 +659,11 @@ export default function Schedules() {
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1 }).then(() => fetchRemoteSchedules())
+      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, parcial }).then(() => fetchRemoteSchedules())
     } else {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      store.updateSchedule(selectedId, { operacao: operacao as any, tipo: tipo as any, especie, ano_mes_inicial: anoMesInicial, cliente: clientes.find(c => c.id === clienteId)?.nome || '', cliente_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, caixa_id: caixaId, detalhes, historico, valor: valor2, proxima_vencimento: proxima, periodo: periodo as any, parcelas: tipo === 'variavel' ? parcelas : 1 })
+      store.updateSchedule(selectedId, { operacao: operacao as any, tipo: tipo as any, especie, ano_mes_inicial: anoMesInicial, cliente: clientes.find(c => c.id === clienteId)?.nome || '', cliente_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, caixa_id: caixaId, detalhes, historico, valor: valor2, proxima_vencimento: proxima, periodo: periodo as any, parcelas: tipo === 'variavel' ? parcelas : 1, parcial })
     }
     setShowForm('none'); resetForm()
   }
@@ -737,29 +739,29 @@ export default function Schedules() {
           <div className="flex items-center gap-2">
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
               <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100" value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }}>
-                <option value="">Tipo: Todos</option>
-                <option value="fixo">Fixo</option>
-                <option value="variavel">Variável (Parcelado)</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Tipo: Todos</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="fixo">Fixo</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="variavel">Variável (Parcelado)</option>
               </select>
               <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
 
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
               <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100" value={periodFilter} onChange={e => { setPeriodFilter(e.target.value); setPage(1) }}>
-                <option value="">Período: Todos</option>
-                <option value="mensal">Mensal</option>
-                <option value="semanal">Semanal</option>
-                <option value="anual">Anual</option>
-                <option value="unico">Único</option>
-                <option value="semestral">Semestral</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Período: Todos</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="mensal">Mensal</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="semanal">Semanal</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="anual">Anual</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="unico">Único</option>
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="semestral">Semestral</option>
               </select>
               <Icon name="calendar" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
 
             <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
               <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 max-w-[150px] truncate" value={grupoCompromissoFilter} onChange={e => { setGrupoCompromissoFilter(e.target.value); setPage(1) }}>
-                <option value="">Grupo: Todos</option>
-                {allCommitmentGroups.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Grupo: Todos</option>
+                {allCommitmentGroups.map(g => <option className="dark:bg-gray-800 dark:text-gray-100" key={g.id} value={g.id}>{g.nome}</option>)}
               </select>
               <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
@@ -1047,6 +1049,16 @@ export default function Schedules() {
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Valor <span className="text-red-600 dark:text-red-400">*</span></label>
                       <input className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${(!valor || valor <= 0) ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} type="number" inputMode="decimal" min={0.01} step="0.01" value={valor} onChange={e => { setValor(parseFloat(e.target.value) || 0) }} />
                       {(!valor || valor <= 0) && <div className="text-xs text-red-600 dark:text-red-400 mt-1">Valor deve ser maior que 0</div>}
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="parcial"
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={parcial}
+                          onChange={e => setParcial(e.target.checked)}
+                        />
+                        <label htmlFor="parcial" className="text-sm font-bold text-[#00665c] dark:text-teal-400 cursor-pointer">Registro Parcial</label>
+                      </div>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Vencimento <span className="text-red-600 dark:text-red-400">*</span></label>
@@ -1115,7 +1127,7 @@ export default function Schedules() {
 
                   <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
                     <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => setShowForm('none')}>Cancelar</button>
-                    <button className="bg-black dark:bg-gray-900 hover:bg-gray-800 dark:hover:bg-black text-white rounded px-4 py-2 font-medium transition-colors shadow-sm" type="submit">{showForm === 'create' ? 'Salvar Agendamento' : 'Salvar Alterações'}</button>
+                    <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2 font-medium transition-colors shadow-sm" type="submit">{showForm === 'create' ? 'Salvar Agendamento' : 'Salvar Alterações'}</button>
                   </div>
                 </form>
 
@@ -1297,32 +1309,35 @@ export default function Schedules() {
                 )
               })
             })()}
-          </>)}
+          </>)
+          }
         </div >
 
         {/* Static Footer */}
-        {!gridCollapsed && (
-          <div className="mt-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 border-t-2 border-blue-300 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100 rounded">
-            <div className="flex justify-end p-2 items-center px-4">
-              <div className="flex items-center gap-4">
-                <div className="mr-2 text-gray-700 dark:text-gray-300 uppercase">Totais Gerais:</div>
-                <div className="text-right text-blue-700 dark:text-blue-400">
-                  <span className="block text-[10px] text-gray-500 font-normal uppercase hidden sm:block">Parcelas</span>
+        {
+          !gridCollapsed && (
+            <div className="mt-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 border-t-2 border-blue-300 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-gray-100 rounded">
+              <div className="flex justify-end p-2 items-center">
+                <div className="mr-4 text-gray-700 dark:text-gray-300 uppercase">Totais Gerais:</div>
+                <div className="w-[110px] text-right px-2 text-blue-700 dark:text-blue-400">
                   R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}
                 </div>
-                <div className="text-right text-green-700 dark:text-green-400">
-                  <span className="block text-[10px] text-gray-500 font-normal uppercase hidden sm:block">Total</span>
+                <div className="w-[60px] px-2 text-center text-gray-500 hidden sm:block">
+                  {/* Empty spacer for Qtd column, or we could sum Qtd if desired */}
+                </div>
+                <div className="w-[110px] text-right px-2 text-green-700 dark:text-green-400">
                   R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_total), 0))}
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )
+        }
+      </div >
       {
-        <ClientModal
+        < ClientModal
           isOpen={clientModal}
-          onClose={() => setClientModal(false)}
+          onClose={() => setClientModal(false)
+          }
           onSuccess={(client) => {
             setClientes(prev => [client, ...prev])
             setClienteId(client.id)
