@@ -17,6 +17,8 @@ import CommitmentGroups from '../pages/CommitmentGroups'
 import Commitments from '../pages/Commitments'
 import Clients from '../pages/Clients'
 import ScheduleControl from '../pages/ScheduleControl'
+import AdminUsers from '../pages/AdminUsers'
+import { CostCenters } from '../pages/CostCenters'
 
 export function AppRoutes() {
   return (
@@ -32,6 +34,7 @@ export function AppRoutes() {
         <Route path="/cadastro/grupo-compromisso" element={<CommitmentGroups />} />
         <Route path="/cadastro/compromisso" element={<Commitments />} />
         <Route path="/cadastro/clientes" element={<Clients />} />
+        <Route path="/cadastro/cost-centers" element={<CostCenters />} />
         <Route path="/ledger" element={<Ledger />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/transfers" element={<Transfers />} />
@@ -40,6 +43,7 @@ export function AppRoutes() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/permissoes" element={<Permissions />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Routes>
     </Layout>
   )

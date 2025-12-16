@@ -73,6 +73,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'home' },
         { to: '/cadastro/grupo-compromisso', label: 'Grupo de Compromisso', icon: 'group' },
         { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'bookmark' },
+        { to: '/cadastro/cost-centers', label: 'Centro de Custo', icon: 'account_balance_wallet' },
         { to: '/cadastro/clientes', label: 'Clientes', icon: 'people' },
       ]
     },
@@ -80,7 +81,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     ...((!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) ? [{
       to: '/settings', label: 'Configurações', icon: 'settings', children: [
         { to: '/settings', label: 'Geral', icon: 'settings_applications' },
-        { to: '/permissoes', label: 'Usuário e Permissões', icon: 'lock_person' }
+        { to: '/permissoes', label: 'Usuário e Permissões', icon: 'lock_person' },
+        { to: '/admin/users', label: 'Usuários do Sistema', icon: 'group_add' }
       ]
     }] : [])
   ]
@@ -99,7 +101,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     for (const item of items) {
       if (item.to === location.pathname) return item.label
       if (item.children) {
-        const childLabel = findTitle(item.children)
+        const childLabel = findTitle(item.children as any)
         if (childLabel) return childLabel
       }
     }

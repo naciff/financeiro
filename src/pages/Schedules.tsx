@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
-import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments } from '../services/db'
+import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters } from '../services/db'
 import { supabase } from '../lib/supabase'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
@@ -63,13 +63,16 @@ export default function Schedules() {
   const [compromissos, setCompromissos] = useState<{ id: string; nome: string; grupo_id?: string }[]>([])
   const [caixaId, setCaixaId] = useState('')
   const [caixas, setCaixas] = useState<{ id: string; nome: string }[]>([])
-  const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean; principal?: boolean; tipo?: string; dia_vencimento?: number }[]>([])
+  const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean; principal?: boolean; tipo?: string; dia_vencimento?: number; dia_bom?: number }[]>([])
   const [contaBusca, setContaBusca] = useState('')
   const [detalhes, setDetalhes] = useState('')
   const [parcial, setParcial] = useState(false)
   const [refChoice, setRefChoice] = useState<'vencimento' | 'anterior'>('vencimento')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  const [costCenterId, setCostCenterId] = useState('')
+  const [costCenters, setCostCenters] = useState<{ id: string; descricao: string; principal?: boolean }[]>([])
 
   // Calculate sum of selected items
   const selectionSum = useMemo(() => {
@@ -273,6 +276,8 @@ export default function Schedules() {
     // Auto-select principal account
     const principalAccount = contas.find(c => c.principal === true)
     setCaixaId(principalAccount?.id || '')
+    const principalCostCenter = costCenters.find(c => c.principal === true)
+    setCostCenterId(principalCostCenter?.id || '')
     setDetalhes(''); setErrors({}); setRefChoice('vencimento'); setParcial(false)
   }
 
@@ -306,22 +311,25 @@ export default function Schedules() {
         setLoadError('')
         const orgId = store.activeOrganization || undefined
         if (hasBackend) {
-          const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([
+          const [cRes, gRes, accRes, cbRes, sRes, ccRes] = await Promise.all([
             listClients(orgId),
             listCommitmentGroups(orgId),
             listAccounts(orgId),
             listCashboxes(orgId),
-            listSchedules(10000, { includeConcluded: true, orgId })
+            listSchedules(10000, { includeConcluded: true, orgId }),
+            listCostCenters(orgId)
           ])
           if (cRes.error) throw cRes.error
           if (gRes.error) throw gRes.error
           if (accRes.error) throw accRes.error
           if (cbRes.error) throw cbRes.error
           if (sRes.error) throw sRes.error
+
           setClientes((cRes.data as any) || [])
           setGrupos((gRes.data as any) || [])
           setContas((accRes.data as any) || [])
           setCaixas((cbRes.data as any) || [])
+          setCostCenters((ccRes?.data as any) || [])
 
           setRemoteSchedules((sRes.data as any) || [])
           console.log('Schedules: dados carregados', {
@@ -462,7 +470,8 @@ export default function Schedules() {
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      const r = await createSchedule({ operacao, tipo, especie, ano_mes_inicial: todayIso, favorecido_id: clienteId || null, grupo_compromisso_id: grupoId || null, compromisso_id: compromissoId || null, historico, caixa_id: caixaId || null, detalhes, valor: valor2, proxima_vencimento: proxima || todayIso, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1, parcial })
+
+      const r = await createSchedule({ operacao, tipo, especie, ano_mes_inicial: todayIso, favorecido_id: clienteId || null, grupo_compromisso_id: grupoId || null, compromisso_id: compromissoId || null, historico, caixa_id: caixaId || null, detalhes, valor: valor2, proxima_vencimento: proxima || todayIso, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1, parcial, cost_center_id: costCenterId || null })
       if (r.error) { setMsg(r.error.message); setMsgType('error') }
       else { setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); await fetchRemoteSchedules(); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus() }
     } else {
@@ -492,7 +501,7 @@ export default function Schedules() {
     } else {
       setDateDisplay('')
     }
-    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setParcial(s.parcial || false)
+    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setParcial(s.parcial || false); setCostCenterId(s.cost_center_id || '')
     setShowForm('edit')
   }
 
@@ -602,7 +611,7 @@ export default function Schedules() {
       setDateDisplay('')
     }
 
-    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || '')
+    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setCostCenterId(s.cost_center_id || '')
 
     // Open in CREATE mode
     setShowForm('create')
@@ -659,7 +668,7 @@ export default function Schedules() {
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, parcial }).then(() => fetchRemoteSchedules())
+      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, parcial, cost_center_id: costCenterId || null }).then(() => fetchRemoteSchedules())
     } else {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
@@ -1023,26 +1032,57 @@ export default function Schedules() {
                       setCaixaId(selectedId)
                       setErrors({ ...errors, caixaId: '' })
                       const selectedAccount = contas.find(c => c.id === selectedId)
-                      if (selectedAccount && selectedAccount.tipo === 'cartao' && (selectedAccount as any).dia_vencimento) {
-                        const dueDay = (selectedAccount as any).dia_vencimento
-                        const now = new Date()
-                        const year = now.getFullYear()
-                        const month = now.getMonth() + 1
-                        const dueDate = `${String(dueDay).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
+                      if (selectedAccount && selectedAccount.tipo === 'cartao' && selectedAccount.dia_vencimento) {
+                        const today = new Date()
+                        const currentDay = today.getDate()
+
+                        // Default to current month/year
+                        let targetMonth = today.getMonth()
+                        let targetYear = today.getFullYear()
+
+                        // Check Dia BOM
+                        if (selectedAccount.dia_bom && currentDay > selectedAccount.dia_bom) {
+                          // Advance to next month
+                          targetMonth++
+                          if (targetMonth > 11) {
+                            targetMonth = 0
+                            targetYear++
+                          }
+                        }
+
+                        // Create date from target month/year and due day
+                        // Handle end of month overflow (e.g. Feb 30) by taking the min of due day and last day of month
+                        const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate()
+                        const finalDay = Math.min(selectedAccount.dia_vencimento, lastDayOfMonth)
+
+                        // Construct display string DD/MM/YYYY
+                        const dueDate = `${String(finalDay).padStart(2, '0')}/${String(targetMonth + 1).padStart(2, '0')}/${targetYear}`
+
+                        // Set proxima (ISO YYYY-MM-DD for input value)
+                        const proximaIso = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`
+
+                        setProxima(proximaIso)
                         setDateDisplay(dueDate)
-                        setProxima(`${year}-${String(month).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`)
+                      } else {
+                        setProxima('')
+                        setDateDisplay('')
                       }
                     }}>
+
                       <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
                       {contas.filter(c => c.ativo !== false).map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.nome}</option>)}
                     </select>
                     {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
                   </div>
-
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Detalhes</label>
-                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={detalhes} onChange={e => setDetalhes(e.target.value)} />
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Centro de Custo</label>
+                    <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={costCenterId} onChange={e => setCostCenterId(e.target.value)}>
+                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
+                      {costCenters.map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.descricao}</option>)}
+                    </select>
                   </div>
+
+
 
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
@@ -1125,6 +1165,11 @@ export default function Schedules() {
                     </div>
                   </div>
 
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Detalhes</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={detalhes} onChange={e => setDetalhes(e.target.value)} />
+                  </div>
+
                   <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
                     <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => setShowForm('none')}>Cancelar</button>
                     <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2 font-medium transition-colors shadow-sm" type="submit">{showForm === 'create' ? 'Salvar Agendamento' : 'Salvar Alterações'}</button>
@@ -1176,7 +1221,7 @@ export default function Schedules() {
                 )}
               </div>
             </div>
-          </div>
+          </div >
         )
       }
 

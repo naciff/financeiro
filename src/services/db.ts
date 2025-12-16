@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 export async function listAccounts(orgId?: string) {
   if (!supabase) return { data: [], error: null }
   const userId = orgId || (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,cor,agencia,conta,banco_codigo').eq('user_id', userId as any).order('created_at', { ascending: true })
+  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,dia_bom,cor,agencia,conta,banco_codigo').eq('user_id', userId as any).order('created_at', { ascending: true })
 }
 
 export async function searchAccounts(term: string, limit = 10) {
@@ -11,7 +11,7 @@ export async function searchAccounts(term: string, limit = 10) {
   return supabase.from('accounts').select('id,nome,tipo,ativo').ilike('nome', `%${term}%`).order('nome').limit(limit)
 }
 
-export async function createAccount(payload: { nome: string; tipo: string; saldo_inicial?: number; observacoes?: string; banco_codigo?: string | null; agencia?: string | null; conta?: string | null; dia_vencimento?: number | null; cor?: string; principal?: boolean }) {
+export async function createAccount(payload: { nome: string; tipo: string; saldo_inicial?: number; observacoes?: string; banco_codigo?: string | null; agencia?: string | null; conta?: string | null; dia_vencimento?: number | null; dia_bom?: number | null; cor?: string; principal?: boolean }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('accounts').insert([{ user_id: userId, ...payload }])
@@ -28,7 +28,7 @@ export async function getAccountById(id: string) {
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase
     .from('accounts')
-    .select('id,nome,tipo,ativo,principal,dia_vencimento,banco_codigo,agencia,conta,saldo_inicial,observacoes,cor')
+    .select('id,nome,tipo,ativo,principal,dia_vencimento,dia_bom,banco_codigo,agencia,conta,saldo_inicial,observacoes,cor')
     .eq('id', id)
     .eq('user_id', userId as any)
     .single()
@@ -72,7 +72,8 @@ export async function listSchedules(limit = 200, options?: { includeConcluded?: 
       cliente:favorecido_id(id,nome),
       caixa:caixa_id(id,nome,cor),
       compromisso:compromisso_id(id,nome),
-      grupo_compromisso:grupo_compromisso_id(id,nome)
+      grupo_compromisso:grupo_compromisso_id(id,nome),
+      cost_center:cost_centers(id, descricao)
     `)
     .eq('user_id', userId as any)
 
@@ -104,6 +105,16 @@ export async function checkScheduleDependencies(scheduleId: string) {
     return { count: 0 }
   }
   return { count: count || 0 }
+}
+
+export async function checkCostCenterDependencies(costCenterId: string) {
+  if (!supabase) return { count: 0 }
+  const { count, error } = await supabase
+    .from('schedules')
+    .select('*', { count: 'exact', head: true })
+    .eq('cost_center_id', costCenterId)
+
+  return { count: count || 0, error }
 }
 
 export async function updateSchedule(id: string, payload: any) {
@@ -179,7 +190,8 @@ export async function listFinancials(options?: { status?: number, orgId?: string
       valor,
       parcial,
       compromisso: compromisso_id(id, nome),
-      grupo: grupo_compromisso_id(id, nome)
+      grupo: grupo_compromisso_id(id, nome),
+      cost_center: cost_center_id(id, descricao)
     )
   `)
     .eq('user_id', userId as any)
@@ -302,6 +314,12 @@ export async function listCommitmentGroups(orgId?: string) {
   return supabase.from('commitment_groups').select('id,nome,operacao,tipo').eq('user_id', userId as any).order('nome', { ascending: true })
 }
 
+export async function listCostCenters(orgId?: string) {
+  if (!supabase) return { data: [], error: null }
+  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('cost_centers').select('*').eq('user_id', userId as any).order('descricao', { ascending: true })
+}
+
 export async function listCommitmentsByGroup(groupId: string) {
   if (!supabase) return { data: [], error: null }
   return supabase.from('commitments').select('id,nome,ir').eq('grupo_id', groupId).order('nome', { ascending: true })
@@ -327,6 +345,24 @@ export async function deleteCommitmentGroup(id: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('commitment_groups').delete().eq('id', id).eq('user_id', userId as any)
+}
+
+export async function createCostCenter(payload: { descricao: string; principal?: boolean; situacao?: boolean }) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('cost_centers').insert([{ user_id: userId, ...payload }]).select('id').single()
+}
+
+export async function updateCostCenter(id: string, payload: { descricao?: string; principal?: boolean; situacao?: boolean }) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('cost_centers').update(payload).eq('id', id).eq('user_id', userId as any).select('id').single()
+}
+
+export async function deleteCostCenter(id: string) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.from('cost_centers').delete().eq('id', id).eq('user_id', userId as any)
 }
 
 export async function createCommitment(payload: { grupo_id: string; nome: string; ir?: boolean }) {
@@ -686,4 +722,16 @@ export async function getClientDefault(clientId: string) {
 }
 
 
+
+
+export async function listAllProfiles() {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('profiles').select('*').order('created_at', { ascending: false })
+
+}
+
+export async function deleteUser(userId: string) {
+  if (!supabase) return { error: { message: 'Supabase não inicializado' } }
+  return supabase.rpc('delete_user_by_admin', { p_user_id: userId })
+}
 

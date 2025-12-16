@@ -19,6 +19,7 @@ export default function Accounts() {
   const [errors] = useState<Record<string, string>>({})
   const [situacao, setSituacao] = useState<'ativo' | 'inativo'>('ativo')
   const [diaVencimento, setDiaVencimento] = useState<number | ''>('')
+  const [diaBom, setDiaBom] = useState<number | ''>('')
   const [cor, setCor] = useState('#000000')
   const [principal, setPrincipal] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -49,7 +50,7 @@ export default function Accounts() {
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault()
-    console.log('Attempt create account', { nome, tipo, saldoInicial, bancoCodigo, agencia, conta, diaVencimento })
+    console.log('Attempt create account', { nome, tipo, saldoInicial, bancoCodigo, agencia, conta, diaVencimento, diaBom })
     if (!nome.trim()) { setNotice({ type: 'error', text: 'Nome é obrigatório' }); return }
     if (!['banco', 'carteira', 'cartao'].includes(tipo)) { setNotice({ type: 'error', text: 'Tipo inválido' }); return }
     if (tipo === 'cartao' && !diaVencimento) { setNotice({ type: 'error', text: 'Dia de vencimento é obrigatório para Cartão' }); return }
@@ -59,7 +60,7 @@ export default function Accounts() {
       if (conta && !/^\d{1,8}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta inválida (máx 8 dígitos)' }); return }
     }
     if (hasBackend) {
-      const r = await createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo ? bancoCodigo.trim() : null, agencia: agencia ? agencia.trim() : null, conta: conta ? conta.trim() : null, dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : null, cor, principal })
+      const r = await createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo ? bancoCodigo.trim() : null, agencia: agencia ? agencia.trim() : null, conta: conta ? conta.trim() : null, dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : null, dia_bom: tipo === 'cartao' && diaBom ? Number(diaBom) : null, cor, principal })
       console.log('createAccount result', r)
       if ((r as any).error) {
         setNotice({ type: 'error', text: (r as any).error.message })
@@ -67,7 +68,7 @@ export default function Accounts() {
         setNotice({ type: 'success', text: 'Conta criada com sucesso' })
       }
     } else {
-      store.createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo || undefined, agencia: agencia || undefined, conta: conta || undefined, ativo: situacao === 'ativo', dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : undefined, cor, principal })
+      store.createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo || undefined, agencia: agencia || undefined, conta: conta || undefined, ativo: situacao === 'ativo', dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : undefined, dia_bom: tipo === 'cartao' && diaBom ? Number(diaBom) : undefined, cor, principal })
       setNotice({ type: 'success', text: 'Conta criada com sucesso' })
     }
     setNome('')
@@ -78,6 +79,7 @@ export default function Accounts() {
     setConta('')
     setSituacao('ativo')
     setDiaVencimento('')
+    setDiaBom('')
     setCor('#000000')
     setPrincipal(false)
     setShowForm(false)
@@ -100,6 +102,7 @@ export default function Accounts() {
       setConta(row.conta || '')
       setSituacao(row.ativo === false ? 'inativo' : 'ativo')
       setDiaVencimento(row.dia_vencimento ?? '')
+      setDiaBom(row.dia_bom ?? '')
       setCor(row.cor || '#000000')
       setPrincipal(!!row.principal)
     } else {
@@ -112,6 +115,7 @@ export default function Accounts() {
       setConta(a.conta || '')
       setSituacao(a.ativo === false ? 'inativo' : 'ativo')
       setDiaVencimento(a.dia_vencimento ?? '')
+      setDiaBom(a.dia_bom ?? '')
       setCor(a.cor || '#000000')
       setPrincipal(!!a.principal)
     }
@@ -152,7 +156,7 @@ export default function Accounts() {
       if (agencia && !/^\d{1,4}$/.test(agencia)) { setNotice({ type: 'error', text: 'Agência inválida' }); return }
       if (conta && !/^\d{1,8}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta inválida' }); return }
     }
-    const patch: any = { nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo || undefined, agencia: agencia || null, conta: conta || null, ativo: situacao === 'ativo', dia_vencimento: tipo === 'cartao' ? (diaVencimento || null) : null, cor, principal }
+    const patch: any = { nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo || undefined, agencia: agencia || null, conta: conta || null, ativo: situacao === 'ativo', dia_vencimento: tipo === 'cartao' ? (diaVencimento || null) : null, dia_bom: tipo === 'cartao' ? (diaBom || null) : null, cor, principal }
     if (hasBackend) {
       updateAccountFields(editId, patch).then(res => {
         console.log('updateAccountFields', res)
@@ -229,13 +233,23 @@ export default function Accounts() {
                 <option value="cartao">Cartão</option>
               </select>
               {tipo === 'cartao' && (
-                <div>
-                  <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="dia_venc">Data de vencimento (DD)</label>
-                  <input id="dia_venc" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
-                    const v = e.target.value.replace(/\D/g, '').slice(0, 2)
-                    const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
-                    setDiaVencimento(n as any); setDirty(true)
-                  }} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="dia_venc">Dia de Vencimento (DD)</label>
+                    <input id="dia_venc" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                      const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
+                      setDiaVencimento(n as any); setDirty(true)
+                    }} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="dia_bom">Dia BOM (DD)</label>
+                    <input id="dia_bom" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaBom as any} onChange={e => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                      const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
+                      setDiaBom(n as any); setDirty(true)
+                    }} />
+                  </div>
                 </div>
               )}
               <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="nome">Nome</label>
@@ -275,7 +289,7 @@ export default function Accounts() {
               <div className="flex justify-end gap-2">
                 <button type="button" className="rounded border dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => {
                   if (dirty && !confirm('Cancelar alterações pendentes?')) return
-                  setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
+                  setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setDiaBom(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
                 }}>Cancelar</button>
                 <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" type="submit">Salvar</button>
               </div>
@@ -324,12 +338,14 @@ export default function Accounts() {
           <thead>
             <tr className="text-left">
               <th className="p-2">Nome</th>
+              <th className="p-2">Banco</th>
               <th className="p-2">Agência</th>
               <th className="p-2">Conta</th>
               <th className="p-2">Tipo</th>
               <th className="p-2">Situação</th>
               <th className="p-2">Conta Principal</th>
               <th className="p-2">Data Vencimento</th>
+              <th className="p-2">Dia Bom</th>
             </tr>
           </thead>
           <tbody>
@@ -348,6 +364,7 @@ export default function Accounts() {
                       {a.nome}
                     </div>
                   </td>
+                  <td className="p-2">{a.banco_codigo || '-'}</td>
                   <td className="p-2">{a.agencia || '-'}</td>
                   <td className="p-2">{a.conta || '-'}</td>
                   <td className="p-2">{a.tipo.charAt(0).toUpperCase() + a.tipo.slice(1).replace('cartao', 'Cartão')}</td>
@@ -375,6 +392,7 @@ export default function Accounts() {
                     </div>
                   </td>
                   <td className="p-2">{a.tipo === 'cartao' ? (a.dia_vencimento ?? '-') : '-'}</td>
+                  <td className="p-2">{a.tipo === 'cartao' ? (a.dia_bom ?? '-') : '-'}</td>
                 </tr>
               ))}
           </tbody>
@@ -396,13 +414,23 @@ export default function Accounts() {
                 <option value="cartao">Cartão</option>
               </select>
               {tipo === 'cartao' && (
-                <div>
-                  <label className="text-sm text-gray-700 dark:text-gray-300">Data de vencimento (DD)</label>
-                  <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
-                    const v = e.target.value.replace(/\D/g, '').slice(0, 2)
-                    const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
-                    setDiaVencimento(n as any)
-                  }} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300">Dia de Vencimento (DD)</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaVencimento as any} onChange={e => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                      const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
+                      setDiaVencimento(n as any)
+                    }} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300">Dia BOM (DD)</label>
+                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="DD" value={diaBom as any} onChange={e => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                      const n = v ? Math.max(1, Math.min(31, parseInt(v))) : ''
+                      setDiaBom(n as any)
+                    }} />
+                  </div>
                 </div>
               )}
               <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>

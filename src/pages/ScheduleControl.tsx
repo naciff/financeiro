@@ -10,9 +10,10 @@ import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 import { BulkTransactionModal } from '../components/modals/BulkTransactionModal'
-import { listFinancials, listAccounts, listCommitmentGroups, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { useDailyAutomation } from '../hooks/useDailyAutomation'
+import { LinkedItemsModal } from '../components/modals/LinkedItemsModal'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
 
@@ -48,6 +49,8 @@ export default function ScheduleControl() {
   const [filterGrupo, setFilterGrupo] = useState('')
   const [caixas, setCaixas] = useState<any[]>([])
   const [grupos, setGrupos] = useState<any[]>([])
+  const [costCenters, setCostCenters] = useState<any[]>([])
+  const [filterCostCenter, setFilterCostCenter] = useState('')
 
   // Estados do Modal
   const [modalContaId, setModalContaId] = useState('')
@@ -87,6 +90,7 @@ export default function ScheduleControl() {
       const orgId = store.activeOrganization || undefined
       listAccounts(orgId).then(r => { if (!r.error && r.data) setCaixas(r.data as any) })
       listCommitmentGroups(orgId).then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
+      listCostCenters(orgId).then(r => { if (!r.error && r.data) setCostCenters(r.data as any) })
     }
   }, [store.activeOrganization])
 
@@ -259,6 +263,7 @@ export default function ScheduleControl() {
         return true
       })
       .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo)
+      .filter(r => !filterCostCenter || r.agendamento?.cost_center?.id === filterCostCenter)
       .filter(r => [r.cliente, r.historico, r.compromisso, String(r.receita), String(r.despesa)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
       .sort((a, b) => a.vencimentoDate.getTime() - b.vencimentoDate.getTime())
 
@@ -305,7 +310,7 @@ export default function ScheduleControl() {
       totalDespesas,
       totalRecords
     }
-  }, [remote, store.schedules, filter, search, page, filterCaixa, filterGrupo, filterOp])
+  }, [remote, store.schedules, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter])
 
   const buttons: Array<{ id: Filter; label: string }> = [
     { id: 'vencidos', label: 'Vencidos/Dia Atual' },
@@ -389,14 +394,7 @@ export default function ScheduleControl() {
       <div className="flex flex-col gap-2">
         {/* Row 1: Actions, Search, Filters */}
         <div className="flex flex-wrap items-center gap-2 w-full">
-          {/* Action Buttons */}
-          <button
-            className="flex items-center gap-2 bg-black text-white rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
-            onClick={() => setShowTransactionModal(true)}
-          >
-            <Icon name="add" className="w-4 h-4" /> Incluir
-          </button>
-
+          {/* Action Buttons Removed */}
           {/* Group Expand/Collapse Buttons Moved to Tabs Row */}
 
 
@@ -487,9 +485,23 @@ export default function ScheduleControl() {
               </select>
               <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
             </div>
+
+            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
+              <select
+                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+                value={filterCostCenter}
+                onChange={e => { setFilterCostCenter(e.target.value); setPage(1) }}
+              >
+                <option value="" className="dark:bg-gray-800">Centro de Custo: Todos</option>
+                {costCenters.map(cc => (
+                  <option key={cc.id} value={cc.id} className="dark:bg-gray-800">{cc.descricao}</option>
+                ))}
+              </select>
+              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+            </div>
           </div>
 
-          {(search || filterCaixa || filterOp !== 'Todas' || filterGrupo) && (
+          {(search || filterCaixa || filterOp !== 'Todas' || filterGrupo || filterCostCenter) && (
             <button
               className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap"
               onClick={() => {
@@ -497,6 +509,7 @@ export default function ScheduleControl() {
                 setFilterCaixa('')
                 setFilterOp('Todas')
                 setFilterGrupo('')
+                setFilterCostCenter('')
                 setPage(1)
               }}
             >
@@ -870,43 +883,22 @@ export default function ScheduleControl() {
                     className="fixed z-50 bg-white shadow-lg rounded border p-1 w-64 text-sm"
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                   >
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-                      setContextMenu(null)
-                      openModal(contextMenu.item)
-                      setShowTransactionModal(true)
-                    }}>
-                      <Icon name="edit" className="w-4 h-4" />
-                      Alterar
-                    </button>
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-green-600" onClick={() => {
-                      // Duplicar logic
-                      const newItem = { ...contextMenu.item, id: undefined, id_livro: undefined }
-                      // ... implementation of duplicate ...
-                      setContextMenu(null)
-                      // For now just alert or open modal with copy
-                      setModal({ ...contextMenu.item, id: undefined })
-                    }}>
-                      <Icon name="copy" className="w-4 h-4" />
-                      Duplicar
-                    </button>
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-red-600" onClick={async () => {
-                      if (confirm('Tem certeza que deseja excluir este lançamento?')) {
-                        if (contextMenu.item.scheduleId) {
-                          if (confirm('Este item pertence a um agendamento. Deseja excluir apenas este lançamento (OK) ou o agendamento completo (Cancel)?')) {
-                            await deleteFinancial(contextMenu.item.id)
-                          } else {
-                            // delete schedule logic is tricky here, usually we just link to schedule page
-                          }
-                        } else {
-                          await deleteFinancial(contextMenu.item.id)
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
+                      if (contextMenu.item.scheduleId) {
+                        // Fetch linked items logic
+                        const r = await listFinancialsBySchedule(contextMenu.item.scheduleId, store.activeOrganization || undefined)
+                        if (r.data) {
+                          setLinkedItems(r.data)
+                          setShowLinkedItemsModal(true)
                         }
                         setContextMenu(null)
-                        // Refresh
-                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                      } else {
+                        alert('Este item não possui agendamento vinculado.')
+                        setContextMenu(null)
                       }
                     }}>
-                      <Icon name="trash" className="w-4 h-4" />
-                      Excluir
+                      <Icon name="list" className="w-4 h-4" />
+                      Visualizar Itens Vinculados
                     </button>
 
                     <div className="border-t my-1"></div>
@@ -1151,7 +1143,16 @@ export default function ScheduleControl() {
         )
       }
 
-    </div >
+      {/* Linked Items Modal */}
+      {showLinkedItemsModal && (
+        <LinkedItemsModal
+          isOpen={showLinkedItemsModal}
+          items={linkedItems}
+          onClose={() => setShowLinkedItemsModal(false)}
+        />
+      )}
+
+    </div>
   )
 }
 

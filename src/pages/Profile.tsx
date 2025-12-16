@@ -3,17 +3,69 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Icon } from '../components/ui/Icon'
+import { SystemModal } from '../components/modals/SystemModal'
 
 export default function Profile() {
     const { session } = useAuth()
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [modal, setModal] = useState({ isOpen: false, title: '', message: '', type: 'alert' as any })
 
     // Form fields
     const [name, setName] = useState('')
     const [phone, setPhone] = useState('')
     const [email, setEmail] = useState('')
+
+    // Password fields
+    const [currentPassword, setCurrentPassword] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+
+    const [showCurrent, setShowCurrent] = useState(false)
+    const [showNew, setShowNew] = useState(false)
+    const [showConfirm, setShowConfirm] = useState(false)
+
+    async function handleUpdatePassword(e: React.FormEvent) {
+        e.preventDefault()
+        if (!supabase) return
+
+        if (newPassword !== confirmPassword) {
+            setModal({ isOpen: true, title: 'Erro', message: 'A nova senha e a confirmação não coincidem.', type: 'error' })
+            return
+        }
+
+        try {
+            setLoading(true)
+            const { user } = session!
+
+            // 1. Re-authenticate to verify current password
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: user.email!,
+                password: currentPassword
+            })
+
+            if (signInError) {
+                throw new Error('Senha atual incorreta.')
+            }
+
+            // 2. Update password
+            const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+
+            if (updateError) {
+                throw updateError
+            }
+
+            setModal({ isOpen: true, title: 'Sucesso', message: 'Senha alterada com sucesso!', type: 'success' })
+            setCurrentPassword('')
+            setNewPassword('')
+            setConfirmPassword('')
+        } catch (error: any) {
+            setModal({ isOpen: true, title: 'Erro', message: error.message || 'Erro ao alterar senha.', type: 'error' })
+        } finally {
+            setLoading(false)
+        }
+    }
 
     function formatPhone(v: string) {
         v = v.replace(/\D/g, "")
@@ -89,9 +141,11 @@ export default function Profile() {
             if (error) {
                 throw error
             }
-            alert('Perfil atualizado!')
+            // alert('Perfil atualizado!')
+            setModal({ isOpen: true, title: 'Sucesso', message: 'Perfil atualizado com sucesso!', type: 'success' })
         } catch (error) {
-            alert('Erro ao atualizar perfil!')
+            // alert('Erro ao atualizar perfil!')
+            setModal({ isOpen: true, title: 'Erro', message: 'Erro ao atualizar perfil. Tente novamente.', type: 'error' })
             console.error(error)
         } finally {
             setLoading(false)
@@ -153,9 +207,9 @@ export default function Profile() {
             }
 
             setAvatarUrl(filePath)
-            alert('Foto atualizada!')
+            setModal({ isOpen: true, title: 'Sucesso', message: 'Foto de perfil atualizada!', type: 'success' })
         } catch (error) {
-            alert('Erro ao carregar imagem!')
+            setModal({ isOpen: true, title: 'Erro', message: 'Não foi possível carregar a imagem.', type: 'error' })
             console.error(error)
         } finally {
             setUploading(false)
@@ -241,6 +295,93 @@ export default function Profile() {
                     </button>
                 </div>
             </form>
+
+            <div className="mt-8 pt-8 border-t dark:border-gray-700">
+                <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Alterar Senha</h2>
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Senha Atual</label>
+                        <div className="relative">
+                            <input
+                                type={showCurrent ? "text" : "password"}
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 pr-10"
+                                placeholder="Digite sua senha atual"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowCurrent(!showCurrent)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                                <Icon name={showCurrent ? "eye-off" : "eye"} className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nova Senha</label>
+                            <div className="relative">
+                                <input
+                                    type={showNew ? "text" : "password"}
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 pr-10"
+                                    placeholder="Mínimo 6 caracteres"
+                                    minLength={6}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNew(!showNew)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                    <Icon name={showNew ? "eye-off" : "eye"} className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar Nova Senha</label>
+                            <div className="relative">
+                                <input
+                                    type={showConfirm ? "text" : "password"}
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full border dark:border-gray-600 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 pr-10"
+                                    placeholder="Confirme a nova senha"
+                                    minLength={6}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirm(!showConfirm)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                    <Icon name={showConfirm ? "eye-off" : "eye"} className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                        <button
+                            type="submit"
+                            disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+                            className="bg-gray-800 dark:bg-gray-700 text-white px-6 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Alterando...' : 'Alterar Senha'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <SystemModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal(s => ({ ...s, isOpen: false }))}
+                title={modal.title}
+                message={modal.message}
+                type={modal.type}
+            />
         </div>
     )
 }

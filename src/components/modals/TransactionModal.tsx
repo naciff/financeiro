@@ -24,6 +24,14 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     const [activeTab, setActiveTab] = useState<'details' | 'attachments'>('details')
     const [showClientModal, setShowClientModal] = useState(false)
     const [showPartialConfirm, setShowPartialConfirm] = useState(false)
+    const [saving, setSaving] = useState(false)
+
+    // Complementary Values
+    const [showComplementary, setShowComplementary] = useState(false)
+    const [formDesconto, setFormDesconto] = useState(0)
+    const [formMulta, setFormMulta] = useState(0)
+    const [formJuros, setFormJuros] = useState(0)
+
 
     // Data
     const [accounts, setAccounts] = useState<any[]>([])
@@ -74,7 +82,30 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             setFormContaId(initialData.conta_id || initialData.caixa_id || '')
             setFormEspecie(initialData.especie || 'dinheiro')
             setFormHistorico(initialData.historico)
-            setFormValor(Number(initialData.valor_saida || initialData.valor_entrada || 0))
+
+            // Normalize main value
+            const val_entrada = Number(initialData.valor_entrada || 0)
+            const val_saida = Number(initialData.valor_saida || 0)
+            const storedFinalValue = val_entrada + val_saida
+
+            // Complementary
+            const desc = Number(initialData.descontos || 0)
+            const multa = Number(initialData.multa || 0)
+            const juros = Number(initialData.juros || 0)
+
+            setFormDesconto(desc)
+            setFormMulta(multa)
+            setFormJuros(juros)
+
+            // Calculate original Principal: Final = Principal + Multa + Juros - Desconto
+            // Principal = Final - Multa - Juros + Desconto
+            const principal = storedFinalValue - multa - juros + desc
+            setFormValor(Number(principal.toFixed(2)))
+
+            if (desc > 0 || multa > 0 || juros > 0) {
+                setShowComplementary(true)
+            }
+
             const today = new Date().toISOString().split('T')[0]
             setFormDataVencimento(initialData.data_vencimento ? initialData.data_vencimento.split('T')[0] : today)
             setFormDataLancamento(initialData.data_lancamento ? initialData.data_lancamento.split('T')[0] : today)
@@ -130,6 +161,17 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             setMsg('Preencha todos os campos obrigatórios')
             return
         }
+        if (saving) return
+
+        setSaving(true)
+
+        // Calculate Final Value
+        // Final = Principal + Multa + Juros - Desconto
+        let finalValue = formValor
+        if (showComplementary) {
+            finalValue = formValor + formMulta + formJuros - formDesconto
+            if (finalValue < 0) finalValue = 0 // Prevent negative?
+        }
 
         const isEntrada = formOperacao === 'receita' || formOperacao === 'aporte'
         const newTransaction: any = {
@@ -138,23 +180,27 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             historico: formHistorico,
             data_vencimento: formDataVencimento || formDataLancamento,
             data_lancamento: formDataLancamento,
-            valor_entrada: isEntrada ? formValor : 0,
-            valor_saida: !isEntrada ? formValor : 0,
+            valor_entrada: isEntrada ? finalValue : 0,
+            valor_saida: !isEntrada ? finalValue : 0,
             status: formStatus,
             cliente_id: formCliente,
             grupo_compromisso_id: formGrupoCompromisso,
             compromisso_id: formCompromisso,
             nota_fiscal: formNotaFiscal,
             detalhes: formDetalhes,
-            especie: formEspecie
+            especie: formEspecie,
+            descontos: showComplementary ? formDesconto : 0,
+            multa: showComplementary ? formMulta : 0,
+            juros: showComplementary ? formJuros : 0
         }
 
         // Logic for Partial Trigger
-        const initialValue = Number(initialData?.valor_saida || initialData?.valor_entrada || 0)
+        const initialCombined = Number(initialData?.valor_saida || initialData?.valor_entrada || 0)
 
         // If it is a partial item AND value changed significantly
-        if (formParcial && financialId && Math.abs(formValor - initialValue) > 0.01) {
+        if (formParcial && financialId && Math.abs(finalValue - initialCombined) > 0.01) {
             setShowPartialConfirm(true)
+            setSaving(false)
             return
         }
 
@@ -205,9 +251,9 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                 setMsg(initialData ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!')
                 setTimeout(() => {
                     onClose()
-                    if (onSuccess) onSuccess()
                 }, 1000)
             }
+            setSaving(false)
         } else {
             // Local store handling
             store.createTransaction(transactionData)
@@ -216,6 +262,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                 onClose()
                 if (onSuccess) onSuccess()
             }, 1000)
+            setSaving(false)
         }
     }
     return (
@@ -312,11 +359,23 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                 <PartialConfirmModal
                                     isOpen={showPartialConfirm}
                                     item={{ ...initialData, despesa: initialData?.valor_saida || 0, receita: initialData?.valor_entrada || 0 }}
-                                    currentValue={formValor}
+                                    currentValue={formValor} // TODO: Add complementary processing here if partial modal needs real value? Usually partial modal is just about confirmation of splitting.
                                     onClose={() => setShowPartialConfirm(false)}
                                     onConfirm={async (data) => {
                                         setFormValor(data.valor)
                                         setShowPartialConfirm(false)
+
+                                        // Recalculate Final Logic inside Confirm because 'data.valor' is the override
+                                        // Wait, usually Partial Modal returns the 'paid' value. 
+                                        // If using Complementary, 'data.valor' is likely the Principal?
+                                        // Let's assume Partial Modal returns the User-Typed Value in "Valor Pago".
+                                        // We should respect that as Final Value or Principal?
+                                        // Since checks are complex, let's treat the returned value as the Principal base.
+
+                                        let finalVal = data.valor
+                                        if (showComplementary) {
+                                            finalVal = data.valor + formMulta + formJuros - formDesconto
+                                        }
 
                                         const isEntrada = formOperacao === 'receita' || formOperacao === 'aporte'
                                         const txData = {
@@ -325,15 +384,18 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             historico: formHistorico,
                                             data_vencimento: formDataVencimento || formDataLancamento,
                                             data_lancamento: formDataLancamento,
-                                            valor_entrada: isEntrada ? data.valor : 0,
-                                            valor_saida: !isEntrada ? data.valor : 0,
+                                            valor_entrada: isEntrada ? finalVal : 0,
+                                            valor_saida: !isEntrada ? finalVal : 0,
                                             status: formStatus,
                                             cliente_id: formCliente,
                                             grupo_compromisso_id: formGrupoCompromisso,
                                             compromisso_id: formCompromisso,
                                             nota_fiscal: formNotaFiscal,
                                             detalhes: formDetalhes,
-                                            especie: formEspecie
+                                            especie: formEspecie,
+                                            descontos: showComplementary ? formDesconto : 0,
+                                            multa: showComplementary ? formMulta : 0,
+                                            juros: showComplementary ? formJuros : 0
                                         }
 
                                         await executeSave(txData, data.action)
@@ -387,6 +449,17 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                 <div>
                                     <label className="block text-sm font-medium mb-1 dark:text-gray-300">Valor *</label>
                                     <input type="number" step="0.01" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
+                                    <div className="flex items-center mt-1">
+                                        <input
+                                            type="checkbox"
+                                            disabled
+                                            checked={formParcial}
+                                            className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 opacity-60 cursor-not-allowed"
+                                        />
+                                        <label className="ml-2 text-xs font-medium text-gray-900 dark:text-gray-300 opacity-60">
+                                            Registro Parcial
+                                        </label>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1 dark:text-gray-300">Caixa Lançamento *</label>
@@ -396,18 +469,84 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                     </select>
                                 </div>
 
-                                {/* Parcial Read-only */}
-                                <div className="flex items-center mt-2">
-                                    <input
-                                        type="checkbox"
-                                        disabled
-                                        checked={formParcial}
-                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 opacity-60 cursor-not-allowed"
-                                    />
-                                    <label className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300 opacity-60">
-                                        Registro Parcial
+                                {/* Complementary Values Checkbox */}
+                                <div className="md:col-span-2 mt-4 pt-4 border-t dark:border-gray-700">
+                                    <label className="flex items-center space-x-2 cursor-pointer w-fit">
+                                        <input
+                                            type="checkbox"
+                                            checked={showComplementary}
+                                            onChange={(e) => setShowComplementary(e.target.checked)}
+                                            className="form-checkbox text-blue-600 rounded w-4 h-4 focus:ring-blue-500"
+                                        />
+                                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                            Valores Complementares
+                                        </span>
                                     </label>
+
+                                    {showComplementary && (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 animate-fade-in bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                                            <div>
+                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                                                    Desconto
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2 text-gray-500">R$</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className="w-full border rounded px-3 py-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                                        value={formDesconto}
+                                                        onChange={e => setFormDesconto(parseFloat(e.target.value) || 0)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                                                    Multa
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2 text-gray-500">R$</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className="w-full border rounded px-3 py-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                                        value={formMulta}
+                                                        onChange={e => setFormMulta(parseFloat(e.target.value) || 0)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                                                    Juros
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2 text-gray-500">R$</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className="w-full border rounded px-3 py-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                                                        value={formJuros}
+                                                        onChange={e => setFormJuros(parseFloat(e.target.value) || 0)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
+                                                    Valor Final Registro
+                                                </label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-2 text-gray-500 font-bold">R$</span>
+                                                    <input
+                                                        disabled
+                                                        className="w-full border rounded px-3 py-2 pl-9 bg-gray-200 dark:bg-gray-900 dark:border-gray-700 font-bold text-gray-800 dark:text-gray-100"
+                                                        value={(formValor + formMulta + formJuros - formDesconto).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
+
                             </div>
                         )
                     }
@@ -435,10 +574,11 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                         Cancelar
                     </button>
                     <button
-                        className="px-6 py-2 bg-fourtek-blue text-white rounded hover:bg-blue-700 shadow-sm transition-colors"
+                        className="px-6 py-2 bg-fourtek-blue text-white rounded hover:bg-blue-700 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={handleSave}
+                        disabled={saving}
                     >
-                        Confirmar
+                        {saving ? 'Salvando...' : 'Confirmar'}
                     </button>
                 </div >
             </div >
