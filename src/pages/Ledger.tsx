@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction, deleteTransaction } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
@@ -444,8 +444,31 @@ export default function Ledger() {
               const id = Array.from(selectedIds)[0]
               const tx = txs.find(t => t.id === id)
               if (tx) {
-                setPendingTx(tx)
-                setShowReverseConfirm(true)
+                // Check if item is linked to Schedule/Financial
+                if (tx.financial_id || tx.agendamento_id || tx.schedule_id) {
+                  alert("Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!")
+                  return
+                }
+
+                if (window.confirm('Deseja realmente excluir este lançamento manual?')) {
+                  // Direct delete for manual items
+                  if (hasBackend) {
+                    deleteTransaction(tx.id).then(r => {
+                      if (r.error) alert('Erro ao excluir: ' + r.error.message)
+                      else {
+                        load()
+                        setMsg('Lançamento excluído com sucesso')
+                        setTimeout(() => setMsg(''), 3000)
+                      }
+                    })
+                  } else {
+                    store.deleteTransaction(tx.id)
+                    load()
+                    setMsg('Lançamento excluído com sucesso')
+                    setTimeout(() => setMsg(''), 3000)
+                  }
+                  setSelectedIds(new Set())
+                }
               }
             }}
             disabled={selectedIds.size !== 1}
@@ -688,7 +711,31 @@ export default function Ledger() {
             }}>
               <Icon name="edit" className="w-4 h-4" /> Alterar
             </button>
-            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => { handleReverse(); setContextMenu(null) }}>
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => {
+              const item = contextMenu.tx
+              if (item.financial_id || item.agendamento_id || item.schedule_id) {
+                alert("Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!")
+              } else {
+                if (window.confirm('Deseja realmente excluir este lançamento manual?')) {
+                  if (hasBackend) {
+                    deleteTransaction(item.id).then(r => {
+                      if (r.error) alert('Erro ao excluir: ' + r.error.message)
+                      else {
+                        load()
+                        setMsg('Lançamento excluído com sucesso')
+                        setTimeout(() => setMsg(''), 3000)
+                      }
+                    })
+                  } else {
+                    store.deleteTransaction(item.id)
+                    load()
+                    setMsg('Lançamento excluído com sucesso')
+                    setTimeout(() => setMsg(''), 3000)
+                  }
+                }
+              }
+              setContextMenu(null)
+            }}>
               <Icon name="trash" className="w-4 h-4" /> Excluir
             </button>
             <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400" onClick={() => { handleDuplicate(); setContextMenu(null) }}>

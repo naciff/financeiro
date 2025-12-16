@@ -119,8 +119,7 @@ export async function checkCostCenterDependencies(costCenterId: string) {
 
 export async function updateSchedule(id: string, payload: any) {
   if (!supabase) return { data: null, error: null }
-  const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('schedules').update(payload).eq('id', id).eq('user_id', userId as any)
+  return supabase.from('schedules').update(payload).eq('id', id)
 }
 
 export async function updateScheduleAndFutureFinancials(scheduleId: string, newValue: number) {
@@ -248,6 +247,11 @@ export async function payTransaction(txId: string, contaId: string, amount: numb
 export async function receiveTransaction(txId: string, contaId: string, amount: number, date?: string) {
   if (!supabase) return { data: null, error: null }
   return supabase.rpc('fn_receive', { tx_id: txId, conta: contaId, amount, d: date ?? null })
+}
+
+export async function deleteTransaction(id: string) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('transactions').delete().eq('id', id)
 }
 
 export async function reverseTransaction(txId: string) {

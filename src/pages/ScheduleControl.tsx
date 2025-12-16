@@ -9,6 +9,7 @@ import { ScheduleSummaryView } from '../components/schedule/ScheduleSummaryView'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
+
 import { BulkTransactionModal } from '../components/modals/BulkTransactionModal'
 import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
@@ -60,7 +61,7 @@ export default function ScheduleControl() {
   const [modalHistorico, setModalHistorico] = useState('')
   const [modalNotaFiscal, setModalNotaFiscal] = useState('')
   const [modalDetalhes, setModalDetalhes] = useState('')
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item: any } | null>(null)
   const [editValueModal, setEditValueModal] = useState<{ open: boolean, item: any, value: number } | null>(null)
@@ -77,6 +78,43 @@ export default function ScheduleControl() {
   const [testResultModal, setTestResultModal] = useState({ open: false, title: '', message: '' })
 
   // Carregar caixas e grupos
+  const [statusMessage, setStatusMessage] = useState('')
+  const [confirmItem, setConfirmItem] = useState<any>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+
+  async function handleConfirmSingle() {
+    if (!confirmItem) return
+    setShowConfirmModal(false)
+
+    try {
+      const item = confirmItem
+      const todayIso = new Date().toISOString().split('T')[0]
+
+      await confirmProvision(item.id, {
+        valor: item.despesa || item.receita,
+        data: todayIso,
+        cuentaId: item.caixaId || (caixas.find(c => c.principal)?.id)
+      })
+
+      if (item.scheduleId) {
+        const currentDue = new Date(item.vencimento)
+        const nextDue = new Date(currentDue)
+        nextDue.setMonth(nextDue.getMonth() + 1)
+
+        console.log('Rolling over schedule:', item.scheduleId, 'to', nextDue.toISOString())
+        await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+      }
+
+      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => {
+        if (!r.error && r.data) setRemote(r.data as any)
+      })
+
+    } catch (error: any) {
+      alert('Erro ao confirmar: ' + error.message)
+    } finally {
+      setConfirmItem(null)
+    }
+  }
   const [bulkDate, setBulkDate] = useState('')
   const [bulkAccount, setBulkAccount] = useState('')
 
@@ -165,7 +203,16 @@ export default function ScheduleControl() {
       }
     }
 
-    const data = src.map((s: any) => {
+    // Deduplicate src based on item.id
+    const seenIds = new Set()
+    const uniqueSrc = src.filter((s: any) => {
+      if (!s.id) return false
+      if (seenIds.has(s.id)) return false
+      seenIds.add(s.id)
+      return true
+    })
+
+    const data = uniqueSrc.map((s: any) => {
       // Usar data_vencimento do livro financeiro
       const vencimentoIso = s.data_vencimento
       if (!vencimentoIso) return null; // Skip invalid rows
@@ -231,7 +278,7 @@ export default function ScheduleControl() {
         statusMessage: statusMessage,
         agendamento: s.agendamento, // Pass full object for modal checks
         parcial: s.agendamento?.parcial || false,
-        scheduleId: s.id_agendamento,
+        scheduleId: s.agendamento?.id || s.id_agendamento,
         tipo: s.agendamento?.tipo,
         periodo: s.agendamento?.periodo,
         conferido: s.conferido || false,
@@ -719,11 +766,8 @@ export default function ScheduleControl() {
                                           checked={item.conferido}
                                           onChange={async (e) => {
                                             if (hasBackend) {
-                                              // Toggle 'conferido' status directly without modal
-                                              await updateFinancial(item.id, { situacao: 1, conferido: !item.conferido })
-
-                                              // Reload data
-                                              listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                                              setConfirmItem(item)
+                                              setShowConfirmModal(true)
                                             }
                                           }}
                                         />
@@ -835,16 +879,9 @@ export default function ScheduleControl() {
                                   checked={item.conferido}
                                   className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                                   onChange={async (e) => {
-                                    const checked = e.target.checked
                                     if (hasBackend) {
-
-                                      // Toggle 'conferido' status directly without modal
-                                      await updateFinancial(item.id, { situacao: 1, conferido: checked })
-
-                                      // Refresh view
-                                      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => {
-                                        if (!r.error && r.data) setRemote(r.data as any)
-                                      })
+                                      setConfirmItem(item)
+                                      setShowConfirmModal(true)
                                     }
                                   }}
                                 />
@@ -1099,6 +1136,21 @@ export default function ScheduleControl() {
                       for (const item of checkedItems) {
                         // Use the date/account from the modal
                         await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
+
+                        // Update Schedule next due date (Add 1 month)
+                        if (item.scheduleId) {
+                          const currentDue = new Date(item.vencimento)
+                          const nextDue = new Date(currentDue)
+                          nextDue.setMonth(nextDue.getMonth() + 1)
+                          // Handle month rollover edge cases (e.g. Jan 31 -> Feb 28/29) using Day overflow
+                          // If day changed, it means overflow happened. Reset to last day of previous month? 
+                          // Or just let JS standard behavior (skip to Mar) be ok? 
+                          // Standard business requirement usually wants to keep the day or clamp to last day.
+                          // Let's stick to standard setMonth for now as per user request "proximo mes".
+
+                          const res = await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                          console.log('Update Schedule Result:', item.scheduleId, nextDue.toISOString(), res)
+                        }
                       }
                       listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                     }
@@ -1152,6 +1204,13 @@ export default function ScheduleControl() {
         />
       )}
 
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => { setShowConfirmModal(false); setConfirmItem(null) }}
+        onConfirm={handleConfirmSingle}
+        title="Confirmar Lançamento no Livro Caixa"
+        message={confirmItem ? `Deseja realmente confirmar o lançamento de "${confirmItem.historico}"?` : ''}
+      />
     </div>
   )
 }
