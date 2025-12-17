@@ -119,7 +119,7 @@ export async function checkCostCenterDependencies(costCenterId: string) {
 
 export async function updateSchedule(id: string, payload: any) {
   if (!supabase) return { data: null, error: null }
-  return supabase.from('schedules').update(payload).eq('id', id)
+  return supabase.from('schedules').update(payload).eq('id', id).select()
 }
 
 export async function updateScheduleAndFutureFinancials(scheduleId: string, newValue: number) {
@@ -144,6 +144,19 @@ export async function updateScheduleAndFutureFinancials(scheduleId: string, newV
 export async function deleteSchedule(id: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
+
+  // 1. Delete associated PENDING items (situacao = 1)
+  try {
+    const { error: errDel } = await supabase
+      .from('financials')
+      .delete()
+      .eq('id_agendamento', id)
+      .eq('situacao', 1)
+      .eq('user_id', userId as any)
+    if (errDel) console.error('Error cleaning up pending items:', errDel)
+  } catch (e) { console.error(e) }
+
+  // 2. Delete the schedule
   return supabase.from('schedules').delete().eq('id', id).eq('user_id', userId as any)
 }
 

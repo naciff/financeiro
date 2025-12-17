@@ -7,6 +7,7 @@ import { Icon } from '../ui/Icon'
 import { TransactionAttachments } from '../TransactionAttachments'
 import { ClientModal } from './ClientModal'
 import { PartialConfirmModal } from './PartialConfirmModal'
+import { ConfirmModal } from '../ui/ConfirmModal'
 
 type Props = {
     onClose: () => void
@@ -31,6 +32,10 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     const [formDesconto, setFormDesconto] = useState(0)
     const [formMulta, setFormMulta] = useState(0)
     const [formJuros, setFormJuros] = useState(0)
+
+    // Confirmation
+    const [showConfirmModal, setShowConfirmModal] = useState(false)
+    const [pendingTxData, setPendingTxData] = useState<any>(null)
 
 
     // Data
@@ -197,14 +202,24 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
         // Logic for Partial Trigger
         const initialCombined = Number(initialData?.valor_saida || initialData?.valor_entrada || 0)
 
-        // If it is a partial item AND value changed significantly
         if (formParcial && financialId && Math.abs(finalValue - initialCombined) > 0.01) {
             setShowPartialConfirm(true)
             setSaving(false)
             return
         }
 
-        await executeSave(newTransaction)
+        // Standard Confirmation
+        setPendingTxData(newTransaction)
+        setShowConfirmModal(true)
+        setSaving(false)
+    }
+
+    async function handleConfirmSave() {
+        if (!pendingTxData) return
+        setShowConfirmModal(false)
+        setSaving(true)
+        await executeSave(pendingTxData)
+        setPendingTxData(null)
     }
 
     async function executeSave(transactionData: any, partialAction?: 'keep_open' | 'finalize') {
@@ -251,6 +266,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                 setMsg(initialData ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!')
                 setTimeout(() => {
                     onClose()
+                    if (onSuccess) onSuccess()
                 }, 1000)
             }
             setSaving(false)
@@ -566,7 +582,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                 </div >
 
                 {/* Footer Actions */}
-                < div className="border-t dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2" >
+                <div className="border-t dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
                     <button
                         className="px-4 py-2 border rounded hover:bg-gray-100 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:hover:bg-gray-600 transition-colors"
                         onClick={onClose}
@@ -580,8 +596,17 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                     >
                         {saving ? 'Salvando...' : 'Confirmar'}
                     </button>
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+
+            {/* Confirmation Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={handleConfirmSave}
+                title="Confirmar Lançamento"
+                message="Confirmar Lançamento no Livro Caixa?"
+            />
+        </div>
     )
 }

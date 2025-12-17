@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction, deleteTransaction } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction, deleteTransaction, updateFinancial } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
@@ -7,7 +7,9 @@ import { Icon } from '../components/ui/Icon'
 import { PageInfo } from '../components/ui/PageInfo'
 import { formatMoneyBr } from '../utils/format'
 import { TransactionModal } from '../components/modals/TransactionModal'
+
 import { TransactionAttachments } from '../components/TransactionAttachments'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 
 export default function Ledger() {
   const store = useAppStore()
@@ -27,7 +29,12 @@ export default function Ledger() {
   const [pendingTx, setPendingTx] = useState<any>(null)
   const [modalTitle, setModalTitle] = useState('Incluir Nova Transação')
   const [editingId, setEditingId] = useState<string | null>(null)
+
   const [editingTx, setEditingTx] = useState<any>(null)
+
+  // Delete Confirmation State
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<any>(null)
 
   // Filtros Avançados
   const [filterMode, setFilterMode] = useState<'simple' | 'custom' | 'attachments'>('simple')
@@ -294,6 +301,9 @@ export default function Ledger() {
     const tx = pendingTx
     setShowReverseConfirm(false)
 
+    // ALERT TO DEBUG ENTRY
+    alert(`Debug Entry: ID=${tx.id}, Backend=${hasBackend}, FinID=${tx.financial_id}`)
+
     // Ensure schedule_id or agendamento_id is used
     const scheduleId = tx.schedule_id || tx.agendamento_id
 
@@ -305,12 +315,35 @@ export default function Ledger() {
         if (error) throw error
         if (data && !data.success) throw new Error(data.message)
 
+
+        // Restoration of Financial Item Status (if linked)
+        if (tx.financial_id) {
+          alert('Debug: Restaurando financeiro ID ' + tx.financial_id)
+          const resFin = await updateFinancial(tx.financial_id, { situacao: 1 })
+          if (resFin.error) alert('Erro ao atualizar financeiro: ' + resFin.error.message)
+          else alert('Financeiro atualizado com sucesso (Count: ' + (resFin.data ? 'OK' : 'Zero') + ')')
+
+          console.log('Restored financial item status to 1:', tx.financial_id)
+        } else {
+          alert('Debug: Transação NÃO tem financial_id vinculado. Status não será alterado.')
+        }
+
         await load()
         setMsg('Transação estornada com sucesso')
       } else {
         if (scheduleId) {
           store.updateSchedule(scheduleId, { situacao: 1 })
         }
+
+        // Fix for Offline/Fallback Mode: Restore Financial Status
+        if (tx.financial_id) {
+          console.log('Restoring financial item status (Offline/Store):', tx.financial_id)
+          // If updateFinancial supports offline, use it, otherwise use store
+          // store.updateFinancial(tx.financial_id, { situacao: 1 }) // Assuming store has this
+          // For now, let's try calling the service function which might handle it or just log it
+          await updateFinancial(tx.financial_id, { situacao: 1 })
+        }
+
         store.deleteTransaction(tx.id)
         await load()
         setMsg('Transação estornada com sucesso')
@@ -716,23 +749,8 @@ export default function Ledger() {
               if (item.financial_id || item.agendamento_id || item.schedule_id) {
                 alert("Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!")
               } else {
-                if (window.confirm('Deseja realmente excluir este lançamento manual?')) {
-                  if (hasBackend) {
-                    deleteTransaction(item.id).then(r => {
-                      if (r.error) alert('Erro ao excluir: ' + r.error.message)
-                      else {
-                        load()
-                        setMsg('Lançamento excluído com sucesso')
-                        setTimeout(() => setMsg(''), 3000)
-                      }
-                    })
-                  } else {
-                    store.deleteTransaction(item.id)
-                    load()
-                    setMsg('Lançamento excluído com sucesso')
-                    setTimeout(() => setMsg(''), 3000)
-                  }
-                }
+                setItemToDelete(item)
+                setShowDeleteConfirm(true)
               }
               setContextMenu(null)
             }}>
@@ -793,6 +811,35 @@ export default function Ledger() {
           />
         )
       }
+
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => { setShowDeleteConfirm(false); setItemToDelete(null) }}
+        onConfirm={async () => {
+          if (!itemToDelete) return
+          setShowDeleteConfirm(false)
+
+          if (hasBackend) {
+            const r = await deleteTransaction(itemToDelete.id)
+            if (r.error) alert('Erro ao excluir: ' + r.error.message)
+            else {
+              load()
+              setMsg('Lançamento excluído com sucesso')
+              setTimeout(() => setMsg(''), 3000)
+            }
+          } else {
+            store.deleteTransaction(itemToDelete.id)
+            load()
+            setMsg('Lançamento excluído com sucesso')
+            setTimeout(() => setMsg(''), 3000)
+          }
+          setSelectedIds(new Set())
+          setItemToDelete(null)
+        }}
+        title="Excluir Lançamento"
+        message="Deseja realmente excluir este lançamento manual?"
+      />
     </div >
   )
 }

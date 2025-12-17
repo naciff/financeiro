@@ -88,26 +88,33 @@ export default function ScheduleControl() {
 
     try {
       const item = confirmItem
+      // Optimistic Update: Immediately remove the confirmed item from the view
+      setRemote(prev => prev.filter(r => r.id !== item.id))
+
       const todayIso = new Date().toISOString().split('T')[0]
 
-      await confirmProvision(item.id, {
+      const res = await confirmProvision(item.id, {
         valor: item.despesa || item.receita,
         data: todayIso,
         cuentaId: item.caixaId || (caixas.find(c => c.principal)?.id)
       })
 
+      if (res.error) throw res.error
+      if (res.data && !res.data.success) throw new Error(res.data.message)
+
       if (item.scheduleId) {
-        const currentDue = new Date(item.vencimento)
+        const dateParts = item.vencimento.split('T')[0].split('-')
+        const [y, m, d] = dateParts.map(Number)
+        const currentDue = new Date(Date.UTC(y, m - 1, d))
         const nextDue = new Date(currentDue)
-        nextDue.setMonth(nextDue.getMonth() + 1)
+        nextDue.setUTCMonth(nextDue.getUTCMonth() + 1)
 
         console.log('Rolling over schedule:', item.scheduleId, 'to', nextDue.toISOString())
         await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
       }
 
-      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => {
-        if (!r.error && r.data) setRemote(r.data as any)
-      })
+      // Force page reload as requested by user ("F5 automatico")
+      window.location.reload()
 
     } catch (error: any) {
       alert('Erro ao confirmar: ' + error.message)
@@ -169,7 +176,7 @@ export default function ScheduleControl() {
     // User pediu para usar a tabela nova. Vamos assumir backend apenas para essa feature ou adaptar.
     // Como a migration é backend only, store.schedules não vai funcionar aqui.
     // Vamos usar 'remote' apenas.
-    const src = remote
+    const src = remote.filter((r: any) => r.situacao === 1)
     const now = new Date()
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
@@ -1183,11 +1190,27 @@ export default function ScheduleControl() {
               data_vencimento: modal.vencimento || modal.data_vencimento
             } : undefined}
             financialId={modal?.id}
-            onSuccess={() => {
+            onSuccess={async () => {
+              // Check if we need to roll over schedule date
+              if (modal && modal.scheduleId && modal.vencimento) {
+                try {
+                  const dateParts = modal.vencimento.split('T')[0].split('-')
+                  const [y, m, d] = dateParts.map(Number)
+                  const currentDue = new Date(Date.UTC(y, m - 1, d))
+                  const nextDue = new Date(currentDue)
+                  nextDue.setUTCMonth(nextDue.getUTCMonth() + 1)
+
+                  console.log('Rolling over schedule (Edit Modal):', modal.scheduleId, 'to', nextDue.toISOString())
+                  await updateSchedule(modal.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                } catch (err) {
+                  console.error('Failed to update schedule date', err)
+                }
+              }
+
               setShowTransactionModal(false)
               setModal(null)
               if (hasBackend) {
-                listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                window.location.reload()
               }
             }}
             title={modal ? 'Confirmar/Editar Lançamento' : 'Incluir Nova Transação'}
@@ -1208,8 +1231,8 @@ export default function ScheduleControl() {
         isOpen={showConfirmModal}
         onClose={() => { setShowConfirmModal(false); setConfirmItem(null) }}
         onConfirm={handleConfirmSingle}
-        title="Confirmar Lançamento no Livro Caixa"
-        message={confirmItem ? `Deseja realmente confirmar o lançamento de "${confirmItem.historico}"?` : ''}
+        title="Confirmar Lançamento"
+        message="Confirmar Lançamento no Livro Caixa?"
       />
     </div>
   )

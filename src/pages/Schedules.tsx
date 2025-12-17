@@ -629,7 +629,7 @@ export default function Schedules() {
     if (hasBackend) {
       const deps = await checkScheduleDependencies(selectedId)
       if (deps.count > 0) {
-        setAlertInfo({ open: true, msg: 'Exclusão nao permitida. Já existe pagamentos vinculados ao mesmo!!!' })
+        setAlertInfo({ open: true, msg: 'Exclusão não permitida. Existem pagamentos CONFIRMADOS vinculados!' })
         return
       }
     }
@@ -981,7 +981,7 @@ export default function Schedules() {
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Grupo de Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
                     <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.grupoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={grupoId} onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}>
                       <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
-                      {grupos.filter(g => (g.operacao || (g as any).tipo) === activeTab).map(g => <option className="dark:bg-gray-700 dark:text-gray-100" key={g.id} value={g.id}>{g.nome}</option>)}
+                      {grupos.filter(g => (g.operacao || (g as any).tipo) === operacao).map(g => <option className="dark:bg-gray-700 dark:text-gray-100" key={g.id} value={g.id}>{g.nome}</option>)}
                     </select>
                     {errors.grupoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.grupoId}</div>}
                   </div>
