@@ -46,6 +46,8 @@ type Schedule = {
   situacao?: number
 }
 
+type Organization = { id: string; name: string; owner_id: string }
+
 type AppStoreState = {
   accounts: Account[]
   transactions: Transaction[]
@@ -54,6 +56,7 @@ type AppStoreState = {
   commitment_groups: CommitmentGroup[]
   commitments: Commitment[]
   cashboxes: Cashbox[]
+  organizations: Organization[]
   createAccount: (a: Omit<Account, 'id'>) => void
   updateAccount: (id: string, patch: Partial<Account>) => void
   deleteAccount: (id: string) => { ok: boolean; reason?: string }
@@ -77,6 +80,7 @@ type AppStoreState = {
   deleteTransaction: (id: string) => void
   activeOrganization: string | null
   setActiveOrganization: (orgId: string | null) => void
+  refreshOrganizations: () => Promise<void>
 }
 
 const AppStoreCtx = createContext<AppStoreState | null>(null)
@@ -89,22 +93,34 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [commitmentGroups, setCommitmentGroups] = useState<CommitmentGroup[]>([
-    { id: 'grp-1', nome: 'Moradia' },
-    { id: 'grp-2', nome: 'Serviços' },
-    { id: 'grp-3', nome: 'Educação' },
-  ])
-  const [commitments, setCommitments] = useState<Commitment[]>([
-    { id: 'cmp-1', nome: 'Aluguel', grupo_id: 'grp-1' },
-    { id: 'cmp-2', nome: 'Condomínio', grupo_id: 'grp-1' },
-    { id: 'cmp-3', nome: 'Internet', grupo_id: 'grp-2' },
-    { id: 'cmp-4', nome: 'Escola', grupo_id: 'grp-3' },
-  ])
-  const [cashboxes, setCashboxes] = useState<Cashbox[]>([
-    { id: 'cx-1', nome: 'Carteira' },
-    { id: 'cx-2', nome: 'Banco Itaú' },
-  ])
-  const [activeOrganization, setActiveOrganization] = useState<string | null>(null)
+  const [commitmentGroups, setCommitmentGroups] = useState<CommitmentGroup[]>([])
+  const [commitments, setCommitments] = useState<Commitment[]>([])
+  const [cashboxes, setCashboxes] = useState<Cashbox[]>([])
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [activeOrganization, setActiveOrganizationState] = useState<string | null>(localStorage.getItem('activeOrg'))
+
+  const setActiveOrganization = (id: string | null) => {
+    setActiveOrganizationState(id)
+    if (id) localStorage.setItem('activeOrg', id)
+    else localStorage.removeItem('activeOrg')
+  }
+
+  const refreshOrganizations = async () => {
+    const { listMyOrganizations } = await import('../services/db')
+    const res = await listMyOrganizations()
+    if (res.data) {
+      setOrganizations(res.data)
+      // Auto-set if none active
+      if (!activeOrganization && res.data.length > 0) {
+        const principal = res.data.find(o => o.name === 'Pessoal') || res.data[0]
+        setActiveOrganization(principal.id)
+      }
+    }
+  }
+
+  React.useEffect(() => {
+    refreshOrganizations()
+  }, [])
 
   const api = useMemo<AppStoreState>(() => ({
     accounts,
@@ -211,8 +227,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       setCommitments(prev => prev.filter(c => c.id !== id))
     },
     activeOrganization,
-    setActiveOrganization
-  }), [accounts, transactions, schedules, clients, commitmentGroups, commitments, cashboxes, activeOrganization])
+    setActiveOrganization,
+    organizations,
+    refreshOrganizations
+  }), [accounts, transactions, schedules, clients, commitmentGroups, commitments, cashboxes, organizations, activeOrganization])
 
   return <AppStoreCtx.Provider value={api}>{children}</AppStoreCtx.Provider>
 }

@@ -309,8 +309,13 @@ export default function Schedules() {
       try {
         console.log('Schedules: navegou para /schedules')
         setLoadError('')
-        const orgId = store.activeOrganization || undefined
         if (hasBackend) {
+          if (!store.activeOrganization) {
+            console.log('Schedules: no active organization')
+            setLoadError('') // Should we clear or show empty?
+            return
+          }
+          const orgId = store.activeOrganization
           const [cRes, gRes, accRes, cbRes, sRes, ccRes] = await Promise.all([
             listClients(orgId),
             listCommitmentGroups(orgId),
@@ -379,9 +384,9 @@ export default function Schedules() {
 
 
   async function fetchRemoteSchedules() {
-    if (hasBackend) {
+    if (hasBackend && store.activeOrganization) {
       setLoadError('')
-      const r = await listSchedules(10000, { includeConcluded: true, orgId: store.activeOrganization || undefined, grupoCompromissoId: grupoCompromissoFilter || undefined })
+      const r = await listSchedules(10000, { includeConcluded: true, orgId: store.activeOrganization, grupoCompromissoId: grupoCompromissoFilter || undefined })
       if (r.error) {
         setLoadError(r.error.message)
       } else {
@@ -392,8 +397,8 @@ export default function Schedules() {
 
   // Fetch filter options
   useEffect(() => {
-    if (hasBackend) {
-      listAllCommitments(store.activeOrganization || undefined).then(r => {
+    if (hasBackend && store.activeOrganization) {
+      listAllCommitments(store.activeOrganization).then(r => {
         if (r.data) setAllCommitments(r.data)
       })
     }
@@ -401,8 +406,8 @@ export default function Schedules() {
 
   // Fetch filter options (Groups)
   useEffect(() => {
-    if (hasBackend) {
-      listCommitmentGroups(store.activeOrganization || undefined).then(r => {
+    if (hasBackend && store.activeOrganization) {
+      listCommitmentGroups(store.activeOrganization).then(r => {
         if (r.data) setAllCommitmentGroups(r.data.map(g => ({ id: g.id, nome: g.nome })))
       })
     }
@@ -468,10 +473,20 @@ export default function Schedules() {
     if (!valor || valor <= 0 || !Number.isFinite(valor)) { setMsg('Valor deve ser maior que 0'); setMsgType('error'); return }
     const todayIso = (() => { const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${yyyy}-${mm}-${dd}` })()
     if (hasBackend) {
+      if (!store.activeOrganization) { setMsg('Para salvar, selecione uma organização'); setMsgType('error'); return }
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
 
-      const r = await createSchedule({ operacao, tipo, especie, ano_mes_inicial: todayIso, favorecido_id: clienteId || null, grupo_compromisso_id: grupoId || null, compromisso_id: compromissoId || null, historico, caixa_id: caixaId || null, detalhes, valor: valor2, proxima_vencimento: proxima || todayIso, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1, parcial, cost_center_id: costCenterId || null })
+      const r = await createSchedule({
+        operacao, tipo, especie, ano_mes_inicial: todayIso,
+        favorecido_id: clienteId || null, grupo_compromisso_id: grupoId || null,
+        compromisso_id: compromissoId || null, historico, caixa_id: caixaId || null,
+        detalhes, valor: valor2, proxima_vencimento: proxima || todayIso,
+        periodo, parcelas: tipo === 'variavel' ? parcelas : 1,
+        nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1,
+        parcial, cost_center_id: costCenterId || null,
+        organization_id: store.activeOrganization
+      })
       if (r.error) { setMsg(r.error.message); setMsgType('error') }
       else { setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); await fetchRemoteSchedules(); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus() }
     } else {

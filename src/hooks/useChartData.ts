@@ -35,7 +35,7 @@ export function useChartData(orgId?: string | null) {
 
     useEffect(() => {
         async function loadChartData() {
-            if (!supabase || !hasBackend) {
+            if (!orgId || !hasBackend) {
                 setLoading(false)
                 return
             }
@@ -50,7 +50,7 @@ export function useChartData(orgId?: string | null) {
                     .select('id, data_vencimento, valor, operacao, situacao')
                     .gte('data_vencimento', twelveMonthsAgo.toISOString())
                     .neq('situacao', 4) // Exclude cancelled/skipped
-                    .eq('user_id', orgId || (await supabase.auth.getUser()).data.user?.id)
+                    .eq('organization_id', orgId)
 
                 if (financials) {
                     const monthlyAgg = new Map<string, { receitas: number, despesas: number }>()
@@ -109,7 +109,7 @@ export function useChartData(orgId?: string | null) {
                   )
                 )
               `)
-                        .eq('user_id', orgId || user.id)
+                        .eq('organization_id', orgId)
                         .eq('operacao', 'despesa')
                         .neq('situacao', 2)
 

@@ -66,10 +66,15 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     useEffect(() => {
         async function loadData() {
             if (hasBackend) {
+                if (!store.activeOrganization) {
+                    console.log('TransactionModal: skipping load, no active organization')
+                    return
+                }
+                const orgId = store.activeOrganization
                 const [a, c, g] = await Promise.all([
-                    listAccounts(store.activeOrganization || undefined),
-                    listClients(store.activeOrganization || undefined),
-                    listCommitmentGroups(store.activeOrganization || undefined)
+                    listAccounts(orgId),
+                    listClients(orgId),
+                    listCommitmentGroups(orgId)
                 ])
                 setAccounts(a.data || [])
                 setClients(c.data || [])
@@ -196,7 +201,9 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             especie: formEspecie,
             descontos: showComplementary ? formDesconto : 0,
             multa: showComplementary ? formMulta : 0,
-            juros: showComplementary ? formJuros : 0
+            juros: showComplementary ? formJuros : 0,
+            financial_id: financialId || undefined,
+            concluido_em: new Date().toISOString()
         }
 
         // Logic for Partial Trigger
@@ -227,10 +234,16 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             let r
             let txId = initialData?.id
 
+            if (!store.activeOrganization) {
+                alert('Sem organização ativa')
+                setSaving(false)
+                return
+            }
+
             if (txId) {
-                r = await updateTransaction(txId, transactionData, store.activeOrganization || undefined)
+                r = await updateTransaction(txId, transactionData, store.activeOrganization)
             } else {
-                r = await createTransaction(transactionData, store.activeOrganization || undefined)
+                r = await createTransaction(transactionData, store.activeOrganization)
                 if (r.data) {
                     txId = r.data.id
                     if (financialId) {
@@ -240,10 +253,10 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                             const paidAmount = Number(transactionData.valor_entrada || transactionData.valor_saida || 0)
                             const remainder = Math.max(0, initialValue - paidAmount) // Prevent negative values
 
-                            await updateFinancial(financialId, { valor: remainder, situacao: 1 }, store.activeOrganization || undefined)
+                            await updateFinancial(financialId, { valor: remainder, situacao: 1 }, store.activeOrganization!)
                         } else {
                             // Finalize
-                            await updateFinancial(financialId, { situacao: 2 }, store.activeOrganization || undefined)
+                            await updateFinancial(financialId, { situacao: 2 }, store.activeOrganization!)
                         }
                     }
                 }

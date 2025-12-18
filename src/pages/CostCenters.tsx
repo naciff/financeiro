@@ -24,7 +24,12 @@ export function CostCenters() {
 
     async function load() {
         setLoading(true)
-        const res = await listCostCenters(store.activeOrganization || undefined)
+        if (!store.activeOrganization) {
+            setItems([])
+            setLoading(false)
+            return
+        }
+        const res = await listCostCenters(store.activeOrganization)
         if (res.data) setItems(res.data)
         setLoading(false)
     }
@@ -67,7 +72,8 @@ export function CostCenters() {
         if (editId) {
             await updateCostCenter(editId, payload)
         } else {
-            await createCostCenter(payload)
+            if (!store.activeOrganization) return alert('Nenhuma empresa selecionada')
+            await createCostCenter({ ...payload, organization_id: store.activeOrganization })
         }
         setShowForm(false)
         load()

@@ -47,7 +47,12 @@ export default function Clients() {
   async function load() {
     setLoading(true); setError(null)
     if (hasBackend) {
-      const orgId = store.activeOrganization || undefined
+      if (!store.activeOrganization) {
+        setItems([])
+        setLoading(false)
+        return
+      }
+      const orgId = store.activeOrganization
       const r = await listClients(orgId)
       if (r.error) { setError(r.error.message); setItems([]) }
       else setItems((r.data as any) || [])
@@ -82,7 +87,11 @@ export default function Clients() {
         const r = await updateClient(editId, clientData)
         if (r.error) setError(r.error.message)
       } else {
-        const r = await createClient(clientData)
+        if (!store.activeOrganization) {
+          setError('Nenhuma empresa selecionada')
+          return
+        }
+        const r = await createClient({ ...clientData, organization_id: store.activeOrganization })
         if (r.error) setError(r.error.message)
       }
     } else {

@@ -16,7 +16,8 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
 
     useEffect(() => {
         async function load() {
-            if (!supabase) {
+            const client = supabase
+            if (!client || !orgId) {
                 setLoading(false)
                 return
             }
@@ -26,14 +27,15 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                 const month = selectedMonth !== undefined ? selectedMonth : now.getMonth()
                 const from = new Date(year, month, 1)
                 const to = new Date(year, month + 1, 0)
-                const r = await supabase.from('monthly_totals_view').select('*').gte('mes', from.toISOString()).lte('mes', to.toISOString()).limit(1)
+                const r = await client.from('monthly_totals_view').select('*').eq('organization_id', orgId).gte('mes', from.toISOString()).lte('mes', to.toISOString()).limit(1)
                 setTotais(r.data && r.data[0] ? r.data[0] : null)
 
                 // Fetch transactions for the current month to calculate realized totals (Livro Caixa)
                 if (hasBackend) {
-                    const { data: txsData, error: txsError } = await supabase
+                    const { data: txsData, error: txsError } = await client
                         .from('transactions')
                         .select('valor_entrada, valor_saida, data_lancamento')
+                        .eq('organization_id', orgId)
                         .gte('data_lancamento', from.toISOString())
                         .lte('data_lancamento', to.toISOString())
                         .neq('operacao', 'transferencia') // Exclude transfers
@@ -50,21 +52,21 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                     }
 
                     // Calculate Saldo Atual from account_balances_view
-                    const { data: accountsData } = await supabase.from('account_balances_view').select('saldo_atual')
+                    const { data: accountsData } = await client.from('account_balances_view').select('saldo_atual').eq('organization_id', orgId)
                     const saldoGeral = accountsData?.reduce((sum, acc) => sum + Number(acc.saldo_atual || 0), 0) || 0
                     setSaldoAtualGeral(saldoGeral)
                 }
 
                 // Fetch schedules to calculate despesas and receitas totals
                 if (hasBackend) {
-                    const user = (await supabase.auth.getUser()).data.user
+                    const user = (await client.auth.getUser()).data.user
 
                     // Fetch ALL expenses for the "Valor Total de Despesas" card (General Total)
                     if (user) {
-                        const { data: allExpenses } = await supabase
+                        const { data: allExpenses } = await client
                             .from('schedules')
                             .select('valor')
-                            .eq('user_id', orgId || user.id)
+                            .eq('organization_id', orgId)
                             .eq('operacao', 'despesa')
                             .neq('situacao', 2) // Filter out canceled/inactive
 

@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
-import { listMyMemberships, getProfile } from '../services/db'
+import { listMyMemberships, getProfile, listOrganizationMembers, addOrganizationMember, removeOrganizationMember } from '../services/db'
 
 export default function Settings() {
   const { activeOrganization, setActiveOrganization } = useAppStore()
-  const [activeTab, setActiveTab] = useState<'geral' | 'integracao'>('integracao')
+  const [activeTab, setActiveTab] = useState<'geral' | 'integracao' | 'equipe'>('integracao')
 
   // State for Team Management - REMOVED
-  const [memberships, setMemberships] = useState<any[]>([])
+  // State for Team Management
+  const [memberships, setMemberships] = useState<any[]>([]) // Used for "Equipe" tab list
   const [loading, setLoading] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
   const [myProfile, setMyProfile] = useState<any>(null)
 
   // State for Integration
@@ -122,11 +124,35 @@ export default function Settings() {
 
   async function loadData() {
     setLoading(true)
-    const [mShips] = await Promise.all([
-      listMyMemberships()
-    ])
-    setMemberships(mShips.data || [])
+    if (activeOrganization) {
+      const perms = await listOrganizationMembers(activeOrganization)
+      setMemberships(perms.data || [])
+    }
     setLoading(false)
+  }
+
+  async function handleInvite() {
+    if (!inviteEmail || !activeOrganization) return
+    const res = await addOrganizationMember(activeOrganization, inviteEmail)
+    if (res.error) {
+      alert('Erro ao convidar: ' + res.error.message)
+    } else {
+      alert('Usuário convidado com sucesso!')
+      setInviteEmail('')
+      loadData()
+    }
+  }
+
+  async function handleRemoveMember(userId: string) {
+    if (!activeOrganization) return
+    if (!window.confirm('Tem certeza que deseja remover este membro da organização?')) return
+
+    const res = await removeOrganizationMember(activeOrganization, userId)
+    if (res.error) {
+      alert('Erro ao remover: ' + res.error.message)
+    } else {
+      loadData()
+    }
   }
 
   return (
@@ -142,6 +168,12 @@ export default function Settings() {
           Geral
         </button>
         <button
+          className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'equipe' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+          onClick={() => setActiveTab('equipe')}
+        >
+          Equipe
+        </button>
+        <button
           className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'integracao' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
           onClick={() => setActiveTab('integracao')}
         >
@@ -152,6 +184,97 @@ export default function Settings() {
       {activeTab === 'geral' && (
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 text-gray-500 dark:text-gray-400">
           Configurações gerais do sistema (Em breve)
+        </div>
+      )}
+
+      {activeTab === 'equipe' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+            <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <Icon name="users" className="w-5 h-5 text-blue-500" />
+              Gerenciar Equipe
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Adicione membros à sua organização para que eles possam acessar e gerenciar os dados financeiros.
+            </p>
+
+            {/* Invite Form */}
+            <div className="flex gap-2 items-end mb-8 max-w-xl">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Convidar por E-mail</label>
+                <input
+                  type="email"
+                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  placeholder="usuario@email.com"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={handleInvite}
+                disabled={!inviteEmail}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Convidar
+              </button>
+            </div>
+
+            {/* Members List */}
+            <div className="overflow-hidden border dark:border-gray-700 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Membro</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Função</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {memberships.map((m) => (
+                    <tr key={m.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-xs font-bold text-gray-500 dark:text-gray-300 overflow-hidden">
+                            {m.profile?.avatar_url ? (
+                              <img src={m.profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              (m.profile?.name || m.profile?.email || '?').charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{m.profile?.name || 'Sem nome'}</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{m.profile?.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${m.role === 'owner' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
+                          {m.role === 'owner' ? 'Proprietário' : 'Membro'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {m.role !== 'owner' && (
+                          <button
+                            onClick={() => handleRemoveMember(m.user_id)}
+                            className="text-red-600 hover:text-red-900 dark:hover:text-red-400"
+                          >
+                            Remover
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {memberships.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                        Nenhum membro encontrado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

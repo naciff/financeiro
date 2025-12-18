@@ -31,7 +31,8 @@ export default function Accounts() {
 
   async function load() {
     if (hasBackend) {
-      const orgId = store.activeOrganization || undefined
+      if (!store.activeOrganization) return
+      const orgId = store.activeOrganization
       const a = await listAccounts(orgId)
       const b = await listAccountBalances(orgId)
       console.log('listAccounts', a)
@@ -60,7 +61,11 @@ export default function Accounts() {
       if (conta && !/^\d{1,8}$/.test(conta)) { setNotice({ type: 'error', text: 'Conta inválida (máx 8 dígitos)' }); return }
     }
     if (hasBackend) {
-      const r = await createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo ? bancoCodigo.trim() : null, agencia: agencia ? agencia.trim() : null, conta: conta ? conta.trim() : null, dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : null, dia_bom: tipo === 'cartao' && diaBom ? Number(diaBom) : null, cor, principal })
+      if (!store.activeOrganization) {
+        setNotice({ type: 'error', text: 'Nenhuma empresa selecionada' })
+        return
+      }
+      const r = await createAccount({ nome, tipo, saldo_inicial: saldoInicial, observacoes, banco_codigo: bancoCodigo ? bancoCodigo.trim() : null, agencia: agencia ? agencia.trim() : null, conta: conta ? conta.trim() : null, dia_vencimento: tipo === 'cartao' && diaVencimento ? Number(diaVencimento) : null, dia_bom: tipo === 'cartao' && diaBom ? Number(diaBom) : null, cor, principal, organization_id: store.activeOrganization })
       console.log('createAccount result', r)
       if ((r as any).error) {
         setNotice({ type: 'error', text: (r as any).error.message })

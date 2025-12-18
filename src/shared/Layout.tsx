@@ -18,10 +18,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showTransfer, setShowTransfer] = useState(false)
   const [showTransaction, setShowTransaction] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
     if (supabase) {
-      supabase.auth.getUser().then(r => setCurrentUser(r.data.user?.id || null))
+      supabase.auth.getUser().then(r => {
+        setCurrentUser(r.data.user?.id || null)
+        setUserEmail(r.data.user?.email || null)
+      })
     }
   }, [])
 
@@ -78,7 +82,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       ]
     },
     // Configurações: Only if Personal (activeOrganization is null) OR Owner
-    ...((!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) ? [{
+    // AND restricted to specific email as per user request
+    ...(((!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) && userEmail === 'ramon.naciff@gmail.com') ? [{
       to: '/settings', label: 'Configurações', icon: 'settings', children: [
         { to: '/settings', label: 'Geral', icon: 'settings_applications' },
         { to: '/permissoes', label: 'Usuário e Permissões', icon: 'lock_person' },

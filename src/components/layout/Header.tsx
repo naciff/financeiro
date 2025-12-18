@@ -1,8 +1,9 @@
 import { supabase } from '../../lib/supabase'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getProfile, listMyMemberships } from '../../services/db'
+import { getProfile } from '../../services/db'
 import { useAppStore } from '../../store/AppStore'
+import { OrganizationModal } from '../modals/OrganizationModal'
 
 export function Header({
   onMenuToggle,
@@ -29,8 +30,8 @@ export function Header({
   })
 
   // Org Switcher State
-  const [memberships, setMemberships] = useState<any[]>([])
   const [showOrgMenu, setShowOrgMenu] = useState(false)
+  const [showOrgModal, setShowOrgModal] = useState(false)
 
   useEffect(() => {
     getProfile().then(r => {
@@ -38,14 +39,14 @@ export function Header({
         setUserName(r.data.name.split(' ')[0])
       }
     })
-    listMyMemberships().then(r => {
-      if (r.data) setMemberships(r.data)
-    })
   }, [])
 
-  const currentOrgName = store.activeOrganization
-    ? (memberships.find(m => m.owner_id === store.activeOrganization)?.owner?.name || 'Organização')
-    : 'Pessoal'
+  const currentOrg = store.organizations.find(o => o.id === store.activeOrganization)
+  const currentOrgName = currentOrg ? currentOrg.name : 'Selecione...'
+
+  const handleCreateOrg = () => {
+    setShowOrgModal(true)
+  }
 
   const navigate = useNavigate()
 
@@ -94,43 +95,31 @@ export function Header({
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowOrgMenu(false)}></div>
                   <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded shadow-lg border dark:border-gray-700 z-20 py-1">
-                    <button
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${!store.activeOrganization ? 'font-bold text-blue-600' : 'text-gray-700 dark:text-gray-200'}`}
-                      onClick={() => {
-                        store.setActiveOrganization(null)
-                        setShowOrgMenu(false)
-                      }}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                      Pessoal
-                    </button>
-
-                    <button
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200`}
-                      onClick={() => {
-                        navigate('/profile')
-                        setShowOrgMenu(false)
-                      }}
-                    >
-                      <span className="material-icons-outlined text-sm">person</span>
-                      Perfil
-                    </button>
-
-                    {memberships.length > 0 && <div className="border-t dark:border-gray-700 my-1"></div>}
-
-                    {memberships.map(m => (
+                    {store.organizations.map(org => (
                       <button
-                        key={m.owner_id}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${store.activeOrganization === m.owner_id ? 'font-bold text-green-600' : 'text-gray-700 dark:text-gray-200'}`}
+                        key={org.id}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${store.activeOrganization === org.id ? 'font-bold text-primary dark:text-primary-light' : 'text-gray-700 dark:text-gray-200'}`}
                         onClick={() => {
-                          store.setActiveOrganization(m.owner_id)
+                          store.setActiveOrganization(org.id)
                           setShowOrgMenu(false)
                         }}
                       >
-                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                        {m.owner?.name || 'Organização'}
+                        <span className={`w-2 h-2 rounded-full ${org.name === 'Pessoal' ? 'bg-blue-500' : 'bg-green-500'}`}></span>
+                        {org.name}
                       </button>
                     ))}
+
+                    <div className="border-t dark:border-gray-700 my-1"></div>
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-primary"
+                      onClick={() => {
+                        handleCreateOrg()
+                        setShowOrgMenu(false)
+                      }}
+                    >
+                      <span className="material-icons-outlined text-sm">add</span>
+                      Nova Empresa
+                    </button>
                   </div>
                 </>
               )}
@@ -205,6 +194,11 @@ export function Header({
           </div>
         </div>
       </div>
+      <OrganizationModal
+        isOpen={showOrgModal}
+        onClose={() => setShowOrgModal(false)}
+        onSuccess={(org) => store.setActiveOrganization(org.id)}
+      />
     </header>
   )
 }

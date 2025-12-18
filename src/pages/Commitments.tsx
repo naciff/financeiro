@@ -22,7 +22,12 @@ export default function Commitments() {
   useEffect(() => {
     async function load() {
       if (hasBackend) {
-        const orgId = store.activeOrganization || undefined
+        if (!store.activeOrganization) {
+          setGrupos([])
+          setItems([])
+          return
+        }
+        const orgId = store.activeOrganization
         const g = await listCommitmentGroups(orgId)
         if (!g.error && g.data) {
           const arr = g.data as any
@@ -50,16 +55,21 @@ export default function Commitments() {
   function onCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!nome.trim() || !grupoId) return
-    if (hasBackend) createCommitment({ nome, grupo_id: grupoId, ir }).then(async () => {
-      setShowForm(false)
-      const g = await listCommitmentGroups(); if (!g.error && g.data) setGrupos(g.data as any)
-      const r = await listCommitmentsByGroup(grupoId);
-      if (!r.error && r.data) {
-        setItems(prev => [...prev.filter(i => i.grupo_id !== grupoId), ...((r.data as any).map((c: any) => ({ id: c.id, nome: c.nome, grupo_id: grupoId, ir: c.ir })))])
-      }
-    })
-    else { store.createCommitment({ nome, grupo_id: grupoId, ir }); setItems(prev => [...prev, { id: Date.now().toString(), nome, grupo_id: grupoId, ir }]) }
-    setNome(''); setGrupoId(''); setIr(false); setShowForm(false)
+    if (hasBackend) {
+      if (!store.activeOrganization) return
+      createCommitment({ nome, grupo_id: grupoId, ir, organization_id: store.activeOrganization }).then(async () => {
+        setShowForm(false)
+        const g = await listCommitmentGroups(store.activeOrganization!); if (!g.error && g.data) setGrupos(g.data as any)
+        const r = await listCommitmentsByGroup(grupoId);
+        if (!r.error && r.data) {
+          setItems(prev => [...prev.filter(i => i.grupo_id !== grupoId), ...((r.data as any).map((c: any) => ({ id: c.id, nome: c.nome, grupo_id: grupoId, ir: c.ir })))])
+        }
+      })
+    } else {
+      store.createCommitment({ nome, grupo_id: grupoId, ir })
+      setItems(prev => [...prev, { id: Date.now().toString(), nome, grupo_id: grupoId, ir }])
+      setNome(''); setGrupoId(''); setIr(false); setShowForm(false)
+    }
   }
   function onUpdate(e: React.FormEvent) {
     e.preventDefault()

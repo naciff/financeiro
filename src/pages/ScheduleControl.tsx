@@ -27,7 +27,7 @@ function toBr(iso: string) {
   if (!dateStr) return ''
   const [yyyy, mm, dd] = dateStr.split('-')
   if (!yyyy || !mm || !dd) return ''
-  return `${dd} /${mm}/${yyyy} `
+  return `${dd}/${mm}/${yyyy}`
 }
 
 export default function ScheduleControl() {
@@ -103,13 +103,8 @@ export default function ScheduleControl() {
       if (res.data && !res.data.success) throw new Error(res.data.message)
 
       if (item.scheduleId) {
-        const dateParts = item.vencimento.split('T')[0].split('-')
-        const [y, m, d] = dateParts.map(Number)
-        const currentDue = new Date(Date.UTC(y, m - 1, d))
-        const nextDue = new Date(currentDue)
-        nextDue.setUTCMonth(nextDue.getUTCMonth() + 1)
-
-        console.log('Rolling over schedule:', item.scheduleId, 'to', nextDue.toISOString())
+        const nextDue = getNextVencimento(item.vencimento, item.periodo)
+        console.log('Rolling over schedule:', item.scheduleId, '(', item.periodo, ') to', nextDue.toISOString())
         await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
       }
 
@@ -122,6 +117,42 @@ export default function ScheduleControl() {
       setConfirmItem(null)
     }
   }
+  function getNextVencimento(vencimentoIso: string, periodo: string) {
+    const dateParts = vencimentoIso.split('T')[0].split('-')
+    const [y, m, d] = dateParts.map(Number)
+    const currentDue = new Date(Date.UTC(y, m - 1, d))
+    const nextDue = new Date(currentDue)
+
+    switch (periodo) {
+      case 'semanal':
+        nextDue.setUTCDate(nextDue.getUTCDate() + 7)
+        break
+      case 'quinzenal':
+        nextDue.setUTCDate(nextDue.getUTCDate() + 15)
+        break
+      case 'mensal':
+      default:
+        nextDue.setUTCMonth(nextDue.getUTCMonth() + 1)
+        break
+      case 'bimestral':
+        nextDue.setUTCMonth(nextDue.getUTCMonth() + 2)
+        break
+      case 'trimestral':
+        nextDue.setUTCMonth(nextDue.getUTCMonth() + 3)
+        break
+      case 'semestral':
+        nextDue.setUTCMonth(nextDue.getUTCMonth() + 6)
+        break
+      case 'anual':
+        nextDue.setUTCFullYear(nextDue.getUTCFullYear() + 1)
+        break
+      case 'unico':
+        // No rollover
+        break
+    }
+    return nextDue
+  }
+
   const [bulkDate, setBulkDate] = useState('')
   const [bulkAccount, setBulkAccount] = useState('')
 
@@ -131,8 +162,8 @@ export default function ScheduleControl() {
   const { runNow } = useDailyAutomation()
 
   useEffect(() => {
-    if (hasBackend) {
-      const orgId = store.activeOrganization || undefined
+    if (hasBackend && store.activeOrganization) {
+      const orgId = store.activeOrganization
       listAccounts(orgId).then(r => { if (!r.error && r.data) setCaixas(r.data as any) })
       listCommitmentGroups(orgId).then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
       listCostCenters(orgId).then(r => { if (!r.error && r.data) setCostCenters(r.data as any) })
@@ -152,23 +183,23 @@ export default function ScheduleControl() {
   const [partialModal, setPartialModal] = useState<{ open: boolean, item: any } | null>(null)
 
   // Carregar dados do Livro Financeiro (Todos para permitir histórico no resumo)
-  useMemo(() => {
-    if (hasBackend) {
-      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-    }
-  }, [store.activeOrganization])
-
-  // Refresh automaticamente ao entrar/voltar para a tela
-  useMemo(() => {
-    function refresh() {
-      if (hasBackend) {
-        listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+  async function refresh() {
+    if (hasBackend && store.activeOrganization) {
+      const r = await listFinancials({ orgId: store.activeOrganization })
+      if (!r.error && r.data) {
+        setRemote(r.data as any)
       }
     }
+  }
+
+  useEffect(() => {
     refresh()
+  }, [store.activeOrganization])
+
+  useEffect(() => {
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
-  }, [store.activeOrganization])
+  }, [])
 
 
   const rows = useMemo(() => {
@@ -364,7 +395,7 @@ export default function ScheduleControl() {
       totalDespesas,
       totalRecords
     }
-  }, [remote, store.schedules, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter])
+  }, [remote, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter])
 
   const buttons: Array<{ id: Filter; label: string }> = [
     { id: 'vencidos', label: 'Vencidos/Dia Atual' },
@@ -591,14 +622,13 @@ export default function ScheduleControl() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Expand/Collapse buttons moved to tabs row */}
-
             {selectedIds.size > 1 && (
               <div className="ml-2 bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-800 shadow-sm rounded px-3 py-1 text-center whitespace-nowrap flex flex-col justify-center h-full">
                 <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
                   SOMA ITENS ({selectedIds.size})
                 </div>
-                <div className={`text - sm font - bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading - tight`}>
+                <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Lançamentos Selecionados</div>
+                <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
                   {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
                 </div>
               </div>
@@ -610,7 +640,7 @@ export default function ScheduleControl() {
       {/* Main Tabs */}
       <div className="flex items-center gap-1 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-1 rounded-t-lg">
         <button
-          className={`px - 4 py - 2 text - xs md: text - sm font - medium rounded - t - md transition - all ${activeMainTab === 'realizar' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'} `}
+          className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'realizar' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
           onClick={() => setActiveMainTab('realizar')}
         >
           Previsão à Realizar
@@ -657,7 +687,13 @@ export default function ScheduleControl() {
             {
               filter === 'mesAtual' ? (
                 <div className="space-y-4">
-                  {GROUP_TITLES.map(groupTitle => {
+                  {rows.data.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
+                      <Icon name="check-circle" className="w-10 h-10 mb-2 opacity-50" />
+                      <p>Nenhum lançamento pendente para este período.</p>
+                    </div>
+                  )}
+                  {rows.data.length > 0 && GROUP_TITLES.map(groupTitle => {
                     const today = new Date()
                     today.setHours(0, 0, 0, 0)
                     const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -720,8 +756,8 @@ export default function ScheduleControl() {
                                 {groupData.map(item => (
                                   <React.Fragment key={item.id}>
                                     <tr
-                                      className={`hover: bg - blue - 50 dark: hover: bg - blue - 900 / 20 transition - colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
-                                        } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''} `}
+                                      className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
+                                        } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
                                       onClick={(e) => handleSelect(e, item.id)}
                                       onContextMenu={(e) => {
                                         e.preventDefault()
@@ -799,7 +835,7 @@ export default function ScheduleControl() {
                                 </tr>
                               </tfoot>
                             </table >
-                          </div >
+                          </div>
                         )}
                       </div >
                     )
@@ -807,433 +843,427 @@ export default function ScheduleControl() {
                 </div >
               ) : (
                 // Tabela Padrão para outros filtros (não agrupada por Situação/Meses, ou simples)
-                // The user layout seems to prefer the Grouped view for "Mes Atual" which splits "Previous" vs "Next"
-                // For other filters like "Next Month", maybe just one table?
-                // Existing code uses `rows.data.map...` directly. Let's keep that structure for non-'mesAtual'.
-                <div className="border dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
-                        <tr>
-                          <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
-                          <th className="px-4 py-2 text-left">Caixa de Lançamento</th>
-                          <th className="px-4 py-2 text-left">Cliente</th>
-                          <th className="px-4 py-2 text-left">Compromisso</th>
-                          <th className="px-4 py-2 text-left">Histórico</th>
-                          <th className="px-4 py-2 text-right w-36">Receita</th>
-                          <th className="px-4 py-2 text-right w-36">Despesa</th>
-                          <th className="px-4 py-2 text-center w-16">Parcela</th>
-                          <th className="px-4 py-2 text-center w-16">Conferido</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {rows.data.map(item => (
-                          <React.Fragment key={item.id}>
-                            <tr
-                              className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
-                                } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
-                              onClick={(e) => handleSelect(e, item.id)}
-                              onContextMenu={(e) => {
-                                e.preventDefault()
-                                setContextMenu({ x: e.clientX, y: e.clientY, item })
-                              }}
-                              onDoubleClick={() => {
-                                openModal(item)
-                                setShowTransactionModal(true)
-                              }}
-                            >
-                              <td className="px-4 py-2 align-top whitespace-nowrap">
-                                <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
-                                {!item.conferido && item.diasAtraso > 0 && (
-                                  <div className="text-xs text-red-500 font-medium mt-0.5">
-                                    Vencido há {item.diasAtraso} dia(s)...
-                                  </div>
-                                )}
-                                {!item.conferido && item.diasAtraso === 0 && (
-                                  <div className="text-xs text-blue-500 font-medium mt-0.5">
-                                    Vencimento Hoje
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate" title={item.caixa}>
-                                {item.caixa}
-                              </td>
-                              <td className="px-4 py-2 text-slate-700 dark:text-gray-300 font-medium align-top max-w-[150px] truncate" title={item.cliente}>
-                                {item.cliente}
-                              </td>
-                              <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate">
-                                {item.compromisso}
-                              </td>
-                              <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[200px] truncate" title={item.historico}>
-                                {item.historico}
-                              </td>
-                              <td className="px-4 py-2 text-right align-top">
-                                {item.receita > 0 ? (
-                                  <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.receita)}</span>
-                                ) : '-'}
-                              </td>
-                              <td className="px-4 py-2 text-right align-top">
-                                {item.despesa > 0 ? (
-                                  <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.despesa)}</span>
-                                ) : '-'}
-                              </td>
-                              <td className="px-4 py-2 text-center text-slate-500 dark:text-gray-500 text-[11px] align-top">
-                                {item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : ''}
-                              </td>
-                              <td className="px-4 py-2 text-center align-top" onClick={e => e.stopPropagation()}>
-                                <input
-                                  type="checkbox"
-                                  checked={item.conferido}
-                                  className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                                  onChange={async (e) => {
-                                    if (hasBackend) {
-                                      setConfirmItem(item)
-                                      setShowConfirmModal(true)
-                                    }
-                                  }}
-                                />
-                              </td>
+                <div className="space-y-4">
+                  {rows.data.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
+                      <Icon name="check-circle" className="w-10 h-10 mb-2 opacity-50" />
+                      <p>Nenhum lançamento pendente para este período.</p>
+                    </div>
+                  )}
+                  {rows.data.length > 0 && (
+                    <div className="border dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
+                            <tr>
+                              <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
+                              <th className="px-4 py-2 text-left">Caixa de Lançamento</th>
+                              <th className="px-4 py-2 text-left">Cliente</th>
+                              <th className="px-4 py-2 text-left">Compromisso</th>
+                              <th className="px-4 py-2 text-left">Histórico</th>
+                              <th className="px-4 py-2 text-right w-36">Receita</th>
+                              <th className="px-4 py-2 text-right w-36">Despesa</th>
+                              <th className="px-4 py-2 text-center w-16">Parcela</th>
+                              <th className="px-4 py-2 text-center w-16">Conferido</th>
                             </tr>
-                            {item.agendamento?.parcial && item.agendamento.valor > (item.receita || item.despesa) && (
-                              <tr className="">
-                                <td colSpan={9} className="px-4 py-1 text-left font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                                  Valor do Compromisso Agendado {formatMoneyBr(item.agendamento.valor)} *** Valor ja Realizado {formatMoneyBr(item.agendamento.valor - (item.receita || item.despesa))}
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                      <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
-                        <tr>
-                          <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
-                          <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(rows.totalReceitas)}</td>
-                          <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(rows.totalDespesas)}</td>
-                          <td colSpan={2}></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              )
-            }
-
-            {/* Context Menu */}
-            {
-              contextMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
-                  <div
-                    className="fixed z-50 bg-white shadow-lg rounded border p-1 w-64 text-sm"
-                    style={{ top: contextMenu.y, left: contextMenu.x }}
-                  >
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
-                      if (contextMenu.item.scheduleId) {
-                        // Fetch linked items logic
-                        const r = await listFinancialsBySchedule(contextMenu.item.scheduleId, store.activeOrganization || undefined)
-                        if (r.data) {
-                          setLinkedItems(r.data)
-                          setShowLinkedItemsModal(true)
-                        }
-                        setContextMenu(null)
-                      } else {
-                        alert('Este item não possui agendamento vinculado.')
-                        setContextMenu(null)
-                      }
-                    }}>
-                      <Icon name="list" className="w-4 h-4" />
-                      Visualizar Itens Vinculados
-                    </button>
-
-                    <div className="border-t my-1"></div>
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => {
-                      setEditValueModal({ open: true, item: contextMenu.item, value: contextMenu.item.despesa || contextMenu.item.receita })
-                      setContextMenu(null)
-                    }}>
-                      <Icon name="dollar-sign" className="w-4 h-4" />
-                      Alterar Valor Previsto
-                    </button>
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-purple-600" onClick={() => {
-                      setSkipId(contextMenu.item.id)
-                      setShowSkipConfirm(true)
-                      setContextMenu(null)
-                    }}>
-                      <Icon name="skip-forward" className="w-4 h-4" />
-                      Saltar Lançamento
-                    </button>
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-                      const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
-                      setEditDateModal({ open: true, item: contextMenu.item, date: d })
-                      setContextMenu(null)
-                    }}>
-                      <Icon name="calendar" className="w-4 h-4" />
-                      Alterar Data Vencimento
-                    </button>
-
-                    <div className="border-t my-1"></div>
-                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
-                      const item = contextMenu.item
-                      if (item && item.scheduleId) {
-                        navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
-                      } else {
-                        alert('Item sem agendamento vinculado')
-                      }
-                    }}>
-                      <Icon name="calendar" className="w-4 h-4 text-gray-500" />
-                      Ir ao Agendamento do Item
-                    </button>
-                  </div>
-                </>
-              )
-            }
-
-            {/* Edit Value Modal */}
-            {
-              editValueModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                  <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-                    <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
-                    <input
-                      type="number"
-                      className="w-full border rounded px-3 py-2 mb-4"
-                      value={editValueModal.value}
-                      onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
-                      <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                        if (hasBackend) {
-                          await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
-                          setEditValueModal(null)
-                          listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                        } else {
-                          alert('Backend required')
-                        }
-                      }}>Salvar</button>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {rows.data.map(item => (
+                              <React.Fragment key={item.id}>
+                                <tr
+                                  className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
+                                    } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
+                                  onClick={(e) => handleSelect(e, item.id)}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault()
+                                    setContextMenu({ x: e.clientX, y: e.clientY, item })
+                                  }}
+                                  onDoubleClick={() => {
+                                    openModal(item)
+                                    setShowTransactionModal(true)
+                                  }}
+                                >
+                                  <td className="px-4 py-2 align-top whitespace-nowrap">
+                                    <div className="font-medium text-slate-700 dark:text-gray-300">{item.vencimentoBr}</div>
+                                    {!item.conferido && item.diasAtraso > 0 && (
+                                      <div className="text-xs text-red-500 font-medium mt-0.5">
+                                        Vencido há {item.diasAtraso} dia(s)...
+                                      </div>
+                                    )}
+                                    {!item.conferido && item.diasAtraso === 0 && (
+                                      <div className="text-xs text-blue-500 font-medium mt-0.5">
+                                        Vencimento Hoje
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate" title={item.caixa}>
+                                    {item.caixa}
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-700 dark:text-gray-300 font-medium align-top max-w-[150px] truncate" title={item.cliente}>
+                                    {item.cliente}
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[150px] truncate">
+                                    {item.compromisso}
+                                  </td>
+                                  <td className="px-4 py-2 text-slate-600 dark:text-gray-400 align-top max-w-[200px] truncate" title={item.historico}>
+                                    {item.historico}
+                                  </td>
+                                  <td className="px-4 py-2 text-right align-top">
+                                    {item.receita > 0 ? (
+                                      <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.receita)}</span>
+                                    ) : '-'}
+                                  </td>
+                                  <td className="px-4 py-2 text-right align-top">
+                                    {item.despesa > 0 ? (
+                                      <span className="text-slate-700 dark:text-slate-300 font-medium">R$ {formatMoneyBr(item.despesa)}</span>
+                                    ) : '-'}
+                                  </td>
+                                  <td className="px-4 py-2 text-center text-slate-500 dark:text-gray-500 text-[11px] align-top">
+                                    {item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : ''}
+                                  </td>
+                                  <td className="px-4 py-2 text-center align-top" onClick={e => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={item.conferido}
+                                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                                      onChange={async (e) => {
+                                        if (hasBackend) {
+                                          setConfirmItem(item)
+                                          setShowConfirmModal(true)
+                                        }
+                                      }}
+                                    />
+                                  </td>
+                                </tr>
+                                {item.agendamento?.parcial && item.agendamento.valor > (item.receita || item.despesa) && (
+                                  <tr className="">
+                                    <td colSpan={9} className="px-4 py-1 text-left font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                      Valor do Compromisso Agendado {formatMoneyBr(item.agendamento.valor)} *** Valor ja Realizado {formatMoneyBr(item.agendamento.valor - (item.receita || item.despesa))}
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-700 font-semibold text-xs text-slate-700 dark:text-gray-300">
+                            <tr>
+                              <td colSpan={5} className="px-4 py-2 text-right">Totais:</td>
+                              <td className="px-4 py-2 text-right text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(rows.totalReceitas)}</td>
+                              <td className="px-4 py-2 text-right text-red-600 dark:text-red-400">R$ {formatMoneyBr(rows.totalDespesas)}</td>
+                              <td colSpan={2}></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )
-            }
+                  )
+                  }
 
-            {/* Edit Date Modal */}
-            {
-              editDateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                  <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-                    <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
-                    <input
-                      type="date"
-                      className="w-full border rounded px-3 py-2 mb-4"
-                      value={editDateModal.date}
-                      onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
-                      <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                        if (hasBackend) {
-                          await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
-                          setEditDateModal(null)
-                          listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                        } else {
-                          alert('Backend required')
-                        }
-                      }}>Salvar</button>
-                    </div>
-                  </div>
-                </div>
-              )
-            }
+                  {/* Context Menu */}
+                  {
+                    contextMenu && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+                        <div
+                          className="fixed z-50 bg-white shadow-lg rounded border p-1 w-64 text-sm"
+                          style={{ top: contextMenu.y, left: contextMenu.x }}
+                        >
+                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
+                            if (contextMenu.item.scheduleId) {
+                              // Fetch linked items logic
+                              const r = await listFinancialsBySchedule(contextMenu.item.scheduleId, store.activeOrganization || undefined)
+                              if (r.data) {
+                                setLinkedItems(r.data)
+                                setShowLinkedItemsModal(true)
+                              }
+                              setContextMenu(null)
+                            } else {
+                              alert('Este item não possui agendamento vinculado.')
+                              setContextMenu(null)
+                            }
+                          }}>
+                            <Icon name="list" className="w-4 h-4" />
+                            Visualizar Itens Vinculados
+                          </button>
 
-            {/* Skip Confirmation Modal */}
-            {
-              showSkipConfirm && (
-                <ConfirmModal
-                  isOpen={showSkipConfirm}
-                  title="Saltar Lançamento"
-                  message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
-                  onConfirm={async () => {
-                    if (skipId) {
-                      if (hasBackend) {
-                        await updateFinancial(skipId, { situacao: 4 })
-                        listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                      } else {
-                        alert('Necessário backend')
-                      }
-                    }
-                    setShowSkipConfirm(false)
-                    setSkipId(null)
-                  }}
-                  onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
-                />
-              )
-            }
+                          <div className="border-t my-1"></div>
+                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => {
+                            setEditValueModal({ open: true, item: contextMenu.item, value: contextMenu.item.despesa || contextMenu.item.receita })
+                            setContextMenu(null)
+                          }}>
+                            <Icon name="dollar-sign" className="w-4 h-4" />
+                            Alterar Valor Previsto
+                          </button>
+                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-purple-600" onClick={() => {
+                            setSkipId(contextMenu.item.id)
+                            setShowSkipConfirm(true)
+                            setContextMenu(null)
+                          }}>
+                            <Icon name="skip-forward" className="w-4 h-4" />
+                            Saltar Lançamento
+                          </button>
+                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
+                            const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
+                            setEditDateModal({ open: true, item: contextMenu.item, date: d })
+                            setContextMenu(null)
+                          }}>
+                            <Icon name="calendar" className="w-4 h-4" />
+                            Alterar Data Vencimento
+                          </button>
 
-            {/* Confirm Modal for Provision */}
-            {
-              showConfirmModal && (
-                <ConfirmModal
-                  isOpen={showConfirmModal}
-                  title="Confirmar Baixa"
-                  message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
-                  onClose={() => {
-                    setShowConfirmModal(false)
-                    setPendingConfirmation(null)
-                  }}
-                  onConfirm={async () => {
-                    if (pendingConfirmation && hasBackend) {
-                      // We need to confirm provision
-                      // Check if we need to set specific account/date?
-                      // Using default logic from confirmProvision
-                      await confirmProvision(pendingConfirmation.item.id, { valor: modalValor, data: modalData, cuentaId: modalContaId })
-                      listFinancials({ status: 1 }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                    }
-                    setShowConfirmModal(false)
-                    setPendingConfirmation(null)
-                  }}
-                >
-                  <div className="mt-4 space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data do Pagamento/Recebimento</label>
-                      <input
-                        type="date"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                        value={modalData}
-                        onChange={e => setModalData(e.target.value)}
+                          <div className="border-t my-1"></div>
+                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
+                            const item = contextMenu.item
+                            if (item && item.scheduleId) {
+                              navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
+                            } else {
+                              alert('Item sem agendamento vinculado')
+                            }
+                          }}>
+                            <Icon name="calendar" className="w-4 h-4 text-gray-500" />
+                            Ir ao Agendamento do Item
+                          </button>
+                        </div>
+                      </>
+                    )
+                  }
+
+                  {/* Edit Value Modal */}
+                  {
+                    editValueModal && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                        <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+                          <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
+                          <input
+                            type="number"
+                            className="w-full border rounded px-3 py-2 mb-4"
+                            value={editValueModal.value}
+                            onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
+                            <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                              if (hasBackend) {
+                                await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
+                                setEditValueModal(null)
+                                listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                              } else {
+                                alert('Backend required')
+                              }
+                            }}>Salvar</button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  {/* Edit Date Modal */}
+                  {
+                    editDateModal && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                        <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+                          <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
+                          <input
+                            type="date"
+                            className="w-full border rounded px-3 py-2 mb-4"
+                            value={editDateModal.date}
+                            onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
+                            <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                              if (hasBackend) {
+                                await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
+                                setEditDateModal(null)
+                                listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                              } else {
+                                alert('Backend required')
+                              }
+                            }}>Salvar</button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  {/* Skip Confirmation Modal */}
+                  {
+                    showSkipConfirm && (
+                      <ConfirmModal
+                        isOpen={showSkipConfirm}
+                        title="Saltar Lançamento"
+                        message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
+                        onConfirm={async () => {
+                          if (skipId) {
+                            if (hasBackend) {
+                              await updateFinancial(skipId, { situacao: 4 })
+                              listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                            } else {
+                              alert('Necessário backend')
+                            }
+                          }
+                          setShowSkipConfirm(false)
+                          setSkipId(null)
+                        }}
+                        onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa</label>
-                      <select
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                        value={modalContaId}
-                        onChange={e => setModalContaId(e.target.value)}
+                    )
+                  }
+
+                  {/* Confirm Modal for Provision */}
+                  {
+                    showConfirmModal && (
+                      <ConfirmModal
+                        isOpen={showConfirmModal}
+                        title="Confirmar Baixa"
+                        message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
+                        onClose={() => {
+                          setShowConfirmModal(false)
+                          setPendingConfirmation(null)
+                        }}
+                        onConfirm={async () => {
+                          if (pendingConfirmation && hasBackend) {
+                            // We need to confirm provision
+                            // Check if we need to set specific account/date?
+                            // Using default logic from confirmProvision
+                            await confirmProvision(pendingConfirmation.item.id, { valor: modalValor, data: modalData, cuentaId: modalContaId }, store.activeOrganization!)
+                            listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                          }
+                          setShowConfirmModal(false)
+                          setPendingConfirmation(null)
+                        }}
                       >
-                        <option value="">Selecione...</option>
-                        {caixas.map(c => (
-                          <option key={c.id} value={c.id}>{c.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valor Realizado</label>
-                      <input
-                        type="number"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                        value={modalValor}
-                        onChange={e => setModalValor(parseFloat(e.target.value))}
+                        <div className="mt-4 space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data do Pagamento/Recebimento</label>
+                            <input
+                              type="date"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                              value={modalData}
+                              onChange={e => setModalData(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa</label>
+                            <select
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                              value={modalContaId}
+                              onChange={e => setModalContaId(e.target.value)}
+                            >
+                              <option value="">Selecione...</option>
+                              {caixas.map(c => (
+                                <option key={c.id} value={c.id}>{c.nome}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valor Realizado</label>
+                            <input
+                              type="number"
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                              value={modalValor}
+                              onChange={e => setModalValor(parseFloat(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </ConfirmModal>
+                    )
+                  }
+
+                  {/* Bulk Confirm Modal */}
+                  {
+                    showBulkConfirm && (
+                      <BulkTransactionModal
+                        isOpen={showBulkConfirm}
+                        items={rows.allData.filter(r => r.conferido)}
+                        accounts={caixas}
+                        onClose={() => setShowBulkConfirm(false)}
+                        onConfirm={async (data) => {
+                          const checkedItems = rows.allData.filter(r => r.conferido)
+                          if (hasBackend) {
+                            for (const item of checkedItems) {
+                              // Use the date/account from the modal
+                              await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
+
+                              // Update Schedule next due date
+                              if (item.scheduleId) {
+                                const nextDue = getNextVencimento(item.vencimento, item.periodo)
+                                const res = await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                                console.log('Update Schedule Result:', item.scheduleId, '(', item.periodo, ')', nextDue.toISOString(), res)
+                              }
+                            }
+                            listFinancials({ orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                          }
+                          setShowBulkConfirm(false)
+                        }}
                       />
-                    </div>
-                  </div>
-                </ConfirmModal>
+                    )
+                  }
+                </div >
               )
             }
 
-            {/* Bulk Confirm Modal */}
             {
-              showBulkConfirm && (
-                <BulkTransactionModal
-                  isOpen={showBulkConfirm}
-                  items={rows.allData.filter(r => r.conferido)}
-                  accounts={caixas}
-                  onClose={() => setShowBulkConfirm(false)}
-                  onConfirm={async (data) => {
-                    const checkedItems = rows.allData.filter(r => r.conferido)
-                    if (hasBackend) {
-                      for (const item of checkedItems) {
-                        // Use the date/account from the modal
-                        await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
-
-                        // Update Schedule next due date (Add 1 month)
-                        if (item.scheduleId) {
-                          const currentDue = new Date(item.vencimento)
-                          const nextDue = new Date(currentDue)
-                          nextDue.setMonth(nextDue.getMonth() + 1)
-                          // Handle month rollover edge cases (e.g. Jan 31 -> Feb 28/29) using Day overflow
-                          // If day changed, it means overflow happened. Reset to last day of previous month? 
-                          // Or just let JS standard behavior (skip to Mar) be ok? 
-                          // Standard business requirement usually wants to keep the day or clamp to last day.
-                          // Let's stick to standard setMonth for now as per user request "proximo mes".
-
-                          const res = await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
-                          console.log('Update Schedule Result:', item.scheduleId, nextDue.toISOString(), res)
-                        }
+              showTransactionModal && (
+                <TransactionModal
+                  onClose={() => { setShowTransactionModal(false); setModal(null) }}
+                  initialData={modal ? {
+                    ...modal,
+                    id: undefined,
+                    data_lancamento: undefined,
+                    valor_saida: modal.despesa || (modal.tipo === 'despesa' ? modal.valor : 0),
+                    valor_entrada: modal.receita || (modal.tipo === 'receita' ? modal.valor : 0),
+                    operacao: (modal.operacao || modal.tipo || 'despesa').toLowerCase(),
+                    cliente_id: modal.favorecido_id || modal.cliente_id,
+                    cliente: modal.favorecido_id || modal.cliente_id,
+                    grupo_compromisso_id: modal.grupo_compromisso_id,
+                    compromisso_id: modal.compromisso_id,
+                    historico: modal.historico,
+                    conta_id: modal.caixa_id,
+                    data_vencimento: modal.vencimento || modal.data_vencimento
+                  } : undefined}
+                  financialId={modal?.id}
+                  onSuccess={async () => {
+                    // Check if we need to roll over schedule date
+                    if (modal && modal.scheduleId && modal.vencimento) {
+                      try {
+                        const nextDue = getNextVencimento(modal.vencimento, modal.periodo)
+                        console.log('Rolling over schedule (Edit Modal):', modal.scheduleId, '(', modal.periodo, ') to', nextDue.toISOString())
+                        await updateSchedule(modal.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                      } catch (err) {
+                        console.error('Failed to update schedule date', err)
                       }
-                      listFinancials({ orgId: store.activeOrganization || undefined }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                     }
-                    setShowBulkConfirm(false)
+
+                    setShowTransactionModal(false)
+                    setModal(null)
+                    if (hasBackend) {
+                      window.location.reload()
+                    }
                   }}
+                  title={modal ? 'Confirmar/Editar Lançamento' : 'Incluir Nova Transação'}
                 />
               )
             }
-          </div >
+
+            {/* Linked Items Modal */}
+            {showLinkedItemsModal && (
+              <LinkedItemsModal
+                isOpen={showLinkedItemsModal}
+                items={linkedItems}
+                onClose={() => setShowLinkedItemsModal(false)}
+              />
+            )}
+            <ConfirmModal
+              isOpen={showConfirmModal}
+              onClose={() => { setShowConfirmModal(false); setConfirmItem(null) }}
+              onConfirm={handleConfirmSingle}
+              title="Confirmar Lançamento"
+              message="Confirmar Lançamento no Livro Caixa?"
+            />
+          </div>
         )
       }
-
-      {
-        showTransactionModal && (
-          <TransactionModal
-            onClose={() => { setShowTransactionModal(false); setModal(null) }}
-            initialData={modal ? {
-              ...modal,
-              id: undefined,
-              data_lancamento: undefined,
-              valor_saida: modal.despesa || (modal.tipo === 'despesa' ? modal.valor : 0),
-              valor_entrada: modal.receita || (modal.tipo === 'receita' ? modal.valor : 0),
-              operacao: (modal.operacao || modal.tipo || 'despesa').toLowerCase(),
-              cliente_id: modal.favorecido_id || modal.cliente_id,
-              cliente: modal.favorecido_id || modal.cliente_id,
-              grupo_compromisso_id: modal.grupo_compromisso_id,
-              compromisso_id: modal.compromisso_id,
-              historico: modal.historico,
-              conta_id: modal.caixa_id,
-              data_vencimento: modal.vencimento || modal.data_vencimento
-            } : undefined}
-            financialId={modal?.id}
-            onSuccess={async () => {
-              // Check if we need to roll over schedule date
-              if (modal && modal.scheduleId && modal.vencimento) {
-                try {
-                  const dateParts = modal.vencimento.split('T')[0].split('-')
-                  const [y, m, d] = dateParts.map(Number)
-                  const currentDue = new Date(Date.UTC(y, m - 1, d))
-                  const nextDue = new Date(currentDue)
-                  nextDue.setUTCMonth(nextDue.getUTCMonth() + 1)
-
-                  console.log('Rolling over schedule (Edit Modal):', modal.scheduleId, 'to', nextDue.toISOString())
-                  await updateSchedule(modal.scheduleId, { proxima_vencimento: nextDue.toISOString() })
-                } catch (err) {
-                  console.error('Failed to update schedule date', err)
-                }
-              }
-
-              setShowTransactionModal(false)
-              setModal(null)
-              if (hasBackend) {
-                window.location.reload()
-              }
-            }}
-            title={modal ? 'Confirmar/Editar Lançamento' : 'Incluir Nova Transação'}
-          />
-        )
-      }
-
-      {/* Linked Items Modal */}
-      {showLinkedItemsModal && (
-        <LinkedItemsModal
-          isOpen={showLinkedItemsModal}
-          items={linkedItems}
-          onClose={() => setShowLinkedItemsModal(false)}
-        />
-      )}
-
-      <ConfirmModal
-        isOpen={showConfirmModal}
-        onClose={() => { setShowConfirmModal(false); setConfirmItem(null) }}
-        onConfirm={handleConfirmSingle}
-        title="Confirmar Lançamento"
-        message="Confirmar Lançamento no Livro Caixa?"
-      />
     </div>
   )
 }

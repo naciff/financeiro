@@ -55,7 +55,6 @@ export default function Ledger() {
   const [formValor, setFormValor] = useState(0)
   const [formDataVencimento, setFormDataVencimento] = useState('')
   const [formDataLancamento, setFormDataLancamento] = useState('')
-  const [formStatus, setFormStatus] = useState<'pendente' | 'pago' | 'recebido'>('pendente')
 
   // Novos campos do modal
   const [formCliente, setFormCliente] = useState('')
@@ -94,7 +93,11 @@ export default function Ledger() {
 
   async function load() {
     if (hasBackend) {
-      const orgId = store.activeOrganization || undefined
+      if (!store.activeOrganization) {
+        console.log('Ledger: skipping load, no active organization')
+        return
+      }
+      const orgId = store.activeOrganization
       const t = await listTransactions(2000, orgId)
       const a = await listAccounts(orgId)
       const c = await listClients(orgId)
@@ -167,7 +170,7 @@ export default function Ledger() {
       data_lancamento: formDataLancamento,
       valor_entrada: isEntrada ? formValor : 0,
       valor_saida: !isEntrada ? formValor : 0,
-      status: formStatus,
+      // status field removed
       cliente_id: formCliente, // Correctly mapped to database column
       grupo_compromisso_id: formGrupoCompromisso, // Use correct FK column
       compromisso_id: formCompromisso, // Use correct FK column
@@ -181,7 +184,7 @@ export default function Ledger() {
       if (editingId) {
         r = await updateTransaction(editingId, newTransaction)
       } else {
-        r = await supabase.from('transactions').insert([{ user_id: userId, ...newTransaction }])
+        r = await supabase.from('transactions').insert([{ user_id: userId, organization_id: store.activeOrganization, ...newTransaction }])
       }
 
       if (r.error) {
@@ -216,7 +219,6 @@ export default function Ledger() {
     setFormValor(0)
     setFormDataVencimento('')
     setFormDataLancamento('')
-    setFormStatus('pendente')
     setFormCliente('')
     setFormGrupoCompromisso('')
     setFormCompromisso('')
@@ -301,9 +303,6 @@ export default function Ledger() {
     const tx = pendingTx
     setShowReverseConfirm(false)
 
-    // ALERT TO DEBUG ENTRY
-    alert(`Debug Entry: ID=${tx.id}, Backend=${hasBackend}, FinID=${tx.financial_id}`)
-
     // Ensure schedule_id or agendamento_id is used
     const scheduleId = tx.schedule_id || tx.agendamento_id
 
@@ -318,14 +317,8 @@ export default function Ledger() {
 
         // Restoration of Financial Item Status (if linked)
         if (tx.financial_id) {
-          alert('Debug: Restaurando financeiro ID ' + tx.financial_id)
-          const resFin = await updateFinancial(tx.financial_id, { situacao: 1 })
-          if (resFin.error) alert('Erro ao atualizar financeiro: ' + resFin.error.message)
-          else alert('Financeiro atualizado com sucesso (Count: ' + (resFin.data ? 'OK' : 'Zero') + ')')
-
+          await updateFinancial(tx.financial_id, { situacao: 1 })
           console.log('Restored financial item status to 1:', tx.financial_id)
-        } else {
-          alert('Debug: Transação NÃO tem financial_id vinculado. Status não será alterado.')
         }
 
         await load()
@@ -577,21 +570,21 @@ export default function Ledger() {
       {/* Filtros e Abas */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex border dark:border-gray-600 rounded overflow-hidden">
+          <div className="flex gap-2">
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'simple' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              className={`px-4 py-2 text-sm rounded transition-colors border ${filterMode === 'simple' ? 'bg-fourtek-blue text-white border-fourtek-blue' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
               onClick={() => { setFilterMode('simple'); load() }}
             >
               Movimentação
             </button>
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'custom' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              className={`px-4 py-2 text-sm rounded transition-colors border ${filterMode === 'custom' ? 'bg-fourtek-blue text-white border-fourtek-blue' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
               onClick={() => setFilterMode('custom')}
             >
               Personalizada
             </button>
             <button
-              className={`px-3 py-1 text-sm ${filterMode === 'attachments' ? 'bg-fourtek-blue text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              className={`px-4 py-2 text-sm rounded transition-colors border ${filterMode === 'attachments' ? 'bg-fourtek-blue text-white border-fourtek-blue' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
               onClick={() => setFilterMode('attachments')}
             >
               Comprovantes Digitalizados
@@ -619,7 +612,7 @@ export default function Ledger() {
               return (
                 <button
                   key={val}
-                  className={`px-4 py-2 text-xs font-medium whitespace-nowrap border-r dark:border-gray-700 ${isSelected ? 'bg-orange-100 dark:bg-orange-900/40 border-b-2 border-b-orange-400 dark:border-b-orange-500 text-orange-800 dark:text-orange-200' : 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200'}`}
+                  className={`px-4 py-2 text-xs md:text-sm font-medium whitespace-nowrap border-r dark:border-gray-700 transition-all ${isSelected ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-0.5 pb-2.5 z-10' : 'bg-gray-50 dark:bg-gray-900 text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
                   onClick={() => setSelectedMonth(val)}
                 >
                   {label}
@@ -652,7 +645,8 @@ export default function Ledger() {
 
                   if (hasBackend) {
                     const field = dateFilterType === 'payment' ? 'data_vencimento' : 'data_lancamento'
-                    const res = await searchTransactions(startDate, endDate, field, store.activeOrganization || undefined)
+                    if (!store.activeOrganization) return
+                    const res = await searchTransactions(startDate, endDate, field, store.activeOrganization)
                     if (res.data) setTxs(res.data)
                   }
                 }}

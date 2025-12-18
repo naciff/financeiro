@@ -111,6 +111,10 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
 
         try {
             if (hasBackend) {
+                if (!store.activeOrganization) {
+                    alert('Nenhuma empresa selecionada') // Or handle gracefully
+                    return
+                }
                 const r = await createClient({
                     nome: finalName,
                     documento: cpfCnpj || undefined,
@@ -118,7 +122,8 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                     telefone: novoClienteTelefone || undefined,
                     razao_social: razaoSocial || undefined,
                     endereco: enderecoEmpresa || undefined,
-                    atividade_principal: atividadePrincipal || undefined
+                    atividade_principal: atividadePrincipal || undefined,
+                    organization_id: store.activeOrganization
                 })
                 if (!r.error && r.data?.id) {
                     onSuccess({ id: r.data.id, nome: finalName })
