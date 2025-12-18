@@ -45,8 +45,13 @@ export default function Calendar() {
     setParams(p => { p.set('month', month); return p }, { replace: true })
 
     if (hasBackend) {
+      if (!store.activeOrganization) return
       setLoading(true)
-      Promise.all([listSchedules(1000), listTransactions(1000)]).then(([s, t]) => {
+      const orgId = store.activeOrganization
+      Promise.all([
+        listSchedules(1000, { orgId, includeConcluded: true }),
+        listTransactions(1000, orgId)
+      ]).then(([s, t]) => {
         if (s.data) setRemoteSchedules(s.data)
         if (t.data) setRemoteTransactions(t.data)
         setLoading(false)

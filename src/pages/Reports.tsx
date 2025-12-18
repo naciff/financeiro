@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useAppStore } from '../store/AppStore'
 import { listTransactions, listAccounts, listCommitmentGroups, listCommitmentsByGroup } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { Icon } from '../components/ui/Icon'
 
 export default function Reports() {
+  const store = useAppStore()
   // Data State
   const [txs, setTxs] = useState<any[]>([])
   const [accounts, setAccounts] = useState<any[]>([])
@@ -27,7 +29,7 @@ export default function Reports() {
 
   useEffect(() => {
     loadInitialData()
-  }, [])
+  }, [store.activeOrganization])
 
   useEffect(() => {
     if (selectedGroup) {
@@ -39,11 +41,13 @@ export default function Reports() {
   }, [selectedGroup])
 
   async function loadInitialData() {
+    if (!store.activeOrganization) return
     setLoading(true)
+    const orgId = store.activeOrganization
     const [t, a, g] = await Promise.all([
-      listTransactions(3000), // Fetch a larger batch for reports
-      listAccounts(),
-      listCommitmentGroups()
+      listTransactions(3000, orgId), // Fetch a larger batch for reports
+      listAccounts(orgId),
+      listCommitmentGroups(orgId)
     ])
     setTxs(t.data || [])
     setAccounts(a.data || [])
@@ -313,29 +317,27 @@ export default function Reports() {
             </label>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button
               onClick={handleExportCSV}
               disabled={!generated}
-              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Exportar CSV"
             >
-              <Icon name="file-text" className="w-4 h-4" />
-              CSV
+              <Icon name="excel" className="w-6 h-6 text-green-600" />
             </button>
             <button
               onClick={handleExportPDF}
               disabled={!generated}
-              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Exportar PDF"
             >
-              <Icon name="file-text" className="w-4 h-4" />
-              PDF
+              <Icon name="pdf" className="w-6 h-6 text-red-500" />
             </button>
             <button
               onClick={handleGenerate}
               disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition disabled:opacity-50"
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition disabled:opacity-50 h-[38px]"
             >
               <Icon name="search" className="w-4 h-4" />
               {loading ? 'Carregando...' : 'Gerar Relatório'}

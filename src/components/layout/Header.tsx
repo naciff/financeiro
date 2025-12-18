@@ -32,6 +32,7 @@ export function Header({
   // Org Switcher State
   const [showOrgMenu, setShowOrgMenu] = useState(false)
   const [showOrgModal, setShowOrgModal] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
     getProfile().then(r => {
@@ -67,8 +68,10 @@ export function Header({
           <h1 className="text-2xl font-bold text-text-main-light dark:text-text-main-dark">{title}</h1>
         </div>
 
-        {/* Right: Actions & User */}
+        {/* Right: Rearranged Items */}
         <div className="flex items-center gap-6">
+
+          {/* 1. Shortcuts */}
           <div className="hidden md:flex items-center gap-4 text-text-muted-light dark:text-text-muted-dark">
             <button onClick={onOpenCalculator} className="hover:text-primary transition-colors" title="Calculadora"><span className="material-icons-outlined">calculate</span></button>
             <button onClick={onOpenTransaction} className="hover:text-primary transition-colors" title="Novo Lançamento"><span className="material-icons-outlined">add</span></button>
@@ -77,8 +80,68 @@ export function Header({
 
           <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>
 
-          <div className="hidden md:flex items-center gap-2 mx-1">
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark">Olá, {userName || 'Usuário'}</p>
+          {/* 2. Date */}
+          <div className="hidden md:flex items-center gap-2 text-sm text-text-muted-light dark:text-text-muted-dark">
+            <span className="material-icons-outlined text-base">calendar_today</span>
+            <span>{formattedDate}</span>
+          </div>
+
+          <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>
+
+          {/* 3. Theme Switcher */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-full border border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => {
+                setThemeMode('light')
+                localStorage.setItem('theme', 'light')
+                document.documentElement.classList.remove('dark')
+              }}
+              className={`p-0.5 rounded-full transition-all ${themeMode === 'light'
+                ? 'bg-white dark:bg-gray-600 shadow-sm text-yellow-500'
+                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                }`}
+              title="Claro"
+            >
+              <span className="material-icons-outlined text-sm">light_mode</span>
+            </button>
+            <button
+              onClick={() => {
+                setThemeMode('auto')
+                localStorage.removeItem('theme')
+                if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                  document.documentElement.classList.add('dark')
+                } else {
+                  document.documentElement.classList.remove('dark')
+                }
+              }}
+              className={`p-0.5 rounded-full transition-all ${themeMode === 'auto'
+                ? 'bg-white dark:bg-gray-600 shadow-sm text-primary'
+                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                }`}
+              title="Automático"
+            >
+              <span className="material-icons-outlined text-sm">brightness_auto</span>
+            </button>
+            <button
+              onClick={() => {
+                setThemeMode('dark')
+                localStorage.setItem('theme', 'dark')
+                document.documentElement.classList.add('dark')
+              }}
+              className={`p-0.5 rounded-full transition-all ${themeMode === 'dark'
+                ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-400'
+                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                }`}
+              title="Escuro"
+            >
+              <span className="material-icons-outlined text-sm">dark_mode</span>
+            </button>
+          </div>
+
+          <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>
+
+          {/* 4. Org & User (Org first) */}
+          <div className="hidden md:flex items-center gap-4 mx-1 relative">
 
             {/* Org Switcher */}
             <div className="relative">
@@ -124,73 +187,47 @@ export function Header({
                 </>
               )}
             </div>
-          </div>
 
-          <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>
+            {/* User Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-1 text-sm text-text-muted-light dark:text-text-muted-dark hover:text-primary transition-colors"
+              >
+                Olá, {userName || 'Usuário'}
+                <span className="material-icons-outlined text-[16px]">expand_more</span>
+              </button>
 
-          <div className="hidden md:flex items-center gap-2 text-sm text-text-muted-light dark:text-text-muted-dark">
-            <span className="material-icons-outlined text-base">calendar_today</span>
-            <span>{formattedDate}</span>
-          </div>
-
-          <div className="flex items-center gap-2 ml-4">
-            <div className="h-4 w-px bg-border-light dark:bg-border-dark mx-2"></div>
-            {/* Theme Switcher */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-0.5 rounded-full border border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => {
-                  setThemeMode('light')
-                  localStorage.setItem('theme', 'light')
-                  document.documentElement.classList.remove('dark')
-                }}
-                className={`p-1 rounded-full transition-all ${themeMode === 'light'
-                  ? 'bg-white dark:bg-gray-600 shadow-sm text-yellow-500'
-                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                  }`}
-                title="Claro"
-              >
-                <span className="material-icons-outlined text-sm">light_mode</span>
-              </button>
-              <button
-                onClick={() => {
-                  setThemeMode('auto')
-                  localStorage.removeItem('theme')
-                  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    document.documentElement.classList.add('dark')
-                  } else {
-                    document.documentElement.classList.remove('dark')
-                  }
-                }}
-                className={`p-1 rounded-full transition-all ${themeMode === 'auto'
-                  ? 'bg-white dark:bg-gray-600 shadow-sm text-primary'
-                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                  }`}
-                title="Automático"
-              >
-                <span className="material-icons-outlined text-sm">brightness_auto</span>
-              </button>
-              <button
-                onClick={() => {
-                  setThemeMode('dark')
-                  localStorage.setItem('theme', 'dark')
-                  document.documentElement.classList.add('dark')
-                }}
-                className={`p-1 rounded-full transition-all ${themeMode === 'dark'
-                  ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-400'
-                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                  }`}
-                title="Escuro"
-              >
-                <span className="material-icons-outlined text-sm">dark_mode</span>
-              </button>
+              {showUserMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)}></div>
+                  <div className="absolute top-full right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded shadow-lg border dark:border-gray-700 z-20 py-1">
+                    <button
+                      onClick={() => {
+                        navigate('/profile')
+                        setShowUserMenu(false)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      <span className="material-icons-outlined text-base">person</span>
+                      Meu Perfil
+                    </button>
+                    <div className="border-t dark:border-gray-700 my-1"></div>
+                    <button
+                      onClick={() => {
+                        supabase?.auth.signOut()
+                        setShowUserMenu(false)
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      <span className="material-icons-outlined text-base">logout</span>
+                      Sair
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
-            <button
-              onClick={() => supabase?.auth.signOut()}
-              className="text-sm font-medium hover:text-loss transition-colors text-text-muted-light dark:text-text-muted-dark"
-            >
-              Sair
-            </button>
           </div>
         </div>
       </div>

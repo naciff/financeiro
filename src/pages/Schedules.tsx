@@ -727,7 +727,7 @@ export default function Schedules() {
       {loadError && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded p-3 flex items-center justify-between">
           <span>Erro ao carregar: {loadError}</span>
-          <button className="px-2 py-1 rounded border dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50" onClick={() => { setLoadError(''); (async () => { try { if (hasBackend) { const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(), listCommitmentGroups(), listAccounts(), listCashboxes(), listSchedules()]); if (cRes.error) throw cRes.error; if (gRes.error) throw gRes.error; if (accRes.error) throw accRes.error; if (cbRes.error) throw cbRes.error; if (sRes.error) throw sRes.error; setClientes((cRes.data as any) || []); setGrupos((gRes.data as any) || []); setContas((accRes.data as any) || []); setCaixas((cbRes.data as any) || []); setRemoteSchedules((sRes.data as any) || []); } else { setClientes(store.clients.map(c => ({ id: c.id, nome: c.nome }))); setGrupos(store.commitment_groups); setCompromissos(store.commitments); setContas(store.accounts.map(a => ({ id: a.id, nome: a.nome, ativo: a.ativo !== false, principal: !!a.principal }))); setCaixas(store.cashboxes.map(c => ({ id: c.id, nome: c.nome }))); } console.log('Schedules: retry carregado com sucesso') } catch (err: any) { setLoadError(err?.message || 'Falha ao carregar dados'); console.error('Schedules: erro no retry', err) } })() }}>Tentar novamente</button>
+          <button className="px-2 py-1 rounded border dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/50" onClick={() => { setLoadError(''); (async () => { try { if (hasBackend) { if (!store.activeOrganization) return; const orgId = store.activeOrganization; const [cRes, gRes, accRes, cbRes, sRes] = await Promise.all([listClients(orgId), listCommitmentGroups(orgId), listAccounts(orgId), listCashboxes(orgId), listSchedules(10000, { includeConcluded: true, orgId })]); if (cRes.error) throw cRes.error; if (gRes.error) throw gRes.error; if (accRes.error) throw accRes.error; if (cbRes.error) throw cbRes.error; if (sRes.error) throw sRes.error; setClientes((cRes.data as any) || []); setGrupos((gRes.data as any) || []); setContas((accRes.data as any) || []); setCaixas((cbRes.data as any) || []); setRemoteSchedules((sRes.data as any) || []); } else { setClientes(store.clients.map(c => ({ id: c.id, nome: c.nome }))); setGrupos(store.commitment_groups); setCompromissos(store.commitments); setContas(store.accounts.map(a => ({ id: a.id, nome: a.nome, ativo: a.ativo !== false, principal: !!a.principal }))); setCaixas(store.cashboxes.map(c => ({ id: c.id, nome: c.nome }))); } console.log('Schedules: retry carregado com sucesso') } catch (err: any) { setLoadError(err?.message || 'Falha ao carregar dados'); console.error('Schedules: erro no retry', err) } })() }}>Tentar novamente</button>
         </div>
       )}
 
@@ -793,14 +793,14 @@ export default function Schedules() {
 
           {/* Export Buttons */}
           <div className="flex items-center gap-2">
-            <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
+            <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
               // Generate simplistic PDF 
               window.print()
             }} title="Imprimir / Salvar PDF">
-              <Icon name="file-pdf" className="w-4 h-4" />
+              <Icon name="pdf" className="w-6 h-6 text-red-500" />
             </button>
 
-            <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
+            <button className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => {
               // Export CSV
               const headers = ['Data Referência', 'Cliente', 'Histórico', 'Vencimento', 'Período', 'Data Final', 'Valor Parcela', 'Qtd', 'Valor Total']
               const rows = data.data.map(r => [
@@ -831,7 +831,7 @@ export default function Schedules() {
                 document.body.removeChild(link)
               }
             }} title="Exportar CSV">
-              <Icon name="file-excel" className="w-4 h-4" />
+              <Icon name="excel" className="w-6 h-6 text-green-600" />
             </button>
           </div>
 
