@@ -959,247 +959,241 @@ export default function ScheduleControl() {
                   )
                   }
 
-                  {/* Context Menu */}
-                  {
-                    contextMenu && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
-                        <div
-                          className="fixed z-50 bg-white shadow-lg rounded border p-1 w-64 text-sm"
-                          style={{ top: contextMenu.y, left: contextMenu.x }}
-                        >
-                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={async () => {
-                            if (contextMenu.item.scheduleId) {
-                              // Fetch linked items logic
-                              const r = await listFinancialsBySchedule(contextMenu.item.scheduleId, store.activeOrganization || undefined)
-                              if (r.data) {
-                                setLinkedItems(r.data)
-                                setShowLinkedItemsModal(true)
-                              }
-                              setContextMenu(null)
-                            } else {
-                              alert('Este item não possui agendamento vinculado.')
-                              setContextMenu(null)
-                            }
-                          }}>
-                            <Icon name="list" className="w-4 h-4" />
-                            Visualizar Itens Vinculados
-                          </button>
-
-                          <div className="border-t my-1"></div>
-                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-orange-600" onClick={() => {
-                            setEditValueModal({ open: true, item: contextMenu.item, value: contextMenu.item.despesa || contextMenu.item.receita })
-                            setContextMenu(null)
-                          }}>
-                            <Icon name="dollar-sign" className="w-4 h-4" />
-                            Alterar Valor Previsto
-                          </button>
-                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-purple-600" onClick={() => {
-                            setSkipId(contextMenu.item.id)
-                            setShowSkipConfirm(true)
-                            setContextMenu(null)
-                          }}>
-                            <Icon name="skip-forward" className="w-4 h-4" />
-                            Saltar Lançamento
-                          </button>
-                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-blue-600" onClick={() => {
-                            const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
-                            setEditDateModal({ open: true, item: contextMenu.item, date: d })
-                            setContextMenu(null)
-                          }}>
-                            <Icon name="calendar" className="w-4 h-4" />
-                            Alterar Data Vencimento
-                          </button>
-
-                          <div className="border-t my-1"></div>
-                          <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 flex items-center gap-2 text-gray-700" onClick={() => {
-                            const item = contextMenu.item
-                            if (item && item.scheduleId) {
-                              navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
-                            } else {
-                              alert('Item sem agendamento vinculado')
-                            }
-                          }}>
-                            <Icon name="calendar" className="w-4 h-4 text-gray-500" />
-                            Ir ao Agendamento do Item
-                          </button>
-                        </div>
-                      </>
-                    )
-                  }
-
-                  {/* Edit Value Modal */}
-                  {
-                    editValueModal && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                        <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-                          <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
-                          <input
-                            type="number"
-                            className="w-full border rounded px-3 py-2 mb-4"
-                            value={editValueModal.value}
-                            onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
-                            <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                              if (hasBackend) {
-                                await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
-                                setEditValueModal(null)
-                                listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                              } else {
-                                alert('Backend required')
-                              }
-                            }}>Salvar</button>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  {/* Edit Date Modal */}
-                  {
-                    editDateModal && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                        <div className="bg-white rounded p-4 w-[300px] shadow-lg">
-                          <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
-                          <input
-                            type="date"
-                            className="w-full border rounded px-3 py-2 mb-4"
-                            value={editDateModal.date}
-                            onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
-                            <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
-                              if (hasBackend) {
-                                await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
-                                setEditDateModal(null)
-                                listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                              } else {
-                                alert('Backend required')
-                              }
-                            }}>Salvar</button>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  {/* Skip Confirmation Modal */}
-                  {
-                    showSkipConfirm && (
-                      <ConfirmModal
-                        isOpen={showSkipConfirm}
-                        title="Saltar Lançamento"
-                        message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
-                        onConfirm={async () => {
-                          if (skipId) {
-                            if (hasBackend) {
-                              await updateFinancial(skipId, { situacao: 4 })
-                              listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                            } else {
-                              alert('Necessário backend')
-                            }
-                          }
-                          setShowSkipConfirm(false)
-                          setSkipId(null)
-                        }}
-                        onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
-                      />
-                    )
-                  }
-
-                  {/* Confirm Modal for Provision */}
-                  {
-                    showConfirmModal && (
-                      <ConfirmModal
-                        isOpen={showConfirmModal}
-                        title="Confirmar Baixa"
-                        message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
-                        onClose={() => {
-                          setShowConfirmModal(false)
-                          setPendingConfirmation(null)
-                        }}
-                        onConfirm={async () => {
-                          if (pendingConfirmation && hasBackend) {
-                            // We need to confirm provision
-                            // Check if we need to set specific account/date?
-                            // Using default logic from confirmProvision
-                            await confirmProvision(pendingConfirmation.item.id, { valor: modalValor, data: modalData, cuentaId: modalContaId }, store.activeOrganization!)
-                            listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                          }
-                          setShowConfirmModal(false)
-                          setPendingConfirmation(null)
-                        }}
-                      >
-                        <div className="mt-4 space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data do Pagamento/Recebimento</label>
-                            <input
-                              type="date"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                              value={modalData}
-                              onChange={e => setModalData(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa</label>
-                            <select
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                              value={modalContaId}
-                              onChange={e => setModalContaId(e.target.value)}
-                            >
-                              <option value="">Selecione...</option>
-                              {caixas.map(c => (
-                                <option key={c.id} value={c.id}>{c.nome}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valor Realizado</label>
-                            <input
-                              type="number"
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
-                              value={modalValor}
-                              onChange={e => setModalValor(parseFloat(e.target.value))}
-                            />
-                          </div>
-                        </div>
-                      </ConfirmModal>
-                    )
-                  }
-
-                  {/* Bulk Confirm Modal */}
-                  {
-                    showBulkConfirm && (
-                      <BulkTransactionModal
-                        isOpen={showBulkConfirm}
-                        items={rows.allData.filter(r => r.conferido)}
-                        accounts={caixas}
-                        onClose={() => setShowBulkConfirm(false)}
-                        onConfirm={async (data) => {
-                          const checkedItems = rows.allData.filter(r => r.conferido)
-                          if (hasBackend) {
-                            for (const item of checkedItems) {
-                              // Use the date/account from the modal
-                              await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
-
-                              // Update Schedule next due date
-                              if (item.scheduleId) {
-                                const nextDue = getNextVencimento(item.vencimento, item.periodo)
-                                const res = await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
-                                console.log('Update Schedule Result:', item.scheduleId, '(', item.periodo, ')', nextDue.toISOString(), res)
-                              }
-                            }
-                            listFinancials({ orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                          }
-                          setShowBulkConfirm(false)
-                        }}
-                      />
-                    )
-                  }
+                  {/* Context Menu e Modais movidos para o escopo principal para funcionar em todas as views */}
                 </div >
+              )
+            }
+
+            {/* Context Menu - Moved outside conditional */}
+            {
+              contextMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+                  <div
+                    className="fixed z-50 bg-white dark:bg-gray-800 shadow-lg rounded border dark:border-gray-700 p-1 w-64 text-sm"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                  >
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={async () => {
+                      if (contextMenu.item.scheduleId) {
+                        const r = await listFinancialsBySchedule(contextMenu.item.scheduleId, store.activeOrganization || undefined)
+                        if (r.data) {
+                          setLinkedItems(r.data)
+                          setShowLinkedItemsModal(true)
+                        }
+                        setContextMenu(null)
+                      } else {
+                        alert('Este item não possui agendamento vinculado.')
+                        setContextMenu(null)
+                      }
+                    }}>
+                      <Icon name="list" className="w-4 h-4" />
+                      Visualizar Itens Vinculados
+                    </button>
+
+                    <div className="border-t dark:border-gray-700 my-1"></div>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-orange-600 dark:text-orange-400" onClick={() => {
+                      setEditValueModal({ open: true, item: contextMenu.item, value: contextMenu.item.despesa || contextMenu.item.receita })
+                      setContextMenu(null)
+                    }}>
+                      <Icon name="dollar" className="w-4 h-4" />
+                      Alterar Valor Previsto
+                    </button>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-purple-600 dark:text-purple-400" onClick={() => {
+                      setSkipId(contextMenu.item.id)
+                      setShowSkipConfirm(true)
+                      setContextMenu(null)
+                    }}>
+                      <Icon name="skip-forward" className="w-4 h-4" />
+                      Saltar Lançamento
+                    </button>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
+                      const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
+                      setEditDateModal({ open: true, item: contextMenu.item, date: d })
+                      setContextMenu(null)
+                    }}>
+                      <Icon name="calendar" className="w-4 h-4" />
+                      Alterar Data Vencimento
+                    </button>
+
+                    <div className="border-t dark:border-gray-700 my-1"></div>
+                    <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={() => {
+                      const item = contextMenu.item
+                      if (item && item.scheduleId) {
+                        navigate('/schedules', { state: { selectedScheduleId: item.scheduleId } })
+                      } else {
+                        alert('Item sem agendamento vinculado')
+                      }
+                    }}>
+                      <Icon name="calendar" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      Ir ao Agendamento do Item
+                    </button>
+                  </div>
+                </>
+              )
+            }
+
+            {/* Edit Value Modal */}
+            {
+              editValueModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                  <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+                    <h3 className="font-medium mb-3">Alterar Valor Previsto</h3>
+                    <input
+                      type="number"
+                      className="w-full border rounded px-3 py-2 mb-4"
+                      value={editValueModal.value}
+                      onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
+                      <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                        if (hasBackend) {
+                          await updateFinancial(editValueModal.item.id, { valor: editValueModal.value })
+                          setEditValueModal(null)
+                          listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                        } else {
+                          alert('Backend required')
+                        }
+                      }}>Salvar</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            {/* Edit Date Modal */}
+            {
+              editDateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                  <div className="bg-white rounded p-4 w-[300px] shadow-lg">
+                    <h3 className="font-medium mb-3">Alterar Data Vencimento</h3>
+                    <input
+                      type="date"
+                      className="w-full border rounded px-3 py-2 mb-4"
+                      value={editDateModal.date}
+                      onChange={e => setEditDateModal({ ...editDateModal, date: e.target.value })}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditDateModal(null)}>Cancelar</button>
+                      <button className="px-3 py-1 bg-black text-white rounded hover:bg-gray-800" onClick={async () => {
+                        if (hasBackend) {
+                          await updateFinancial(editDateModal.item.id, { data_vencimento: editDateModal.date })
+                          setEditDateModal(null)
+                          listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                        } else {
+                          alert('Backend required')
+                        }
+                      }}>Salvar</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            {/* Skip Confirmation Modal */}
+            {
+              showSkipConfirm && (
+                <ConfirmModal
+                  isOpen={showSkipConfirm}
+                  title="Saltar Lançamento"
+                  message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
+                  onConfirm={async () => {
+                    if (skipId) {
+                      if (hasBackend) {
+                        await updateFinancial(skipId, { situacao: 4 })
+                        listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                      } else {
+                        alert('Necessário backend')
+                      }
+                    }
+                    setShowSkipConfirm(false)
+                    setSkipId(null)
+                  }}
+                  onClose={() => { setShowSkipConfirm(false); setSkipId(null) }}
+                />
+              )
+            }
+
+            {/* Confirm Modal for Provision - Moved outside conditional */}
+            {
+              showConfirmModal && (
+                <ConfirmModal
+                  isOpen={showConfirmModal}
+                  title="Confirmar Baixa"
+                  message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
+                  onClose={() => {
+                    setShowConfirmModal(false)
+                    setPendingConfirmation(null)
+                  }}
+                  onConfirm={async () => {
+                    if (pendingConfirmation && hasBackend) {
+                      await confirmProvision(pendingConfirmation.item.id, { valor: modalValor, data: modalData, cuentaId: modalContaId }, store.activeOrganization!)
+                      listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                    }
+                    setShowConfirmModal(false)
+                    setPendingConfirmation(null)
+                  }}
+                >
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data do Pagamento/Recebimento</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        value={modalData}
+                        onChange={e => setModalData(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Conta/Caixa</label>
+                      <select
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        value={modalContaId}
+                        onChange={e => setModalContaId(e.target.value)}
+                      >
+                        <option value="">Selecione...</option>
+                        {caixas.map(c => (
+                          <option key={c.id} value={c.id}>{c.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Valor Realizado</label>
+                      <input
+                        type="number"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
+                        value={modalValor}
+                        onChange={e => setModalValor(parseFloat(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </ConfirmModal>
+              )
+            }
+
+            {/* Bulk Confirm Modal */}
+            {
+              showBulkConfirm && (
+                <BulkTransactionModal
+                  isOpen={showBulkConfirm}
+                  items={rows.allData.filter(r => r.conferido)}
+                  accounts={caixas}
+                  onClose={() => setShowBulkConfirm(false)}
+                  onConfirm={async (data) => {
+                    const checkedItems = rows.allData.filter(r => r.conferido)
+                    if (hasBackend) {
+                      for (const item of checkedItems) {
+                        await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
+                        if (item.scheduleId) {
+                          const nextDue = getNextVencimento(item.vencimento, item.periodo)
+                          await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                        }
+                      }
+                      listFinancials({ orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
+                    }
+                    setShowBulkConfirm(false)
+                  }}
+                />
               )
             }
 
