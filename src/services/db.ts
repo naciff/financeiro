@@ -8,7 +8,7 @@ export async function listAccounts(orgId: string) {
 export async function createAccount(payload: { nome: string; tipo: string; saldo_inicial?: number; observacoes?: string; banco_codigo?: string | null; agencia?: string | null; conta?: string | null; dia_vencimento?: number | null; dia_bom?: number | null; cor?: string; principal?: boolean; organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('accounts').insert([{ user_id: userId, organization_id: payload.organization_id, ...payload }])
+  return supabase.from('accounts').insert([{ user_id: userId, ...payload }])
 }
 
 export async function updateAccountFields(id: string, patch: Record<string, any>) {
@@ -586,15 +586,11 @@ export async function listFinancialsBySchedule(scheduleId: string, orgId?: strin
 export async function updateOrganizationMemberPermissions(id: string, permissions: any) {
   if (!supabase) return { error: { message: 'Supabase não inicializado' } }
 
-  // Only owner can update. RLS should handle this, but we filter by owner_id just in case or for safety if passing ID.
-  // Actually row ID is unique, but let's ensure we are the owner.
-  const ownerId = (await supabase.auth.getUser()).data.user?.id
-
-  return supabase
-    .from('organization_members')
-    .update({ permissions })
-    .eq('id', id)
-    .eq('owner_id', ownerId as any)
+  // Use the secure RPC function to avoid RLS recursion issues
+  return supabase.rpc('update_member_permissions', {
+    p_member_id: id,
+    p_permissions: permissions
+  })
 }
 
 export async function listMyMemberships() {
@@ -604,11 +600,11 @@ export async function listMyMemberships() {
   return supabase
     .from('organization_members')
     .select(`
-      owner_id,
+      organization_id,
       permissions,
-      owner:owner_id(id, name, email, avatar_url)
+      role
     `)
-    .eq('member_id', userId)
+    .eq('user_id', userId)
 }
 
 export async function listAttachments(transactionId: string) {
@@ -756,4 +752,29 @@ export async function updateOrganization(id: string, name: string) {
 export async function deleteOrganization(id: string) {
   if (!supabase) return { error: { message: 'Supabase não inicializado' } }
   return supabase.from('organizations').delete().eq('id', id)
+}
+
+export async function getAllOrganizationsAdmin() {
+  if (!supabase) return { data: [], error: null }
+  return supabase.rpc('get_all_organizations_admin')
+}
+
+export async function getAdminStats() {
+  if (!supabase) return { data: [], error: null }
+  return supabase.rpc('get_admin_stats')
+}
+
+export async function execSqlAdmin(query: string) {
+  if (!supabase) return { data: null, error: { message: 'No connection' } }
+  return supabase.rpc('exec_sql_admin', { query_text: query })
+}
+
+export async function addOrgMemberAdmin(orgId: string, email: string, role: string = 'member') {
+  if (!supabase) return { data: null, error: { message: 'No connection' } }
+  return supabase.rpc('add_org_member_admin', { target_org_id: orgId, target_email: email, target_role: role })
+}
+
+export async function updateOrganizationAdmin(id: string, name: string) {
+  if (!supabase) return { data: null, error: { message: 'No connection' } }
+  return supabase.rpc('update_organization_name_admin', { target_org_id: id, new_name: name })
 }

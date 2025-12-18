@@ -9,7 +9,7 @@ import { TransferModal } from '../components/modals/TransferModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 import { useLocation } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
-import { listMyMemberships } from '../services/db'
+import { listMyMemberships, listMyOrganizations } from '../services/db'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const store = useAppStore()
@@ -19,6 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showTransaction, setShowTransaction] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [isOrgOwner, setIsOrgOwner] = useState(false)
 
   useEffect(() => {
     if (supabase) {
@@ -39,7 +40,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           // Ideally we could check if user has personal data, but as per plan: auto-switch to first org
           // To improve UX: maybe only auto-switch if user has NO personal data?
           // For now, let's auto-switch to first org if it exists, assuming "Personal" is empty for staff users.
-          store.setActiveOrganization(res.data[0].owner_id)
+          store.setActiveOrganization(res.data[0].organization_id)
         }
       })
     }
@@ -49,18 +50,43 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function checkPermissions() {
-      // 1. Personal Mode or Owner Mode -> Full Access
-      if (!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) {
-        setPermissions(null)
-        return
+      // 1. Fetch relevant data
+      const [membershipsRes, orgsRes] = await Promise.all([
+        listMyMemberships(),
+        listMyOrganizations()
+      ])
+
+      const myOrgs = orgsRes.data || []
+
+      // 2. Check Ownership
+      if (!store.activeOrganization) {
+        setIsOrgOwner(true) // "Pessoal" implies owner usually, or treated as such
+      } else {
+        const currentOrg = myOrgs.find((o: any) => o.id === store.activeOrganization)
+        setIsOrgOwner(currentOrg?.owner_id === currentUser)
       }
 
-      // 2. Member Mode -> Fetch Permissions
-      const { data } = await listMyMemberships()
-      const membership = data?.find(m => m.owner_id === store.activeOrganization)
-      setPermissions(membership?.permissions || {})
+      // 3. Permissions (Member Mode)
+      if (store.activeOrganization && currentUser) {
+        // If owner, full access (permissions = null)
+        const currentOrg = myOrgs.find((o: any) => o.id === store.activeOrganization)
+        if (currentOrg?.owner_id === currentUser) {
+          setPermissions(null)
+          return
+        }
+
+        // If member, check membership permissions
+        // Note: listMyMemberships might need update if it's legacy, but assuming it returns memberships for now
+        // If listMyMemberships returns empty or wrong data, this part might fail, but let's focus on Settings menu first.
+        const membership = membershipsRes.data?.find((m: any) => m.organization_id === store.activeOrganization || m.owner_id === store.activeOrganization)
+        setPermissions(membership?.permissions || {})
+      } else {
+        setPermissions(null)
+      }
     }
-    checkPermissions()
+    if (currentUser) {
+      checkPermissions()
+    }
   }, [store.activeOrganization, currentUser])
 
   const navRaw = [
@@ -81,13 +107,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { to: '/cadastro/clientes', label: 'Clientes', icon: 'people' },
       ]
     },
-    // Configurações: Only if Personal (activeOrganization is null) OR Owner
-    // AND restricted to specific email as per user request
-    ...(((!store.activeOrganization || (currentUser && store.activeOrganization === currentUser)) && userEmail === 'ramon.naciff@gmail.com') ? [{
+    // Configurações: Only if Master User (ramon.naciff@gmail.com)
+    ...(userEmail === 'ramon.naciff@gmail.com' ? [{
       to: '/settings', label: 'Configurações', icon: 'settings', children: [
-        { to: '/settings', label: 'Geral', icon: 'settings_applications' },
-        { to: '/permissoes', label: 'Usuário e Permissões', icon: 'lock_person' },
-        { to: '/admin/users', label: 'Usuários do Sistema', icon: 'group_add' }
+        { to: '/settings?tab=geral', label: 'Geral', icon: 'settings_applications' },
+        { to: '/settings?tab=organizacoes', label: 'Organizações', icon: 'business' },
+        { to: '/admin/db-manager', label: 'Gerenciador de Banco', icon: 'storage' }
       ]
     }] : [])
   ]

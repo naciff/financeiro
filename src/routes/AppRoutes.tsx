@@ -19,6 +19,7 @@ import Clients from '../pages/Clients'
 import ScheduleControl from '../pages/ScheduleControl'
 import AdminUsers from '../pages/AdminUsers'
 import { CostCenters } from '../pages/CostCenters'
+import DbManager from '../pages/DbManager'
 
 export function AppRoutes() {
   return (
@@ -44,6 +45,7 @@ export function AppRoutes() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/permissoes" element={<Permissions />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/db-manager" element={<DbManager />} />
       </Routes>
     </Layout>
   )

@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 type Account = {
   id: string; nome: string; tipo: string; saldo_inicial: number; observacoes?: string; banco_codigo?: string; agencia?: string; conta?: string; ativo?: boolean; principal?: boolean; dia_vencimento?: number
@@ -99,6 +100,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [activeOrganization, setActiveOrganizationState] = useState<string | null>(localStorage.getItem('activeOrg'))
 
+  // Import supabase lazily or inside effect if strictly needed, but better top level. 
+  // Wait, db.ts imports it. We can use it from lib.
+  // We need to import supabase instance.
+
   const setActiveOrganization = (id: string | null) => {
     setActiveOrganizationState(id)
     if (id) localStorage.setItem('activeOrg', id)
@@ -110,16 +115,52 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     const res = await listMyOrganizations()
     if (res.data) {
       setOrganizations(res.data)
-      // Auto-set if none active
-      if (!activeOrganization && res.data.length > 0) {
+
+      const stored = localStorage.getItem('activeOrg')
+
+      // If we have a stored org, check if valid for current user
+      if (stored) {
+        const isValid = res.data.find(o => o.id === stored)
+        if (!isValid) {
+          // Stored org is not valid for this user (e.g. switched user), so clear it
+          setActiveOrganization(null)
+          // Then below logic picking default will run if needed, or user stays with null if empty
+        }
+      }
+
+      // Auto-set if none active (or just cleared)
+      // Read current state from the state variable or temp local var
+      // IMPORTANT: If we just set it to null above, activeOrganization in this closure is OLD.
+      // So we use 'stored' logic again or assume 'activeOrganization' is not reliable here if we just updated it?
+      // Better to check localStorage again or rely on the logic we just executed (isValid)
+      const currentActive = localStorage.getItem('activeOrg')
+
+      if (!currentActive && res.data.length > 0) {
         const principal = res.data.find(o => o.name === 'Pessoal') || res.data[0]
         setActiveOrganization(principal.id)
+      } else if (!currentActive) {
+        setActiveOrganization(null)
       }
     }
   }
 
   React.useEffect(() => {
     refreshOrganizations()
+
+    // Subscribe to Auth Changes
+    const { data: subscription } = supabase?.auth.onAuthStateChange((event: any, session: any) => {
+      if (event === 'SIGNED_IN') {
+        refreshOrganizations()
+      }
+      if (event === 'SIGNED_OUT') {
+        setOrganizations([])
+        setActiveOrganization(null)
+      }
+    }) || { data: { subscription: { unsubscribe: () => { } } } }
+
+    return () => {
+      subscription?.subscription.unsubscribe()
+    }
   }, [])
 
   const api = useMemo<AppStoreState>(() => ({

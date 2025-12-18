@@ -78,6 +78,7 @@ export default function AdminUsers() {
                                     <th className="px-6 py-4">Email</th>
                                     <th className="px-6 py-4">Telefone</th>
                                     <th className="px-6 py-4">Data Cadastro</th>
+                                    <th className="px-6 py-4">Último Acesso</th>
                                     <th className="px-6 py-4 text-right">Ações</th>
                                 </tr>
                             </thead>
@@ -102,6 +103,11 @@ export default function AdminUsers() {
                                         </td>
                                         <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                                             {user.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : '-'}
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                            {user.last_login
+                                                ? new Date(user.last_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                                                : '-'}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button

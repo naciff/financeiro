@@ -1,18 +1,43 @@
 import React, { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
-import { listMyMemberships, getProfile, listOrganizationMembers, addOrganizationMember, removeOrganizationMember } from '../services/db'
+import { listMyMemberships, getProfile, listOrganizationMembers, addOrganizationMember, removeOrganizationMember, listMyOrganizations, updateOrganization, deleteOrganization, createOrganization, getAllOrganizationsAdmin, addOrgMemberAdmin, updateOrganizationAdmin } from '../services/db'
+import Permissions from './Permissions'
+import AdminUsers from './AdminUsers'
+
+
 
 export default function Settings() {
   const { activeOrganization, setActiveOrganization } = useAppStore()
-  const [activeTab, setActiveTab] = useState<'geral' | 'integracao' | 'equipe'>('integracao')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as any) || 'organizacoes'
+  const [activeTab, setActiveTab] = useState<'geral' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users'>(initialTab)
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && ['geral', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users'].includes(tab)) {
+      setActiveTab(tab as any)
+    }
+  }, [searchParams])
+
+  const handleTabChange = (tab: 'geral' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users') => {
+    setActiveTab(tab)
+    setSearchParams({ tab })
+  }
 
   // State for Team Management - REMOVED
   // State for Team Management
+  const [teamSelectedOrgId, setTeamSelectedOrgId] = useState<string>('')
   const [memberships, setMemberships] = useState<any[]>([]) // Used for "Equipe" tab list
   const [loading, setLoading] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [myProfile, setMyProfile] = useState<any>(null)
+
+  // State for Organizations Management
+  const [myOrgs, setMyOrgs] = useState<any[]>([])
+  const [editingOrg, setEditingOrg] = useState<any>(null)
+  const [newOrgName, setNewOrgName] = useState('')
 
   // State for Integration
   const [waUrl, setWaUrl] = useState('https://apiconnect8.datamastersolucoes.com.br/api/messages/send')
@@ -124,16 +149,100 @@ export default function Settings() {
 
   async function loadData() {
     setLoading(true)
-    if (activeOrganization) {
-      const perms = await listOrganizationMembers(activeOrganization)
+    const [orgsRes, adminOrgsRes] = await Promise.all([
+      listMyOrganizations(),
+      getAllOrganizationsAdmin()
+    ])
+
+    // If adminOrgsRes has data (meaning we are admin), use it. Otherwise fall back to myOrgs.
+    // Actually, we want to separate "My Orgs" from "All Orgs" view? 
+    // The requirement says "mostrar todas as organizações criadas no banco de dados... agrupado por usuario"
+    // So if admin, we prefer the admin list.
+
+    console.log('Admin Orgs Res:', adminOrgsRes)
+    if (adminOrgsRes.data && adminOrgsRes.data.length > 0) {
+      console.log('Using Admin Orgs List')
+      setMyOrgs(adminOrgsRes.data)
+      // Initialize team selector if empty
+      if (!teamSelectedOrgId && activeOrganization) {
+        setTeamSelectedOrgId(activeOrganization)
+      } else if (!teamSelectedOrgId && adminOrgsRes.data.length > 0) {
+        setTeamSelectedOrgId(adminOrgsRes.data[0].id)
+      }
+    } else {
+      console.log('Using Standard Orgs List')
+      setMyOrgs(orgsRes.data || [])
+      // Initialize team selector if empty
+      if (!teamSelectedOrgId && activeOrganization) {
+        setTeamSelectedOrgId(activeOrganization)
+      } else if (!teamSelectedOrgId && orgsRes.data && orgsRes.data.length > 0) {
+        setTeamSelectedOrgId(orgsRes.data[0].id)
+      }
+    }
+
+    // Load members for the selected org (or active if just set)
+    const targetOrgId = teamSelectedOrgId || activeOrganization
+    if (targetOrgId) {
+      const perms = await listOrganizationMembers(targetOrgId)
       setMemberships(perms.data || [])
     }
     setLoading(false)
   }
 
+  async function handleCreateOrg() {
+    if (!newOrgName) return
+    const res = await createOrganization(newOrgName)
+    if (res.error) {
+      alert('Erro ao criar organização: ' + res.error.message)
+    } else {
+      setNewOrgName('')
+      loadData()
+      alert('Organização criada com sucesso!')
+    }
+  }
+
+  async function handleUpdateOrg(org: any) {
+    const newName = prompt('Novo nome da organização:', org.name)
+    if (newName && newName !== org.name) {
+      let res;
+      // If I am master admin, use admin function to ensure permission even if not owner
+      if (myProfile?.email === 'ramon.naciff@gmail.com') {
+        res = await updateOrganizationAdmin(org.id, newName)
+      } else {
+        // Standard update (RLS)
+        res = await updateOrganization(org.id, newName)
+      }
+
+      if (res.error) {
+        alert('Erro ao atualizar: ' + (res.error.message || JSON.stringify(res.error)))
+      } else {
+        loadData()
+      }
+    }
+  }
+
+  async function handleDeleteOrg(orgId: string) {
+    if (!window.confirm('Tem certeza que deseja excluir esta organização? Esta ação é IRREVERSÍVEL e apagará TODOS os dados.')) return
+
+    // Double confirmation
+    if (!window.confirm('Realmente tem certeza? Todos os lançamentos, clientes e contas serão perdidos.')) return
+
+    const res = await deleteOrganization(orgId)
+    if (res.error) {
+      alert('Erro ao excluir: ' + res.error.message)
+    } else {
+      if (activeOrganization === orgId) {
+        setActiveOrganization(null)
+        window.location.reload()
+      } else {
+        loadData()
+      }
+    }
+  }
+
   async function handleInvite() {
-    if (!inviteEmail || !activeOrganization) return
-    const res = await addOrganizationMember(activeOrganization, inviteEmail)
+    if (!inviteEmail || !teamSelectedOrgId) return
+    const res = await addOrganizationMember(teamSelectedOrgId, inviteEmail)
     if (res.error) {
       alert('Erro ao convidar: ' + res.error.message)
     } else {
@@ -144,10 +253,10 @@ export default function Settings() {
   }
 
   async function handleRemoveMember(userId: string) {
-    if (!activeOrganization) return
+    if (!teamSelectedOrgId) return
     if (!window.confirm('Tem certeza que deseja remover este membro da organização?')) return
 
-    const res = await removeOrganizationMember(activeOrganization, userId)
+    const res = await removeOrganizationMember(teamSelectedOrgId, userId)
     if (res.error) {
       alert('Erro ao remover: ' + res.error.message)
     } else {
@@ -155,30 +264,75 @@ export default function Settings() {
     }
   }
 
+  async function handleAdminLinkUser(orgId: string) {
+    const email = prompt('Digite o e-mail do usuário para vincular a esta organização:')
+    if (!email) return
+
+    const role = prompt('Qual a função? (member/owner)', 'member')
+    if (!role) return
+
+    const res = await addOrgMemberAdmin(orgId, email, role)
+    if (res.error) {
+      alert('Erro ao vincular: ' + (res.error.message || JSON.stringify(res.error)))
+    } else {
+      alert('Usuário vinculado com sucesso (ou permissão atualizada)!')
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Configurações</h1>
+      {/* Title Removed as per request */}
 
       {/* Tabs */}
+      {/* Tabs */}
       <div className="flex border-b dark:border-gray-700 overflow-x-auto">
-        <button
-          className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'geral' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          onClick={() => setActiveTab('geral')}
-        >
-          Geral
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'equipe' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          onClick={() => setActiveTab('equipe')}
-        >
-          Equipe
-        </button>
-        <button
-          className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'integracao' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          onClick={() => setActiveTab('integracao')}
-        >
-          Integrações
-        </button>
+        {/* Context: Organization Management */}
+        {(['organizacoes', 'equipe', 'permissoes'].includes(activeTab)) && (
+          <>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'organizacoes' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('organizacoes')}
+            >
+              Organizações
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'equipe' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('equipe')}
+            >
+              Equipe
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'permissoes' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('permissoes')}
+            >
+              Usuário e Permissões
+            </button>
+          </>
+        )}
+
+        {/* Context: General Settings */}
+        {(['geral', 'integracao', 'users'].includes(activeTab)) && (
+          <>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'geral' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('geral')}
+            >
+              Geral
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'users' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('users')}
+            >
+              Usuários Cadastrados
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'integracao' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('integracao')}
+            >
+              Integrações
+            </button>
+          </>
+        )}
       </div>
 
       {activeTab === 'geral' && (
@@ -187,13 +341,187 @@ export default function Settings() {
         </div>
       )}
 
-      {activeTab === 'equipe' && (
+      {activeTab === 'organizacoes' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
             <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
-              <Icon name="users" className="w-5 h-5 text-blue-500" />
-              Gerenciar Equipe
+              <Icon name="briefcase" className="w-5 h-5 text-purple-500" />
+              Organizações
             </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Gerencie as empresas e organizações do sistema.
+            </p>
+
+            {/* Create One */}
+            <div className="flex gap-2 items-end mb-8 max-w-xl">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Criar Nova Organização</label>
+                <input
+                  type="text"
+                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  placeholder="Nome da empresa..."
+                  value={newOrgName}
+                  onChange={e => setNewOrgName(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={handleCreateOrg}
+                disabled={!newOrgName}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                Criar
+              </button>
+            </div>
+
+            {/* List Grouped by Owner if available (Admin view), else flat list */}
+            {(() => {
+              // Check if we have owner info (implies admin view)
+              const hasOwnerInfo = myOrgs.length > 0 && 'owner_name' in myOrgs[0]
+
+              if (hasOwnerInfo) {
+                // Group by owner
+                const grouped: Record<string, any[]> = {}
+                myOrgs.forEach(org => {
+                  const key = org.owner_name || 'Desconhecido'
+                  if (!grouped[key]) grouped[key] = []
+                  grouped[key].push(org)
+                })
+
+                return (
+                  <div className="space-y-8">
+                    {Object.entries(grouped).map(([ownerName, orgs]) => (
+                      <div key={ownerName} className="border-l-2 border-purple-200 pl-4">
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <Icon name="person" className="w-4 h-4" />
+                          {ownerName}
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full normal-case font-normal">{orgs.length} empresas</span>
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {orgs.map(org => (
+                            <div key={org.id} className="border dark:border-gray-700 rounded-lg p-4 flex flex-col justify-between bg-gray-50 dark:bg-gray-700/50">
+                              <div>
+                                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1 flex items-center gap-2">
+                                  {org.name}
+                                  {/* If we are super admin, we can edit everything? Or just owner? The requirement didn't specify editing rights for admin, but assuming read-only or standard rights. 
+                                                      Let's keep standard edit buttons if I am the owner OR if I strictly requested full management. 
+                                                      For now, let's stick to strict ownership for editing to avoid RLS errors, unless we update RLS too.
+                                                      Actually, db.ts updateOrganization uses simple RLS. Admin function bypasses RLS for SELECT but not for UPDATE. 
+                                                      So show edit buttons only if I am the owner owner_id === myProfile.id
+                                                   */}
+                                  {org.owner_id === myProfile?.id && <span className="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200">Dono</span>}
+                                </h3>
+                                <p className="text-xs text-gray-500 font-mono mb-1">{org.id}</p>
+                                {org.owner_email && <p className="text-xs text-blue-500">{org.owner_email}</p>}
+                              </div>
+
+                              {/* Allow Edit if Owner OR Master Admin */}
+                              {(org.owner_id === myProfile?.id || myProfile?.email === 'ramon.naciff@gmail.com') && (
+                                <div className="flex gap-2 mt-4 justify-end">
+                                  <button
+                                    onClick={() => handleUpdateOrg(org)}
+                                    className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <Icon name="edit" className="w-3 h-3" /> Editar
+                                  </button>
+                                  {org.owner_id === myProfile?.id && (
+                                    <button
+                                      onClick={() => handleDeleteOrg(org.id)}
+                                      className="text-xs text-red-600 hover:underline flex items-center gap-1"
+                                    >
+                                      <Icon name="trash" className="w-3 h-3" /> Excluir
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Admin Link Button (Only for Master) */}
+                              {hasOwnerInfo && (
+                                <div className="mt-2 pt-2 border-t dark:border-gray-600 flex justify-end">
+                                  <button
+                                    onClick={() => handleAdminLinkUser(org.id)}
+                                    className="text-[10px] text-green-600 hover:text-green-700 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded border border-green-200 dark:border-green-800 flex items-center gap-1"
+                                  >
+                                    <Icon name="link" className="w-3 h-3" /> Vincular Usuário
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              } else {
+                // Standard View (Non-admin or fallback)
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {myOrgs.map(org => (
+                      <div key={org.id} className="border dark:border-gray-700 rounded-lg p-4 flex flex-col justify-between bg-gray-50 dark:bg-gray-700/50">
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1 flex items-center gap-2">
+                            {org.name}
+                            {org.owner_id === myProfile?.id && <span className="text-[10px] bg-yellow-100 text-yellow-800 px-1 rounded border border-yellow-200">Dono</span>}
+                          </h3>
+                          <p className="text-xs text-gray-500 font-mono">{org.id}</p>
+                        </div>
+
+                        {org.owner_id === myProfile?.id && (
+                          <div className="flex gap-2 mt-4 justify-end">
+                            <button
+                              onClick={() => handleUpdateOrg(org)}
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <Icon name="edit" className="w-3 h-3" /> Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteOrg(org.id)}
+                              className="text-xs text-red-600 hover:underline flex items-center gap-1"
+                            >
+                              <Icon name="trash" className="w-3 h-3" /> Excluir
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            })()}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'equipe' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+              <h2 className="text-lg font-medium flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                <Icon name="users" className="w-5 h-5 text-blue-500" />
+                Gerenciar Equipe
+              </h2>
+
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Gerenciar:</label>
+                <select
+                  value={teamSelectedOrgId}
+                  onChange={(e) => {
+                    const newId = e.target.value
+                    setTeamSelectedOrgId(newId)
+                    // Trigger reload for this org
+                    listOrganizationMembers(newId).then(r => setMemberships(r.data || []))
+                  }}
+                  className="border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-[200px]"
+                >
+                  <option value="" disabled>Selecione uma Organização...</option>
+                  {myOrgs.map(org => (
+                    <option key={org.id} value={org.id}>
+                      {org.name} {org.owner_name ? `(${org.owner_name})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
               Adicione membros à sua organização para que eles possam acessar e gerenciar os dados financeiros.
             </p>
@@ -212,7 +540,7 @@ export default function Settings() {
               </div>
               <button
                 onClick={handleInvite}
-                disabled={!inviteEmail}
+                disabled={!inviteEmail || !teamSelectedOrgId}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Convidar
@@ -468,6 +796,12 @@ export default function Settings() {
         </div>
       )
       }
-    </div >
+      {activeTab === 'permissoes' && (
+        <Permissions />
+      )}
+      {activeTab === 'users' && (
+        <AdminUsers />
+      )}
+    </div>
   )
 }

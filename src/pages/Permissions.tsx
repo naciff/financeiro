@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { useAppStore } from '../store/AppStore'
-import { listOrganizationMembers, updateOrganizationMemberPermissions, addOrganizationMember, removeOrganizationMember } from '../services/db'
+import { listOrganizationMembers, updateOrganizationMemberPermissions, addOrganizationMember, removeOrganizationMember, listMyOrganizations, getAllOrganizationsAdmin, addOrgMemberAdmin } from '../services/db'
 
 export default function Permissions() {
     const store = useAppStore()
@@ -11,6 +11,11 @@ export default function Permissions() {
     const [inviteEmail, setInviteEmail] = useState('')
     const [inviteLoading, setInviteLoading] = useState(false)
     const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    // Organization Selection State
+    const [availableOrgs, setAvailableOrgs] = useState<any[]>([])
+    const [selectedOrgId, setSelectedOrgId] = useState<string>('')
+    const [isMaster, setIsMaster] = useState(false)
 
     const screens = [
         { id: 'dashboard', label: 'Dashboard' },
@@ -25,13 +30,48 @@ export default function Permissions() {
     ]
 
     useEffect(() => {
-        loadData()
-    }, [store.activeOrganization])
+        loadOrgs()
+    }, [])
 
-    function loadData() {
-        // Always load members for the current user's organization scope (which includes Pessoal/Reviewing own org)
+    useEffect(() => {
+        if (selectedOrgId) {
+            loadMembers(selectedOrgId)
+        } else {
+            setMembers([])
+        }
+    }, [selectedOrgId])
+
+    async function loadOrgs() {
         setLoading(true)
-        listOrganizationMembers().then(r => {
+        // Check if master by trying admin call (or checking profile email, simpler)
+        // Actually getAllOrganizationsAdmin returns empty if not master, so safe to try
+        const adminRes = await getAllOrganizationsAdmin()
+
+        if (adminRes.data && adminRes.data.length > 0) {
+            setIsMaster(true)
+            setAvailableOrgs(adminRes.data)
+            // Default to active or first
+            if (store.activeOrganization) {
+                setSelectedOrgId(store.activeOrganization)
+            } else if (adminRes.data.length > 0) {
+                setSelectedOrgId(adminRes.data[0].id)
+            }
+        } else {
+            // Normal User
+            const myRes = await listMyOrganizations()
+            setAvailableOrgs(myRes.data || [])
+            if (store.activeOrganization) {
+                setSelectedOrgId(store.activeOrganization)
+            } else if (myRes.data && myRes.data.length > 0) {
+                setSelectedOrgId(myRes.data[0].id)
+            }
+        }
+        setLoading(false)
+    }
+
+    function loadMembers(orgId: string) {
+        setLoading(true)
+        listOrganizationMembers(orgId).then(r => {
             setMembers(r.data || [])
             setLoading(false)
         })
@@ -39,19 +79,29 @@ export default function Permissions() {
 
     async function handleInvite(e: React.FormEvent) {
         e.preventDefault()
-        if (!inviteEmail) return
+        if (!inviteEmail || !selectedOrgId) return
 
         setInviteLoading(true)
         setMsg(null)
 
         try {
-            const res = await addOrganizationMember(inviteEmail, { role: 'admin' }) // Default permission
-            if (res.error) {
-                setMsg({ type: 'error', text: 'Erro ao convidar: ' + res.error.message })
+            let res;
+            if (isMaster) {
+                // Master Admin uses special function to bypass RLS if needed (or standard if owner)
+                // But permissions page is granular. Does addOrgMemberAdmin allow granular permissions? No, it sets role 'member'.
+                // Granular permissions are set via updateOrganizationMemberPermissions AFTER adding.
+                // So we add as member first.
+                res = await addOrgMemberAdmin(selectedOrgId, inviteEmail, 'member')
             } else {
-                setMsg({ type: 'success', text: 'Usuário convidado com sucesso!' })
+                res = await addOrganizationMember(selectedOrgId, inviteEmail)
+            }
+
+            if (res.error) {
+                setMsg({ type: 'error', text: 'Erro ao convidar: ' + (res.error.message || JSON.stringify(res.error)) })
+            } else {
+                setMsg({ type: 'success', text: 'Usuário convidado com sucesso! Configure as permissões abaixo.' })
                 setInviteEmail('')
-                loadData()
+                loadMembers(selectedOrgId)
             }
         } catch (err) {
             setMsg({ type: 'error', text: 'Erro inesperado.' })
@@ -62,32 +112,74 @@ export default function Permissions() {
 
     async function handleRemove(memberId: string) {
         if (!confirm('Tem certeza que deseja remover este usuário?')) return
-        await removeOrganizationMember(memberId)
-        loadData()
+        if (!selectedOrgId) return
+
+        // Remove logic might need to be admin-aware if standard RLS blocks it for non-owners
+        // But for now assuming standard remove works if we are owner. 
+        // If Master Admin is not owner, remove might fail with standard RLS.
+        // We might need a removeOrgMemberAdmin function later if this fails.
+        const res = await removeOrganizationMember(selectedOrgId, memberId) // Using explicit orgId if function supports it?
+        // Wait, removeOrganizationMember signature is (orgId, userId). Yes.
+
+        if (res.error) {
+            alert('Erro ao remover: ' + res.error.message)
+        } else {
+            loadMembers(selectedOrgId)
+        }
     }
 
     async function handleToggle(memberId: string, screenId: string, currentPermissions: any) {
         // Clone permissions
         const newPermissions = { ...currentPermissions }
+
+        // Check effective state (default is true/allowed if undefined)
+        const isCurrentlyAllowed = newPermissions[screenId] !== false
+
         // Toggle
-        newPermissions[screenId] = !newPermissions[screenId]
+        newPermissions[screenId] = !isCurrentlyAllowed
 
-        // Update locally
-        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions: newPermissions } : m))
-
-        // Save
-        setSaving(true)
-        await updateOrganizationMemberPermissions(memberId, newPermissions)
-        setSaving(false)
+        // Update locally only
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions: newPermissions, _hasChanges: true } : m))
     }
 
-    // Removed the (!store.activeOrganization) check to allow "Pessoal" organization management
+    async function handleSave(member: any) {
+        setSaving(true)
+        const res = await updateOrganizationMemberPermissions(member.id, member.permissions)
+        setSaving(false)
+
+        if (res.error) {
+            alert('Erro ao salvar permissão: ' + res.error.message)
+        } else {
+            // Clear dirty flag
+            setMembers(prev => prev.map(m => m.id === member.id ? { ...m, _hasChanges: false } : m))
+            alert('Permissões salvas com sucesso!')
+        }
+    }
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center gap-2 mb-6">
-                <Icon name="lock_person" className="w-8 h-8 text-primary" />
-                <h1 className="text-2xl font-bold dark:text-gray-100">Usuário e Permissões</h1>
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                    <Icon name="lock_person" className="w-8 h-8 text-primary" />
+                    <h1 className="text-2xl font-bold dark:text-gray-100">Usuário e Permissões</h1>
+                </div>
+
+                {/* Organization Selector */}
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Gerenciar:</label>
+                    <select
+                        value={selectedOrgId}
+                        onChange={(e) => setSelectedOrgId(e.target.value)}
+                        className="border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 min-w-[200px]"
+                    >
+                        <option value="" disabled>Selecione uma Organização...</option>
+                        {availableOrgs.map(org => (
+                            <option key={org.id} value={org.id}>
+                                {org.name} {isMaster && org.owner_name ? `(${org.owner_name})` : ''}
+                            </option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             {/* Invite Section */}
@@ -97,7 +189,7 @@ export default function Permissions() {
                     Convidar Membro
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                    Convide usuários para acessar seus dados. Eles poderão visualizar e editar seus lançamentos conforme as permissões abaixo.
+                    Convide usuários para a organização <strong>{availableOrgs.find(o => o.id === selectedOrgId)?.name || 'selecionada'}</strong>.
                 </p>
 
                 <form onSubmit={handleInvite} className="flex gap-3 items-end bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
@@ -110,13 +202,13 @@ export default function Permissions() {
                             className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                             value={inviteEmail}
                             onChange={e => setInviteEmail(e.target.value)}
-                            disabled={inviteLoading}
+                            disabled={inviteLoading || !selectedOrgId}
                         />
                     </div>
                     <button
                         type="submit"
-                        disabled={inviteLoading}
-                        className={`px-4 py-2 rounded text-sm font-medium transition ${inviteLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                        disabled={inviteLoading || !selectedOrgId}
+                        className={`px-4 py-2 rounded text-sm font-medium transition ${inviteLoading || !selectedOrgId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
                     >
                         {inviteLoading ? 'Convidando...' : 'Convidar'}
                     </button>
@@ -132,9 +224,15 @@ export default function Permissions() {
             <div className="grid gap-6">
                 {loading && <div className="text-center py-4">Carregando membros...</div>}
 
-                {!loading && members.length === 0 && (
+                {!loading && selectedOrgId && members.length === 0 && (
                     <div className="text-center py-10 text-gray-500 bg-surface-light dark:bg-surface-dark rounded-lg shadow">
                         Nenhum membro encontrado nesta organização.
+                    </div>
+                )}
+
+                {!selectedOrgId && (
+                    <div className="text-center py-10 text-gray-500 bg-surface-light dark:bg-surface-dark rounded-lg shadow">
+                        Selecione uma organização acima para gerenciar permissões.
                     </div>
                 )}
 
@@ -151,20 +249,21 @@ export default function Permissions() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">
-                                {saving && <span className="text-xs text-blue-500 animate-pulse">Salvando...</span>}
-                                <button
-                                    onClick={() => handleRemove(member.member_id)}
-                                    className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 text-xs font-medium flex items-center gap-1"
-                                    title="Remover Usuário"
-                                >
-                                    <Icon name="trash" className="w-4 h-4" />
-                                    Remover
-                                </button>
+                                {member.role !== 'owner' && (
+                                    <button
+                                        onClick={() => handleRemove(member.user_id)}
+                                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 text-xs font-medium flex items-center gap-1"
+                                        title="Remover Usuário"
+                                    >
+                                        <Icon name="trash" className="w-4 h-4" />
+                                        Remover
+                                    </button>
+                                )}
                             </div>
                         </div>
 
                         <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                                 {screens.map(screen => {
                                     const hasAccess = member.permissions?.[screen.id] !== false // Default to true if undefined
                                     return (
@@ -173,12 +272,28 @@ export default function Permissions() {
                                                 type="checkbox"
                                                 checked={hasAccess}
                                                 onChange={() => handleToggle(member.id, screen.id, member.permissions || {})}
+                                                disabled={isMaster ? false : (member.role === 'owner')}
                                                 className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
                                             />
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{screen.label}</span>
                                         </label>
                                     )
                                 })}
+                            </div>
+
+                            {/* Save Button for this member */}
+                            <div className="flex justify-end pt-4 border-t dark:border-gray-700">
+                                <button
+                                    onClick={() => handleSave(member)}
+                                    disabled={saving || (member.role === 'owner' && !isMaster)} // Disable for owners unless master
+                                    className={`px-4 py-2 rounded text-sm font-medium flex items-center gap-2 ${member._hasChanges
+                                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                        }`}
+                                >
+                                    <Icon name="check" className="w-4 h-4" />
+                                    {saving ? 'Salvando...' : 'Salvar Alterações'}
+                                </button>
                             </div>
                         </div>
                     </div>

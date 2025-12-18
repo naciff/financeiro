@@ -52,7 +52,12 @@ export function Sidebar({
       {/* Navigation */}
       <nav className="flex-1 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
         {items.map((i) => {
-          const isActive = loc.pathname === i.to || (i.children?.some(c => loc.pathname.startsWith(c.to)))
+          // Check active state recursively
+          const isChildActive = i.children?.some(c =>
+            c.to === loc.pathname || c.children?.some(gc => gc.to === loc.pathname)
+          )
+          const isActive = loc.pathname === i.to || isChildActive
+
           const expanded = !!expandedParents[i.to]
           const showChildren = expanded && !isCollapsed && i.children
 
@@ -101,18 +106,69 @@ export function Sidebar({
                 )}
               </div>
 
-              {/* Children */}
+              {/* Children (Level 1) */}
               {showChildren && (
                 <div className="bg-gray-50 dark:bg-gray-800/50 py-1">
                   {i.children!.map((c) => {
-                    const isChildActive = loc.pathname === c.to
+                    const isDirectChildActive = loc.pathname === c.to
+                    const hasGrandChildren = c.children && c.children.length > 0
+                    const isGrandChildActive = c.children?.some(gc => gc.to === loc.pathname)
+                    const isChildOrGrandChildActive = isDirectChildActive || isGrandChildActive
+
+                    // Specific expanded state for Level 1 items (if they have children)
+                    const childExpanded = !!expandedParents[c.to]
+
+                    if (hasGrandChildren) {
+                      // Level 1 Item with Children (Submenu)
+                      return (
+                        <div key={c.to}>
+                          <div
+                            className={`flex items-center pl-14 pr-6 py-2 text-sm cursor-pointer transition-colors relative select-none
+                                        ${isChildOrGrandChildActive ? 'text-primary font-medium' : 'text-text-muted-light dark:text-text-muted-dark hover:text-primary'}
+                                    `}
+                            onClick={() => setExpandedParents(s => ({ ...s, [c.to]: !childExpanded }))}
+                          >
+                            <span className="material-icons-outlined text-xs mr-2">{c.icon}</span>
+                            <span className="flex-1">{c.label}</span>
+                            <span className={`material-icons-outlined text-xs transition-transform ${childExpanded ? 'rotate-180' : ''}`}>expand_more</span>
+                          </div>
+
+                          {/* Level 2 Children */}
+                          {childExpanded && (
+                            <div className="border-l border-gray-200 dark:border-gray-700 ml-[3.5rem] my-1">
+                              {c.children!.map(gc => {
+                                const isGcActive = loc.pathname === gc.to || (gc.to.includes('?') && loc.search && gc.to.endsWith(loc.search))
+                                // Handle exact match or query param match logic if needed more robust
+                                // Simple string check for now:
+                                const isActiveStart = loc.pathname + loc.search === gc.to
+
+                                return (
+                                  <Link
+                                    key={gc.to}
+                                    to={gc.to}
+                                    onClick={() => { if (mobile && onClose) onClose() }}
+                                    className={`block pl-4 py-1.5 text-xs hover:text-primary transition-colors
+                                                        ${isActiveStart ? 'text-primary font-bold' : 'text-gray-500 dark:text-gray-400'}
+                                                    `}
+                                  >
+                                    {gc.label}
+                                  </Link>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    // Level 1 Item (Link)
                     return (
                       <Link
                         key={c.to}
                         to={c.to}
                         onClick={() => { if (mobile && onClose) onClose() }}
                         className={`flex items-center pl-14 pr-6 py-2 text-sm hover:text-primary transition-colors
-                           ${isChildActive ? 'text-primary font-medium' : 'text-text-muted-light dark:text-text-muted-dark'}
+                           ${isDirectChildActive ? 'text-primary font-medium' : 'text-text-muted-light dark:text-text-muted-dark'}
                          `}
                       >
                         <span className="material-icons-outlined text-xs mr-2">{c.icon}</span>

@@ -53,7 +53,7 @@ export default function Accounts() {
     e.preventDefault()
     console.log('Attempt create account', { nome, tipo, saldoInicial, bancoCodigo, agencia, conta, diaVencimento, diaBom })
     if (!nome.trim()) { setNotice({ type: 'error', text: 'Nome é obrigatório' }); return }
-    if (!['banco', 'carteira', 'cartao'].includes(tipo)) { setNotice({ type: 'error', text: 'Tipo inválido' }); return }
+    if (!['banco', 'carteira', 'cartao', 'aplicacao'].includes(tipo)) { setNotice({ type: 'error', text: 'Tipo inválido' }); return }
     if (tipo === 'cartao' && !diaVencimento) { setNotice({ type: 'error', text: 'Dia de vencimento é obrigatório para Cartão' }); return }
     if (tipo === 'banco') {
       if (bancoCodigo && !/^\d{3}$/.test(bancoCodigo)) { setNotice({ type: 'error', text: 'Banco deve ter 3 dígitos' }); return }
@@ -236,6 +236,7 @@ export default function Accounts() {
                 <option value="banco">Banco</option>
                 <option value="carteira">Carteira</option>
                 <option value="cartao">Cartão</option>
+                <option value="aplicacao">Caixa de Aplicação</option>
               </select>
               {tipo === 'cartao' && (
                 <div className="grid grid-cols-2 gap-3">
@@ -372,7 +373,7 @@ export default function Accounts() {
                   <td className="p-2">{a.banco_codigo || '-'}</td>
                   <td className="p-2">{a.agencia || '-'}</td>
                   <td className="p-2">{a.conta || '-'}</td>
-                  <td className="p-2">{a.tipo.charAt(0).toUpperCase() + a.tipo.slice(1).replace('cartao', 'Cartão')}</td>
+                  <td className="p-2">{a.tipo === 'aplicacao' ? 'Caixa de Aplicação' : a.tipo.charAt(0).toUpperCase() + a.tipo.slice(1).replace('cartao', 'Cartão')}</td>
                   <td className="p-2">{a.ativo === false ? 'Inativo' : 'Ativo'}</td>
                   <td className="p-2">
                     <div className="flex items-center gap-2">
@@ -417,6 +418,7 @@ export default function Accounts() {
                 <option value="banco">Banco</option>
                 <option value="carteira">Carteira</option>
                 <option value="cartao">Cartão</option>
+                <option value="aplicacao">Caixa de Aplicação</option>
               </select>
               {tipo === 'cartao' && (
                 <div className="grid grid-cols-2 gap-3">

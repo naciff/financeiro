@@ -27,7 +27,7 @@ export function OrganizationModal({ isOpen, onClose, onSuccess }: OrganizationMo
             if (error) throw error
 
             // Refresh organizations in store
-            await store.loadOrganizations()
+            await store.refreshOrganizations()
 
             if (onSuccess) onSuccess(data)
             onClose()
