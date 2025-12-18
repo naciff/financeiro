@@ -243,6 +243,15 @@ export async function confirmProvision(itemId: string, info: { valor: number, da
   })
 }
 
+export async function skipFinancialItem(itemId: string) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase.rpc('fn_skip_ledger_item', {
+    p_item_id: itemId,
+    p_user_id: userId
+  })
+}
+
 export async function payTransaction(txId: string, contaId: string, amount: number, date?: string) {
   if (!supabase) return { data: null, error: null }
   return supabase.rpc('fn_pay', { tx_id: txId, conta: contaId, amount, d: date ?? null })

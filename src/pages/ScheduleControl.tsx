@@ -11,7 +11,7 @@ import { AlertModal } from '../components/ui/AlertModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 
 import { BulkTransactionModal } from '../components/modals/BulkTransactionModal'
-import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction, skipFinancialItem } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { useDailyAutomation } from '../hooks/useDailyAutomation'
 import { LinkedItemsModal } from '../components/modals/LinkedItemsModal'
@@ -1100,7 +1100,7 @@ export default function ScheduleControl() {
                   onConfirm={async () => {
                     if (skipId) {
                       if (hasBackend) {
-                        await updateFinancial(skipId, { situacao: 4 })
+                        await skipFinancialItem(skipId)
                         listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                       } else {
                         alert('Necessário backend')
