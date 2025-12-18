@@ -15,6 +15,7 @@ import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, co
 import { formatMoneyBr } from '../utils/format'
 import { useDailyAutomation } from '../hooks/useDailyAutomation'
 import { LinkedItemsModal } from '../components/modals/LinkedItemsModal'
+import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
 
@@ -525,64 +526,65 @@ export default function ScheduleControl() {
 
           {/* Filters */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select
-                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[100px]"
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Caixa"
+                id="filterCaixa"
                 value={filterCaixa}
                 onChange={e => { setFilterCaixa(e.target.value); setPage(1) }}
               >
-                <option value="" className="dark:bg-gray-800">Caixa: Todos</option>
+                <option value="" className="dark:bg-gray-800">Todos</option>
                 {caixas.filter(c => c.ativo !== false).map(c => (
                   <option key={c.id} value={c.id} className="dark:bg-gray-800">{c.nome}</option>
                 ))}
-              </select>
+              </FloatingLabelSelect>
             </div>
 
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select
-                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Tipo"
+                id="filterOp"
                 value={filterOp}
                 onChange={e => { setFilterOp(e.target.value); setPage(1) }}
               >
-                <option className="dark:bg-gray-800">Tipo: Todas</option>
-                <option className="dark:bg-gray-800">Somente Receitas</option>
-                <option className="dark:bg-gray-800">Somente Despesas</option>
-                <option className="dark:bg-gray-800">Somente Aporte/Ret./Transf.</option>
-                <option className="dark:bg-gray-800">Despesas e Retiradas</option>
-                <option className="dark:bg-gray-800">Receitas e Aportes</option>
-                <option className="dark:bg-gray-800">Somente Aporte</option>
-                <option className="dark:bg-gray-800">Somente Retiradas</option>
-                <option className="dark:bg-gray-800">Somente Transferências</option>
-              </select>
-              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+                <option value="Todas" className="dark:bg-gray-800">Todas</option>
+                <option value="Somente Receitas" className="dark:bg-gray-800">Receitas</option>
+                <option value="Somente Despesas" className="dark:bg-gray-800">Despesas</option>
+                <option value="Somente Aporte/Ret./Transf." className="dark:bg-gray-800">Aporte/Ret./Transf.</option>
+                <option value="Despesas e Retiradas" className="dark:bg-gray-800">Desp. e Retiradas</option>
+                <option value="Receitas e Aportes" className="dark:bg-gray-800">Rec. e Aportes</option>
+                <option value="Somente Aporte" className="dark:bg-gray-800">Aporte</option>
+                <option value="Somente Retiradas" className="dark:bg-gray-800">Retiradas</option>
+                <option value="Somente Transferências" className="dark:bg-gray-800">Transferências</option>
+              </FloatingLabelSelect>
             </div>
 
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select
-                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Grupo"
+                id="filterGrupo"
                 value={filterGrupo}
                 onChange={e => { setFilterGrupo(e.target.value); setPage(1) }}
               >
-                <option value="" className="dark:bg-gray-800">Grupo: Todos</option>
+                <option value="" className="dark:bg-gray-800">Todos</option>
                 {grupos.map(g => (
                   <option key={g.id} value={g.id} className="dark:bg-gray-800">{g.nome}</option>
                 ))}
-              </select>
-              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+              </FloatingLabelSelect>
             </div>
 
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select
-                className="bg-transparent dark:bg-gray-800 text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Centro de Custo"
+                id="filterCostCenter"
                 value={filterCostCenter}
                 onChange={e => { setFilterCostCenter(e.target.value); setPage(1) }}
               >
-                <option value="" className="dark:bg-gray-800">Centro de Custo: Todos</option>
+                <option value="" className="dark:bg-gray-800">Todos</option>
                 {costCenters.map(cc => (
                   <option key={cc.id} value={cc.id} className="dark:bg-gray-800">{cc.descricao}</option>
                 ))}
-              </select>
-              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+              </FloatingLabelSelect>
             </div>
           </div>
 

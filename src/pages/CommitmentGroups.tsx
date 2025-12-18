@@ -26,15 +26,20 @@ export default function CommitmentGroups() {
   useEffect(() => {
     setLoading(true); setError(null)
     if (hasBackend) {
-      const orgId = store.activeOrganization || undefined
-      listCommitmentGroups(orgId).then(r => {
-        if (r.error) { setError(r.error.message); setItems([]) }
-        else {
-          const data = Array.isArray(r.data) ? r.data : []
-          setItems(data.filter((x: any) => x && typeof x.id === 'string' && typeof x.nome === 'string'))
-        }
+      const orgId = store.activeOrganization
+      if (orgId) {
+        listCommitmentGroups(orgId).then(r => {
+          if (r.error) { setError(r.error.message); setItems([]) }
+          else {
+            const data = Array.isArray(r.data) ? r.data : []
+            setItems(data.filter((x: any) => x && typeof x.id === 'string' && typeof x.nome === 'string'))
+          }
+          setLoading(false)
+        }).catch(e => { setError(String(e)); setItems([]); setLoading(false) })
+      } else {
+        setItems([])
         setLoading(false)
-      }).catch(e => { setError(String(e)); setItems([]); setLoading(false) })
+      }
     } else {
       const data: any = store.commitment_groups
       const valid = Array.isArray(data) ? data.filter((x: any) => x && typeof x.id === 'string' && typeof x.nome === 'string') : []
@@ -46,7 +51,8 @@ export default function CommitmentGroups() {
     e.preventDefault()
     if (!nome.trim()) return
     if (hasBackend) {
-      createCommitmentGroup({ nome, operacao: tipo }).then(() => listCommitmentGroups().then(r => { if (!r.error && r.data) setItems(r.data as any) }))
+      if (!store.activeOrganization) { setError('Organização não selecionada'); return }
+      createCommitmentGroup({ nome, operacao: tipo, organization_id: store.activeOrganization! }).then(() => listCommitmentGroups(store.activeOrganization!).then(r => { if (!r.error && r.data) setItems(r.data as any) }))
     } else {
       store.createCommitmentGroup({ nome, operacao: tipo } as any)
     }
@@ -55,7 +61,10 @@ export default function CommitmentGroups() {
   function onUpdate(e: React.FormEvent) {
     e.preventDefault()
     if (!editId || !nome.trim()) return
-    if (hasBackend) updateCommitmentGroup(editId, { nome, operacao: tipo }).then(() => listCommitmentGroups().then(r => { if (!r.error && r.data) setItems(r.data as any) }))
+    if (hasBackend) {
+      if (!store.activeOrganization) return
+      updateCommitmentGroup(editId, { nome, operacao: tipo }).then(() => listCommitmentGroups(store.activeOrganization!).then(r => { if (!r.error && r.data) setItems(r.data as any) }))
+    }
     else store.updateCommitmentGroup(editId, { nome, operacao: tipo } as any)
     setEditId(''); setNome(''); setShowForm(false)
   }
@@ -87,8 +96,8 @@ export default function CommitmentGroups() {
 
     promise.then(() => {
       setSelected({})
-      if (hasBackend) {
-        listCommitmentGroups().then(r => { if (!r.error && r.data) setItems(r.data as any) })
+      if (hasBackend && store.activeOrganization) {
+        listCommitmentGroups(store.activeOrganization).then(r => { if (!r.error && r.data) setItems(r.data as any) })
       }
     })
   }

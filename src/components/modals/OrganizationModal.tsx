@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { createOrganization } from '../../services/db'
 import { useAppStore } from '../../store/AppStore'
+import { FloatingLabelInput } from '../ui/FloatingLabelInput'
 
 type OrganizationModalProps = {
     isOpen: boolean
@@ -55,20 +56,14 @@ export function OrganizationModal({ isOpen, onClose, onSuccess }: OrganizationMo
 
                 <form onSubmit={handleSubmit} className="p-6">
                     <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Nome da Empresa / Organização
-                            </label>
-                            <input
-                                autoFocus
-                                type="text"
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#014d6d] outline-none transition-all"
-                                placeholder="Ex: Minha Empresa LTDA"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                disabled={loading}
-                            />
-                        </div>
+                        <FloatingLabelInput
+                            label="Nome da Empresa / Organização"
+                            id="name"
+                            autoFocus
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            disabled={loading}
+                        />
 
                         {error && (
                             <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
@@ -99,3 +94,4 @@ export function OrganizationModal({ isOpen, onClose, onSuccess }: OrganizationMo
         </div>
     )
 }
+

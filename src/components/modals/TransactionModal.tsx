@@ -8,6 +8,9 @@ import { TransactionAttachments } from '../TransactionAttachments'
 import { ClientModal } from './ClientModal'
 import { PartialConfirmModal } from './PartialConfirmModal'
 import { ConfirmModal } from '../ui/ConfirmModal'
+import { FloatingLabelInput } from '../ui/FloatingLabelInput'
+import { FloatingLabelSelect } from '../ui/FloatingLabelSelect'
+import { FloatingLabelTextarea } from '../ui/FloatingLabelTextarea'
 
 type Props = {
     onClose: () => void
@@ -329,44 +332,57 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                     {
                         activeTab === 'details' && (
                             // ... details content same as before
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
                                 {/* Operação | Espécie */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Operação *</label>
-                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formOperacao} onChange={e => {
-                                        setFormOperacao(e.target.value as any)
-                                    }}>
+                                    <FloatingLabelSelect
+                                        label="Operação *"
+                                        id="operacao"
+                                        value={formOperacao}
+                                        onChange={e => setFormOperacao(e.target.value as any)}
+                                    >
                                         <option value="despesa">Despesa</option>
                                         <option value="receita">Receita</option>
                                         <option value="aporte">Aporte</option>
                                         <option value="retirada">Retirada</option>
-                                    </select>
+                                    </FloatingLabelSelect>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Espécie</label>
-                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formEspecie} onChange={e => setFormEspecie(e.target.value)}>
+                                    <FloatingLabelSelect
+                                        label="Espécie"
+                                        id="especie"
+                                        value={formEspecie}
+                                        onChange={e => setFormEspecie(e.target.value)}
+                                    >
                                         <option value="dinheiro">Dinheiro</option>
                                         <option value="pix">PIX</option>
                                         <option value="cartao">Cartão</option>
                                         <option value="boleto">Boleto</option>
                                         <option value="transferencia">Transferência</option>
                                         <option value="debito_automatico">Débito Automático</option>
-                                    </select>
+                                    </FloatingLabelSelect>
                                 </div>
 
                                 {/* Cliente */}
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Cliente *</label>
-                                    <div className="flex gap-2">
-                                        <select className="flex-1 border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCliente} onChange={e => setFormCliente(e.target.value)}>
-                                            <option value="">Selecione...</option>
-                                            {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                        </select>
+                                    <div className="flex gap-2 items-start">
+                                        <div className="flex-1">
+                                            <FloatingLabelSelect
+                                                label="Cliente *"
+                                                id="cliente"
+                                                value={formCliente}
+                                                onChange={e => setFormCliente(e.target.value)}
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                            </FloatingLabelSelect>
+                                        </div>
                                         <button
                                             type="button"
-                                            className="bg-black text-white dark:bg-gray-600 rounded px-3 hover:bg-gray-800 transition-colors"
+                                            className="bg-black text-white dark:bg-gray-600 rounded px-3 h-[48px] hover:bg-gray-800 transition-colors flex items-center justify-center custom-height-btn"
                                             title="Novo Cliente"
                                             onClick={() => setShowClientModal(true)}
+                                            style={{ marginTop: '0px' }}
                                         >
                                             <Icon name="add" className="w-4 h-4" />
                                         </button>
@@ -403,7 +419,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
 
                                         let finalVal = data.valor
                                         if (showComplementary) {
-                                            finalVal = data.valor + formMulta + formJuros - formDesconto
+                                            finalVal = data.Valor + formMulta + formJuros - formDesconto
                                         }
 
                                         const isEntrada = formOperacao === 'receita' || formOperacao === 'aporte'
@@ -432,52 +448,90 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                 />
                                 {/* Grupo | Compromisso */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Grupo Compromisso *</label>
-                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formGrupoCompromisso} onChange={e => setFormGrupoCompromisso(e.target.value)}>
+                                    <FloatingLabelSelect
+                                        label="Grupo Compromisso *"
+                                        id="grupo"
+                                        value={formGrupoCompromisso}
+                                        onChange={e => setFormGrupoCompromisso(e.target.value)}
+                                    >
                                         <option value="">Selecione...</option>
                                         {groups
                                             .filter(g => !g.tipo || (g.tipo && formOperacao && (g.tipo.toLowerCase() === formOperacao.toLowerCase() || (['despesa', 'retirada'].includes(g.tipo.toLowerCase()) && ['despesa', 'retirada'].includes(formOperacao)) || (['receita', 'aporte'].includes(g.tipo.toLowerCase()) && ['receita', 'aporte'].includes(formOperacao)))))
                                             .map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                                    </select>
+                                    </FloatingLabelSelect>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Compromisso *</label>
-                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formCompromisso} onChange={e => setFormCompromisso(e.target.value)}>
+                                    <FloatingLabelSelect
+                                        label="Compromisso *"
+                                        id="compromisso"
+                                        value={formCompromisso}
+                                        onChange={e => setFormCompromisso(e.target.value)}
+                                    >
                                         <option value="">Selecione...</option>
                                         {commitments.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                    </select>
+                                    </FloatingLabelSelect>
                                 </div>
 
                                 {/* Histórico */}
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Histórico *</label>
-                                    <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formHistorico} onChange={e => setFormHistorico(e.target.value)} />
+                                    <FloatingLabelInput
+                                        label="Histórico *"
+                                        id="historico"
+                                        value={formHistorico}
+                                        onChange={e => setFormHistorico(e.target.value)}
+                                    />
                                 </div>
 
                                 {/* Detalhe | NF */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Detalhe</label>
-                                    <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDetalhes} onChange={e => setFormDetalhes(e.target.value)} />
+                                    <FloatingLabelInput
+                                        label="Detalhe"
+                                        id="detalhes"
+                                        value={formDetalhes}
+                                        onChange={e => setFormDetalhes(e.target.value)}
+                                    />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Nota Fiscal</label>
-                                    <input className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formNotaFiscal} onChange={e => setFormNotaFiscal(e.target.value)} />
+                                    <FloatingLabelInput
+                                        label="Nota Fiscal"
+                                        id="nf"
+                                        value={formNotaFiscal}
+                                        onChange={e => setFormNotaFiscal(e.target.value)}
+                                    />
                                 </div>
 
                                 {/* Datas */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Data Vencimento</label>
-                                    <input type="date" disabled className="w-full border rounded px-3 py-2 bg-gray-100 cursor-not-allowed dark:bg-gray-900 dark:border-gray-700 dark:text-gray-400" value={formDataVencimento} onChange={e => setFormDataVencimento(e.target.value)} />
+                                    <FloatingLabelInput
+                                        label="Data Vencimento"
+                                        id="vencimento"
+                                        type="date"
+                                        disabled
+                                        className="bg-gray-100 cursor-not-allowed dark:bg-gray-900"
+                                        value={formDataVencimento}
+                                        onChange={e => setFormDataVencimento(e.target.value)}
+                                    />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Data Pagamento</label>
-                                    <input type="date" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formDataLancamento} onChange={e => setFormDataLancamento(e.target.value)} />
+                                    <FloatingLabelInput
+                                        label="Data Pagamento"
+                                        id="pagamento"
+                                        type="date"
+                                        value={formDataLancamento}
+                                        onChange={e => setFormDataLancamento(e.target.value)}
+                                    />
                                 </div>
 
                                 {/* Valor | Caixa */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Valor *</label>
-                                    <input type="number" step="0.01" className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formValor} onChange={e => setFormValor(parseFloat(e.target.value))} />
+                                    <FloatingLabelInput
+                                        label="Valor *"
+                                        id="valor"
+                                        type="number"
+                                        step="0.01"
+                                        value={formValor}
+                                        onChange={e => setFormValor(parseFloat(e.target.value))}
+                                    />
                                     <div className="flex items-center mt-1">
                                         <input
                                             type="checkbox"
@@ -491,11 +545,15 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1 dark:text-gray-300">Caixa Lançamento *</label>
-                                    <select className="w-full border rounded px-3 py-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100" value={formContaId} onChange={e => setFormContaId(e.target.value)}>
+                                    <FloatingLabelSelect
+                                        label="Caixa Lançamento *"
+                                        id="caixa"
+                                        value={formContaId}
+                                        onChange={e => setFormContaId(e.target.value)}
+                                    >
                                         <option value="">Selecione...</option>
                                         {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
-                                    </select>
+                                    </FloatingLabelSelect>
                                 </div>
 
                                 {/* Complementary Values Checkbox */}
@@ -513,64 +571,45 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                     </label>
 
                                     {showComplementary && (
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 animate-fade-in bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 animate-fade-in bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
                                             <div>
-                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                                                    Desconto
-                                                </label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-2 text-gray-500">R$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className="w-full border rounded px-3 py-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                                        value={formDesconto}
-                                                        onChange={e => setFormDesconto(parseFloat(e.target.value) || 0)}
-                                                    />
-                                                </div>
+                                                <FloatingLabelInput
+                                                    label="Desconto (R$)"
+                                                    id="desconto"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={formDesconto}
+                                                    onChange={e => setFormDesconto(parseFloat(e.target.value) || 0)}
+                                                />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                                                    Multa
-                                                </label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-2 text-gray-500">R$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className="w-full border rounded px-3 py-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                                        value={formMulta}
-                                                        onChange={e => setFormMulta(parseFloat(e.target.value) || 0)}
-                                                    />
-                                                </div>
+                                                <FloatingLabelInput
+                                                    label="Multa (R$)"
+                                                    id="multa"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={formMulta}
+                                                    onChange={e => setFormMulta(parseFloat(e.target.value) || 0)}
+                                                />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                                                    Juros
-                                                </label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-2 text-gray-500">R$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className="w-full border rounded px-3 py-2 pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                                                        value={formJuros}
-                                                        onChange={e => setFormJuros(parseFloat(e.target.value) || 0)}
-                                                    />
-                                                </div>
+                                                <FloatingLabelInput
+                                                    label="Juros (R$)"
+                                                    id="juros"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={formJuros}
+                                                    onChange={e => setFormJuros(parseFloat(e.target.value) || 0)}
+                                                />
                                             </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-1">
-                                                    Valor Final Registro
-                                                </label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-2 text-gray-500 font-bold">R$</span>
-                                                    <input
-                                                        disabled
-                                                        className="w-full border rounded px-3 py-2 pl-9 bg-gray-200 dark:bg-gray-900 dark:border-gray-700 font-bold text-gray-800 dark:text-gray-100"
-                                                        value={(formValor + formMulta + formJuros - formDesconto).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    />
-                                                </div>
+                                            <div> // TODO: This field is read-only, layout might need care with FloatingInput disabled style
+                                                <FloatingLabelInput
+                                                    label="Valor Final (R$)"
+                                                    id="final"
+                                                    disabled
+                                                    className="bg-gray-200 font-bold dark:bg-gray-900"
+                                                    value={(formValor + formMulta + formJuros - formDesconto).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                />
                                             </div>
                                         </div>
                                     )}

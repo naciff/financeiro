@@ -11,6 +11,8 @@ import { Tabs } from '../components/ui/Tabs'
 import { ClientModal } from '../components/modals/ClientModal'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
+import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
+import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
@@ -886,87 +888,112 @@ export default function Schedules() {
               </div>
 
               <div className="p-6">
-                <form onSubmit={showForm === 'create' ? onCreate : onUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <form onSubmit={showForm === 'create' ? onCreate : onUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="operacao">Operação</label>
-                      <select id="operacao" ref={operacaoRef} className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-400" value={operacao} disabled>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="despesa">Despesa</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="receita">Receita</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="aporte">Aporte</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="retirada">Retirada</option>
-                      </select>
+                      <FloatingLabelSelect
+                        label="Operação"
+                        id="operacao"
+                        ref={operacaoRef}
+                        value={operacao}
+                        disabled
+                        onChange={() => { }}
+                        className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-400"
+                      >
+                        <option value="despesa">Despesa</option>
+                        <option value="receita">Receita</option>
+                        <option value="aporte">Aporte</option>
+                        <option value="retirada">Retirada</option>
+                      </FloatingLabelSelect>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Tipo</label>
-                      <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={tipo} onChange={e => { setTipo(e.target.value) }}>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="fixo">Fixo</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="variavel">Variável</option>
-                      </select>
+                      <FloatingLabelSelect
+                        label="Tipo"
+                        id="tipo"
+                        value={tipo}
+                        onChange={e => { setTipo(e.target.value) }}
+                      >
+                        <option value="fixo">Fixo</option>
+                        <option value="variavel">Variável</option>
+                      </FloatingLabelSelect>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Espécie</label>
-                      <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={especie} onChange={e => { setEspecie(e.target.value) }}>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="dinheiro">Dinheiro</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="pix">PIX</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="cartao">Cartão</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="boleto">Boleto</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="transferencia">Transferência</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="debito_automatico">Débito Automático</option>
-                      </select>
+                      <FloatingLabelSelect
+                        label="Espécie"
+                        id="especie"
+                        value={especie}
+                        onChange={e => { setEspecie(e.target.value) }}
+                      >
+                        <option value="dinheiro">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                        <option value="cartao">Cartão</option>
+                        <option value="boleto">Boleto</option>
+                        <option value="transferencia">Transferência</option>
+                        <option value="debito_automatico">Débito Automático</option>
+                      </FloatingLabelSelect>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Ano/Mês</label>
-                      <select className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={refChoice} onChange={e => { setRefChoice(e.target.value as any) }}>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="vencimento">Ano/Mês Vencimento</option>
-                        <option className="dark:bg-gray-700 dark:text-gray-100" value="anterior">Ano/Mês Anterior</option>
-                      </select>
+                      <FloatingLabelSelect
+                        label="Ano/Mês"
+                        id="refChoice"
+                        value={refChoice}
+                        onChange={e => { setRefChoice(e.target.value as any) }}
+                      >
+                        <option value="vencimento">Ano/Mês Vencimento</option>
+                        <option value="anterior">Ano/Mês Anterior</option>
+                      </FloatingLabelSelect>
                     </div>
                   </div>
 
                   <div className="md:col-span-2 relative">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Cliente <span className="text-red-600 dark:text-red-400">*</span></label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700">
-                        <input className="w-full outline-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Digite pelo menos 3 letras para buscar" value={clienteBusca} onKeyDown={async (e) => {
-                          if (e.key === 'ArrowDown') {
-                            e.preventDefault()
-                            setClientIndex(prev => (prev < clientes.length - 1 ? prev + 1 : prev))
-                          } else if (e.key === 'ArrowUp') {
-                            e.preventDefault()
-                            setClientIndex(prev => (prev > 0 ? prev - 1 : prev))
-                          } else if (e.key === 'Enter') {
-                            e.preventDefault()
-                            if (clientIndex >= 0 && clientIndex < clientes.length) {
-                              const c = clientes[clientIndex]
-                              setClienteId(c.id); setClienteNome(c.nome); setClienteBusca(c.nome); setClientes([]);
-                              setClientIndex(-1)
-                              // Load defaults
-                              if (hasBackend) {
-                                const { data: def } = await getClientDefault(c.id)
-                                if (def) {
-                                  if (def.grupo_compromisso_id) setGrupoId(def.grupo_compromisso_id)
-                                  if (def.compromisso_id) setCompromissoId(def.compromisso_id)
-                                  if (def.historico) setHistorico(def.historico)
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1">
+                        <FloatingLabelInput
+                          label="Cliente *"
+                          id="cliente"
+                          placeholder="Digite pelo menos 3 letras para buscar"
+                          value={clienteBusca}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'ArrowDown') {
+                              e.preventDefault()
+                              setClientIndex(prev => (prev < clientes.length - 1 ? prev + 1 : prev))
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault()
+                              setClientIndex(prev => (prev > 0 ? prev - 1 : prev))
+                            } else if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (clientIndex >= 0 && clientIndex < clientes.length) {
+                                const c = clientes[clientIndex]
+                                setClienteId(c.id); setClienteNome(c.nome); setClienteBusca(c.nome); setClientes([]);
+                                setClientIndex(-1)
+                                // Load defaults
+                                if (hasBackend) {
+                                  const { data: def } = await getClientDefault(c.id)
+                                  if (def) {
+                                    if (def.grupo_compromisso_id) setGrupoId(def.grupo_compromisso_id)
+                                    if (def.compromisso_id) setCompromissoId(def.compromisso_id)
+                                    if (def.historico) setHistorico(def.historico)
+                                  }
                                 }
                               }
                             }
-                          }
-                        }} onChange={async e => {
-                          const v = e.target.value
-                          setClienteBusca(v)
-                          setClientIndex(-1)
-                          if (v.length >= 3) {
-                            if (hasBackend) {
-                              const r = await (await import('../services/db')).searchClients(v)
-                              if (!r.error && r.data) setClientes(r.data as any)
-                            } else {
-                              setClientes(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
+                          }}
+                          onChange={async e => {
+                            const v = e.target.value
+                            setClienteBusca(v)
+                            setClientIndex(-1)
+                            if (v.length >= 3) {
+                              if (hasBackend) {
+                                const r = await (await import('../services/db')).searchClients(v)
+                                if (!r.error && r.data) setClientes(r.data as any)
+                              } else {
+                                setClientes(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
+                              }
                             }
-                          }
-                        }} />
+                          }}
+                        />
                       </div>
-                      <button type="button" className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setClientModal(true)} title="Novo Cliente">
+                      <button type="button" className="flex items-center justify-center bg-black dark:bg-gray-900 text-white rounded px-3 h-[48px] hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setClientModal(true)} title="Novo Cliente" style={{ marginTop: '0px' }}>
                         <Icon name="add" className="w-4 h-4" />
                       </button>
                     </div>
@@ -993,29 +1020,46 @@ export default function Schedules() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Grupo de Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
-                    <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.grupoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={grupoId} onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}>
-                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
-                      {grupos.filter(g => (g.operacao || (g as any).tipo) === operacao).map(g => <option className="dark:bg-gray-700 dark:text-gray-100" key={g.id} value={g.id}>{g.nome}</option>)}
-                    </select>
+                    <FloatingLabelSelect
+                      label="Grupo de Compromisso *"
+                      id="grupoId"
+                      value={grupoId}
+                      onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}
+                      className={errors.grupoId ? 'border-red-500' : ''}
+                    >
+                      <option value="">Selecione</option>
+                      {grupos.filter(g => (g.operacao || (g as any).tipo) === operacao).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                    </FloatingLabelSelect>
                     {errors.grupoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.grupoId}</div>}
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
-                    <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.compromissoId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={compromissoId} onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}>
-                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
-                      {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
+                    <FloatingLabelSelect
+                      label="Compromisso *"
+                      id="compromissoId"
+                      value={compromissoId}
+                      onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}
+                      className={errors.compromissoId ? 'border-red-500' : ''}
+                    >
+                      <option value="">Selecione</option>
+                      {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </FloatingLabelSelect>
                     {errors.compromissoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.compromissoId}</div>}
                   </div>
 
                   <div className="md:col-span-2">
-
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Histórico <span className="text-red-600 dark:text-red-400">*</span></label>
-                    <div className="flex gap-2">
-                      <input className={`flex-1 border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.historico ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} placeholder="Descrição" value={historico} onChange={e => { setHistorico(e.target.value); setErrors({ ...errors, historico: '' }) }} />
-                      <button type="button" className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 border border-yellow-200 dark:border-yellow-700 rounded px-3 py-2 flex items-center gap-2 transition-colors" title="Gravar em Histórico Padrão" onClick={async (e) => {
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1">
+                        <FloatingLabelInput
+                          label="Histórico *"
+                          id="historico"
+                          placeholder="Descrição"
+                          value={historico}
+                          onChange={e => { setHistorico(e.target.value); setErrors({ ...errors, historico: '' }) }}
+                          className={errors.historico ? 'border-red-500' : ''}
+                        />
+                      </div>
+                      <button type="button" className="bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 border border-yellow-200 dark:border-yellow-700 rounded px-3 h-[48px] flex items-center justify-center gap-2 transition-colors" title="Gravar em Histórico Padrão" onClick={async (e) => {
                         e.preventDefault()
                         if (!clienteId || !grupoId || !compromissoId || !historico) {
                           setAlertInfo({ open: true, msg: 'Para salvar um padrão, preencha: Cliente, Grupo, Compromisso e Histórico.' })
@@ -1033,7 +1077,7 @@ export default function Schedules() {
 
                         setSaveDefaultMessage(msg)
                         setShowSaveDefaultConfirm(true)
-                      }}>
+                      }} style={{ marginTop: '0px' }}>
                         <Icon name="star" className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                       </button>
                     </div>
@@ -1041,68 +1085,70 @@ export default function Schedules() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Caixa Lançamento <span className="text-red-600 dark:text-red-400">*</span></label>
-                    <select className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${errors.caixaId ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} value={caixaId} onChange={e => {
-                      const selectedId = e.target.value
-                      setCaixaId(selectedId)
-                      setErrors({ ...errors, caixaId: '' })
-                      const selectedAccount = contas.find(c => c.id === selectedId)
-                      if (selectedAccount && selectedAccount.tipo === 'cartao' && selectedAccount.dia_vencimento) {
-                        const today = new Date()
-                        const currentDay = today.getDate()
-
-                        // Default to current month/year
-                        let targetMonth = today.getMonth()
-                        let targetYear = today.getFullYear()
-
-                        // Check Dia BOM
-                        if (selectedAccount.dia_bom && currentDay > selectedAccount.dia_bom) {
-                          // Advance to next month
-                          targetMonth++
-                          if (targetMonth > 11) {
-                            targetMonth = 0
-                            targetYear++
+                    <FloatingLabelSelect
+                      label="Caixa Lançamento *"
+                      id="caixaId"
+                      value={caixaId}
+                      onChange={e => {
+                        const selectedId = e.target.value
+                        setCaixaId(selectedId)
+                        setErrors({ ...errors, caixaId: '' })
+                        const selectedAccount = contas.find(c => c.id === selectedId)
+                        if (selectedAccount && selectedAccount.tipo === 'cartao' && selectedAccount.dia_vencimento) {
+                          const today = new Date()
+                          const currentDay = today.getDate()
+                          let targetMonth = today.getMonth()
+                          let targetYear = today.getFullYear()
+                          if (selectedAccount.dia_bom && currentDay > selectedAccount.dia_bom) {
+                            targetMonth++
+                            if (targetMonth > 11) {
+                              targetMonth = 0
+                              targetYear++
+                            }
                           }
+                          const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate()
+                          const finalDay = Math.min(selectedAccount.dia_vencimento, lastDayOfMonth)
+                          const dueDate = `${String(finalDay).padStart(2, '0')}/${String(targetMonth + 1).padStart(2, '0')}/${targetYear}`
+                          const proximaIso = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`
+                          setProxima(proximaIso)
+                          setDateDisplay(dueDate)
+                        } else {
+                          setProxima('')
+                          setDateDisplay('')
                         }
-
-                        // Create date from target month/year and due day
-                        // Handle end of month overflow (e.g. Feb 30) by taking the min of due day and last day of month
-                        const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate()
-                        const finalDay = Math.min(selectedAccount.dia_vencimento, lastDayOfMonth)
-
-                        // Construct display string DD/MM/YYYY
-                        const dueDate = `${String(finalDay).padStart(2, '0')}/${String(targetMonth + 1).padStart(2, '0')}/${targetYear}`
-
-                        // Set proxima (ISO YYYY-MM-DD for input value)
-                        const proximaIso = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`
-
-                        setProxima(proximaIso)
-                        setDateDisplay(dueDate)
-                      } else {
-                        setProxima('')
-                        setDateDisplay('')
-                      }
-                    }}>
-
-                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
-                      {contas.filter(c => c.ativo !== false).map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
+                      }}
+                      className={errors.caixaId ? 'border-red-500' : ''}
+                    >
+                      <option value="">Selecione</option>
+                      {contas.filter(c => c.ativo !== false).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </FloatingLabelSelect>
                     {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Centro de Custo</label>
-                    <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={costCenterId} onChange={e => setCostCenterId(e.target.value)}>
-                      <option className="dark:bg-gray-700 dark:text-gray-100" value="">Selecione</option>
-                      {costCenters.map(c => <option className="dark:bg-gray-700 dark:text-gray-100" key={c.id} value={c.id}>{c.descricao}</option>)}
-                    </select>
+                    <FloatingLabelSelect
+                      label="Centro de Custo"
+                      id="costCenterId"
+                      value={costCenterId}
+                      onChange={e => setCostCenterId(e.target.value)}
+                    >
+                      <option value="">Selecione</option>
+                      {costCenters.map(c => <option key={c.id} value={c.id}>{c.descricao}</option>)}
+                    </FloatingLabelSelect>
                   </div>
 
-
-
-                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Valor <span className="text-red-600 dark:text-red-400">*</span></label>
-                      <input className={`w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 ${(!valor || valor <= 0) ? 'border-red-500 bg-red-50 dark:bg-red-900/10' : ''}`} type="number" inputMode="decimal" min={0.01} step="0.01" value={valor} onChange={e => { setValor(parseFloat(e.target.value) || 0) }} />
+                      <FloatingLabelInput
+                        label="Valor *"
+                        id="valor"
+                        type="number"
+                        inputMode="decimal"
+                        min={0.01}
+                        step="0.01"
+                        value={valor}
+                        onChange={e => { setValor(parseFloat(e.target.value) || 0) }}
+                        className={(!valor || valor <= 0) ? 'border-red-500' : ''}
+                      />
                       {(!valor || valor <= 0) && <div className="text-xs text-red-600 dark:text-red-400 mt-1">Valor deve ser maior que 0</div>}
                       <div className="mt-2 flex items-center gap-2">
                         <input
@@ -1116,10 +1162,10 @@ export default function Schedules() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Vencimento <span className="text-red-600 dark:text-red-400">*</span></label>
                       <div className="relative">
-                        <input
-                          className="w-full border dark:border-gray-600 rounded px-3 py-2 pr-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        <FloatingLabelInput
+                          label="Data Vencimento *"
+                          id="vencimento"
                           placeholder="DD/MM/AAAA"
                           value={dateDisplay}
                           onChange={e => {
@@ -1144,7 +1190,12 @@ export default function Schedules() {
                             }
                           }}
                         />
-                        <label className="absolute right-2 top-1/2 -translate-y-1/2 p-1 cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        {/* Hidden native Date Picker trigger could go here if we want to keep the calendar icon functionality, 
+                            but FloatingLabelInput does not support 'right icon' slot easily without modifications. 
+                            However, the original code had an absolute positioned label with an icon. 
+                            Let's add the icon absolutely positioned on top of the FloatingLabelInput wrapper container.
+                        */}
+                        <label className="absolute right-3 top-[18px] cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 z-10">
                           <Icon name="calendar" className="w-5 h-5" />
                           <input
                             type="date"
@@ -1163,26 +1214,48 @@ export default function Schedules() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{tipo === 'variavel' ? 'Parcelas' : 'Período'}</label>
                       {tipo === 'variavel' ? (
-                        <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" min={1} max={48} value={parcelas} onChange={e => { const n = Math.min(48, Math.max(1, parseInt(e.target.value) || 1)); setParcelas(n) }} />
+                        <FloatingLabelInput
+                          label="Parcelas"
+                          id="parcelas"
+                          type="number"
+                          min={1}
+                          max={48}
+                          value={parcelas}
+                          onChange={e => { const n = Math.min(48, Math.max(1, parseInt(e.target.value) || 1)); setParcelas(n) }}
+                        />
                       ) : (
-                        <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={periodoFix} onChange={e => { setPeriodoFix(e.target.value as any) }}>
-                          <option className="dark:bg-gray-700 dark:text-gray-100" value="mensal">Mensal</option>
-                          <option className="dark:bg-gray-700 dark:text-gray-100" value="semestral">Semestral</option>
-                          <option className="dark:bg-gray-700 dark:text-gray-100" value="anual">Anual</option>
-                        </select>
+                        <FloatingLabelSelect
+                          label="Período"
+                          id="periodo"
+                          value={periodoFix}
+                          onChange={e => { setPeriodoFix(e.target.value as any) }}
+                        >
+                          <option value="mensal">Mensal</option>
+                          <option value="semestral">Semestral</option>
+                          <option value="anual">Anual</option>
+                        </FloatingLabelSelect>
                       )}
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Nota Fiscal</label>
-                      <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" inputMode="numeric" placeholder="Somente números" value={notaFiscal} onChange={e => setNotaFiscal(e.target.value.replace(/\D/g, '').slice(0, 15))} />
+                      <FloatingLabelInput
+                        label="Nota Fiscal"
+                        id="notaFiscal"
+                        inputMode="numeric"
+                        placeholder="Somente números"
+                        value={notaFiscal}
+                        onChange={e => setNotaFiscal(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                      />
                     </div>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Detalhes</label>
-                    <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={detalhes} onChange={e => setDetalhes(e.target.value)} />
+                    <FloatingLabelInput
+                      label="Detalhes"
+                      id="detalhes"
+                      value={detalhes}
+                      onChange={e => setDetalhes(e.target.value)}
+                    />
                   </div>
 
                   <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">

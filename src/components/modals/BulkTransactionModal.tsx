@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Icon } from '../ui/Icon'
 import { formatMoneyBr } from '../../utils/format'
+import { FloatingLabelInput } from '../ui/FloatingLabelInput'
+import { FloatingLabelSelect } from '../ui/FloatingLabelSelect'
 
 type Props = {
     isOpen: boolean
@@ -76,32 +78,28 @@ export function BulkTransactionModal({ isOpen, onClose, onConfirm, items, accoun
 
                         {/* Data de Registro */}
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 border-b border-gray-300 dark:border-gray-600 pb-0.5 w-max">
-                                Data de Registro
-                            </label>
-                            <input
+                            <FloatingLabelInput
+                                label="Data de Registro"
+                                id="date"
                                 type="date"
                                 value={date}
                                 onChange={e => setDate(e.target.value)}
-                                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
                             />
                         </div>
 
                         {/* Caixa de Lançamento */}
                         <div className="md:col-span-4">
-                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 border-b border-gray-300 dark:border-gray-600 pb-0.5 w-max">
-                                Caixa de Lançamento
-                            </label>
-                            <select
+                            <FloatingLabelSelect
+                                label="Caixa de Lançamento"
+                                id="account"
                                 value={accountId}
                                 onChange={e => setAccountId(e.target.value)}
-                                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
                             >
-                                <option value="">Selecione...</option>
+                                <option value="" className="dark:bg-gray-800">Selecione...</option>
                                 {accounts.map(acc => (
-                                    <option key={acc.id} value={acc.id}>{acc.nome}</option>
+                                    <option key={acc.id} value={acc.id} className="dark:bg-gray-800">{acc.nome}</option>
                                 ))}
-                            </select>
+                            </FloatingLabelSelect>
                         </div>
 
                         {/* Totals */}

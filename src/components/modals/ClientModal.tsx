@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/AppStore'
 import { hasBackend } from '../../lib/runtime'
 import { digits, maskCpfCnpj } from '../../utils/format'
 import { Icon } from '../ui/Icon'
+import { FloatingLabelInput } from '../ui/FloatingLabelInput'
 
 type Props = {
     isOpen: boolean
@@ -159,7 +160,7 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                         <Icon name="x" className="w-5 h-5" />
                     </button>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-3">
+                <form onSubmit={handleSubmit} className="space-y-6"> {/* Increased space-y for floating labels */}
                     <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
                         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setTipoPessoa('pf')}>
                             <input id="modal_tp_pf" type="radio" name="modal_tp" checked={tipoPessoa === 'pf'} onChange={() => setTipoPessoa('pf')} className="cursor-pointer" />
@@ -172,13 +173,13 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                     </div>
 
                     <div>
-                        <label className="text-sm font-semibold">{tipoPessoa === 'pj' ? 'CNPJ' : 'CPF'}</label>
-                        <input
-                            className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500"
+                        <FloatingLabelInput
+                            label={tipoPessoa === 'pj' ? 'CNPJ' : 'CPF'}
+                            id="cpfCnpj"
                             value={cpfCnpj}
                             onChange={e => setCpfCnpj(maskCpfCnpj(e.target.value))}
                             aria-invalid={!!docError}
-                            placeholder={tipoPessoa === 'pj' ? '00.000.000/0000-00' : '000.000.000-00'}
+                            className={docError ? "border-red-500 focus:border-red-500" : ""}
                         />
                         {docStatus === 'loading' && <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">Consultando BrasilAPI...</div>}
                         {docStatus === 'success' && <div className="text-xs text-green-700 dark:text-green-400 mt-1">Documento válido</div>}
@@ -188,38 +189,62 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
 
                     {tipoPessoa === 'pf' && (
                         <div>
-                            <label className="text-sm font-semibold">Nome <span className="text-red-500">*</span></label>
-                            <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={novoClienteNome} onChange={e => setNovoClienteNome(e.target.value)} />
+                            <FloatingLabelInput
+                                label="Nome *"
+                                id="nome"
+                                value={novoClienteNome}
+                                onChange={e => setNovoClienteNome(e.target.value)}
+                            />
                         </div>
                     )}
 
                     {tipoPessoa === 'pj' && (
                         <div>
-                            <label className="text-sm font-semibold">Razão Social <span className="text-red-500">*</span></label>
-                            <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={razaoSocial} onChange={e => setRazaoSocial(e.target.value)} />
+                            <FloatingLabelInput
+                                label="Razão Social *"
+                                id="razaoSocial"
+                                value={razaoSocial}
+                                onChange={e => setRazaoSocial(e.target.value)}
+                            />
                         </div>
                     )}
 
                     <div>
-                        <label className="text-sm font-semibold">Endereço</label>
-                        <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={enderecoEmpresa} onChange={e => setEnderecoEmpresa(e.target.value)} />
+                        <FloatingLabelInput
+                            label="Endereço"
+                            id="endereco"
+                            value={enderecoEmpresa}
+                            onChange={e => setEnderecoEmpresa(e.target.value)}
+                        />
                     </div>
 
                     {tipoPessoa === 'pj' && (
                         <div>
-                            <label className="text-sm font-semibold">Atividade Principal</label>
-                            <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={atividadePrincipal} onChange={e => setAtividadePrincipal(e.target.value)} />
+                            <FloatingLabelInput
+                                label="Atividade Principal"
+                                id="atividade"
+                                value={atividadePrincipal}
+                                onChange={e => setAtividadePrincipal(e.target.value)}
+                            />
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-sm font-semibold">Email</label>
-                            <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={novoClienteEmail} onChange={e => setNovoClienteEmail(e.target.value)} />
+                            <FloatingLabelInput
+                                label="Email"
+                                id="email"
+                                value={novoClienteEmail}
+                                onChange={e => setNovoClienteEmail(e.target.value)}
+                            />
                         </div>
                         <div>
-                            <label className="text-sm font-semibold">Telefone</label>
-                            <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={novoClienteTelefone} onChange={e => setNovoClienteTelefone(e.target.value)} />
+                            <FloatingLabelInput
+                                label="Telefone"
+                                id="telefone"
+                                value={novoClienteTelefone}
+                                onChange={e => setNovoClienteTelefone(e.target.value)}
+                            />
                         </div>
                     </div>
 

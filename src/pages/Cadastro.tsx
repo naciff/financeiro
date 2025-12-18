@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createCommitmentGroup, createCommitment, listCommitmentGroups } from '../services/db'
 
+import { useAppStore } from '../store/AppStore'
+
 export default function Cadastro() {
+  const store = useAppStore()
   const [grupos, setGrupos] = useState<{ id: string; nome: string; operacao?: string }[]>([])
   const [op, setOp] = useState<'receita' | 'despesa' | 'aporte' | 'retirada'>('despesa')
   const [descricaoGrupo, setDescricaoGrupo] = useState('')
@@ -11,24 +14,28 @@ export default function Cadastro() {
   const [erroComp, setErroComp] = useState('')
 
   useEffect(() => {
-    listCommitmentGroups().then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
-  }, [])
+    if (store.activeOrganization) {
+      listCommitmentGroups(store.activeOrganization).then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
+    }
+  }, [store.activeOrganization])
 
   async function salvarGrupo(e: React.FormEvent) {
     e.preventDefault()
     setErroGrupo('')
+    if (!store.activeOrganization) { setErroGrupo('Organização não selecionada'); return }
     if (!descricaoGrupo) { setErroGrupo('Descrição obrigatória'); return }
-    const r = await createCommitmentGroup({ operacao: op, nome: descricaoGrupo })
+    const r = await createCommitmentGroup({ operacao: op, nome: descricaoGrupo, organization_id: store.activeOrganization })
     if (r.error) setErroGrupo(r.error.message)
-    else { setDescricaoGrupo(''); listCommitmentGroups().then(rr => { if (!rr.error && rr.data) setGrupos(rr.data as any) }) }
+    else { setDescricaoGrupo(''); listCommitmentGroups(store.activeOrganization).then(rr => { if (!rr.error && rr.data) setGrupos(rr.data as any) }) }
   }
 
   async function salvarComp(e: React.FormEvent) {
     e.preventDefault()
     setErroComp('')
+    if (!store.activeOrganization) { setErroComp('Organização não selecionada'); return }
     if (!grupoSel) { setErroComp('Selecione o grupo'); return }
     if (!descricaoComp) { setErroComp('Descrição obrigatória'); return }
-    const r = await createCommitment({ grupo_id: grupoSel, nome: descricaoComp })
+    const r = await createCommitment({ grupo_id: grupoSel, nome: descricaoComp, organization_id: store.activeOrganization })
     if (r.error) setErroComp(r.error.message)
     else { setDescricaoComp('') }
   }

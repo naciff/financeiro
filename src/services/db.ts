@@ -346,7 +346,7 @@ export async function listCashboxes(orgId: string) {
 export async function createCommitmentGroup(payload: { operacao: 'receita' | 'despesa' | 'aporte' | 'retirada'; nome: string; organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('commitment_groups').insert([{ user_id: userId, organization_id: payload.organization_id, nome: payload.nome, operacao: payload.operacao, tipo: payload.operacao }]).select('id').single()
+  return supabase.from('commitment_groups').insert([{ user_id: userId, created_by: userId, organization_id: payload.organization_id, nome: payload.nome, operacao: payload.operacao, tipo: payload.operacao }]).select('id').single()
 }
 export async function updateCommitmentGroup(id: string, payload: { operacao?: 'receita' | 'despesa' | 'aporte' | 'retirada'; nome?: string }) {
   if (!supabase) return { data: null, error: null }
