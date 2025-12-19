@@ -46,6 +46,7 @@ export default function Schedules() {
   const [clientModal, setClientModal] = useState(false)
   const [historico, setHistorico] = useState('')
   const [valor, setValor] = useState<number>(0)
+  const [valorFocused, setValorFocused] = useState(false)
   const [proxima, setProxima] = useState('')
   const [dateDisplay, setDateDisplay] = useState('')
   const [periodoFix, setPeriodoFix] = useState<'mensal' | 'anual'>('mensal')
@@ -763,33 +764,47 @@ export default function Schedules() {
 
           {/* Filters */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100" value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1) }}>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Tipo: Todos</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="fixo">Fixo</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="variavel">Variável (Parcelado)</option>
-              </select>
-              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Tipo"
+                value={typeFilter}
+                onChange={e => { setTypeFilter(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
+              >
+                <option value="" className="dark:bg-gray-800">Todos</option>
+                <option value="fixo" className="dark:bg-gray-800">Fixo</option>
+                <option value="variavel" className="dark:bg-gray-800">Variável (Parcelado)</option>
+              </FloatingLabelSelect>
             </div>
 
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100" value={periodFilter} onChange={e => { setPeriodFilter(e.target.value); setPage(1) }}>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Período: Todos</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="mensal">Mensal</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="semanal">Semanal</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="anual">Anual</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="unico">Único</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="semestral">Semestral</option>
-              </select>
-              <Icon name="calendar" className="w-3 h-3 text-gray-400 ml-1" />
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Período"
+                value={periodFilter}
+                onChange={e => { setPeriodFilter(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
+              >
+                <option value="" className="dark:bg-gray-800">Todos</option>
+                <option value="mensal" className="dark:bg-gray-800">Mensal</option>
+                <option value="semanal" className="dark:bg-gray-800">Semanal</option>
+                <option value="anual" className="dark:bg-gray-800">Anual</option>
+                <option value="unico" className="dark:bg-gray-800">Único</option>
+                <option value="semestral" className="dark:bg-gray-800">Semestral</option>
+              </FloatingLabelSelect>
             </div>
 
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 max-w-[150px] truncate" value={grupoCompromissoFilter} onChange={e => { setGrupoCompromissoFilter(e.target.value); setPage(1) }}>
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Grupo: Todos</option>
-                {allCommitmentGroups.map(g => <option className="dark:bg-gray-800 dark:text-gray-100" key={g.id} value={g.id}>{g.nome}</option>)}
-              </select>
-              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Grupo"
+                value={grupoCompromissoFilter}
+                onChange={e => { setGrupoCompromissoFilter(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
+              >
+                <option value="" className="dark:bg-gray-800">Todos</option>
+                {allCommitmentGroups.map(g => (
+                  <option className="dark:bg-gray-800" key={g.id} value={g.id}>{g.nome}</option>
+                ))}
+              </FloatingLabelSelect>
             </div>
           </div>
 
@@ -1139,13 +1154,15 @@ export default function Schedules() {
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
                     <div>
                       <FloatingLabelInput
-                        label="Valor *"
+                        label="Valor (R$) *"
                         id="valor"
                         type="number"
                         inputMode="decimal"
                         min={0.01}
                         step="0.01"
-                        value={valor}
+                        value={valorFocused ? valor : valor.toFixed(2)}
+                        onFocus={() => setValorFocused(true)}
+                        onBlur={() => setValorFocused(false)}
                         onChange={e => { setValor(parseFloat(e.target.value) || 0) }}
                         className={(!valor || valor <= 0) ? 'border-red-500' : ''}
                       />

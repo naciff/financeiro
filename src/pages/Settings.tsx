@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
-import { listMyMemberships, getProfile, listOrganizationMembers, addOrganizationMember, removeOrganizationMember, listMyOrganizations, updateOrganization, deleteOrganization, createOrganization, getAllOrganizationsAdmin, addOrgMemberAdmin, updateOrganizationAdmin } from '../services/db'
+import { listMyMemberships, getProfile, listOrganizationMembers, addOrganizationMember, removeOrganizationMember, listMyOrganizations, updateOrganization, deleteOrganization, createOrganization, getAllOrganizationsAdmin, addOrgMemberAdmin, updateOrganizationAdmin, getOrganization } from '../services/db'
 import Permissions from './Permissions'
 import AdminUsers from './AdminUsers'
+import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
 
 
 
@@ -12,16 +13,18 @@ export default function Settings() {
   const { activeOrganization, setActiveOrganization } = useAppStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTab = (searchParams.get('tab') as any) || 'organizacoes'
-  const [activeTab, setActiveTab] = useState<'geral' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users'>(initialTab)
+  const [activeTab, setActiveTab] = useState<'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users'>(initialTab)
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab && ['geral', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users'].includes(tab)) {
+    if (tab === 'geral') {
+      setActiveTab('config_relatorios')
+    } else if (tab && ['config_relatorios', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users'].includes(tab)) {
       setActiveTab(tab as any)
     }
   }, [searchParams])
 
-  const handleTabChange = (tab: 'geral' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users') => {
+  const handleTabChange = (tab: 'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users') => {
     setActiveTab(tab)
     setSearchParams({ tab })
   }
@@ -48,6 +51,20 @@ export default function Settings() {
   const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
   const [testResponse, setTestResponse] = useState('')
 
+  // Report Config State
+  const [reportConfig, setReportConfig] = useState({
+    logo_main: '',
+    logo_secondary: '',
+    company_name: '',
+    cnpj: '',
+    address: '',
+    site: '',
+    email: '',
+    phone: '',
+    report_title_prefix: 'Relatório Financeiro',
+    footer_text: ''
+  })
+
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle')
   const [connectionResponse, setConnectionResponse] = useState('')
 
@@ -62,13 +79,51 @@ export default function Settings() {
     if (savedUrl) setWaUrl(savedUrl)
     if (savedStatusUrl) setWaStatusUrl(savedStatusUrl)
     if (savedToken) setWaToken(savedToken)
-  }, [])
+  }, [activeOrganization]) // Add dependency on activeOrganization to reload config
+
+  useEffect(() => {
+    // Sync report config from active org (fetch fresh from DB)
+    async function loadOrgConfig() {
+      if (!activeOrganization) return
+
+      const { data, error } = await getOrganization(activeOrganization)
+      if (data && data.report_config) {
+        setReportConfig(prev => ({ ...prev, ...data.report_config }))
+      } else {
+        // Reset to defaults if no config found or error
+        setReportConfig({
+          logo_main: '',
+          logo_secondary: '',
+          company_name: '',
+          cnpj: '',
+          address: '',
+          site: '',
+          email: '',
+          phone: '',
+          report_title_prefix: 'Relatório Financeiro',
+          footer_text: ''
+        })
+      }
+    }
+    loadOrgConfig()
+  }, [activeOrganization])
 
   function saveConfig() {
     localStorage.setItem('financeiro_wa_url', waUrl)
     localStorage.setItem('financeiro_wa_status_url', waStatusUrl)
     localStorage.setItem('financeiro_wa_token', waToken)
     alert('Configurações salvas com sucesso!')
+  }
+
+  async function saveReportConfig() {
+    if (!activeOrganization) return alert('Selecione uma organização ativa');
+    const res = await updateOrganization(activeOrganization, { report_config: reportConfig })
+    if (res.error) {
+      alert('Erro ao salvar: ' + res.error.message)
+    } else {
+      alert('Configurações de Relatório salvas!')
+      loadData() // Reload to update local state
+    }
   }
 
   // Helper to use proxy if URL matches the external API
@@ -210,7 +265,7 @@ export default function Settings() {
         res = await updateOrganizationAdmin(org.id, newName)
       } else {
         // Standard update (RLS)
-        res = await updateOrganization(org.id, newName)
+        res = await updateOrganization(org.id, { name: newName })
       }
 
       if (res.error) {
@@ -311,13 +366,13 @@ export default function Settings() {
         )}
 
         {/* Context: General Settings */}
-        {(['geral', 'integracao', 'users'].includes(activeTab)) && (
+        {(['config_relatorios', 'integracao', 'users'].includes(activeTab)) && (
           <>
             <button
-              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'geral' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-              onClick={() => handleTabChange('geral')}
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'config_relatorios' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('config_relatorios')}
             >
-              Geral
+              Configuração Relatórios
             </button>
             <button
               className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'users' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
@@ -335,9 +390,108 @@ export default function Settings() {
         )}
       </div>
 
-      {activeTab === 'geral' && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 text-gray-500 dark:text-gray-400">
-          Configurações gerais do sistema (Em breve)
+      {activeTab === 'config_relatorios' && (
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+          <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <Icon name="file-text" className="w-5 h-5 text-gray-500" />
+            Personalização de Relatórios (PDF)
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Configure o cabeçalho dos relatórios PDF com a identidade visual da sua empresa.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Logos */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">Logos</h3>
+              <FloatingLabelInput
+                label="URL Logo Principal (Esquerda)"
+                value={reportConfig.logo_main}
+                onChange={e => setReportConfig({ ...reportConfig, logo_main: e.target.value })}
+              />
+              <FloatingLabelInput
+                label="URL Logo Secundária (Direita - Opcional)"
+                value={reportConfig.logo_secondary}
+                onChange={e => setReportConfig({ ...reportConfig, logo_secondary: e.target.value })}
+              />
+              <div className="text-xs text-gray-500">
+                Recomendado: Imagens em formato PNG ou JPG. Use links públicos (ex: hospedados em seu site ou bucket).
+              </div>
+            </div>
+
+            {/* Company Info */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">Dados da Empresa</h3>
+              <FloatingLabelInput
+                label="Razão Social / Nome da Empresa"
+                value={reportConfig.company_name}
+                onChange={e => setReportConfig({ ...reportConfig, company_name: e.target.value })}
+              />
+              <FloatingLabelInput
+                label="CNPJ"
+                value={reportConfig.cnpj}
+                onChange={e => setReportConfig({ ...reportConfig, cnpj: e.target.value })}
+              />
+            </div>
+
+            {/* Contact Info */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">Endereço e Contato</h3>
+              <FloatingLabelInput
+                label="Endereço Completo (Rua, Número, Bairro, Cidade/UF, CEP)"
+                value={reportConfig.address}
+                onChange={e => setReportConfig({ ...reportConfig, address: e.target.value })}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FloatingLabelInput
+                  label="Site"
+                  value={reportConfig.site}
+                  onChange={e => setReportConfig({ ...reportConfig, site: e.target.value })}
+                />
+                <FloatingLabelInput
+                  label="E-mail"
+                  value={reportConfig.email}
+                  onChange={e => setReportConfig({ ...reportConfig, email: e.target.value })}
+                />
+                <FloatingLabelInput
+                  label="Telefone / Celular"
+                  value={reportConfig.phone}
+                  onChange={e => setReportConfig({ ...reportConfig, phone: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Report Title */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">Título do Relatório</h3>
+              <FloatingLabelInput
+                label="Prefixo do Título (ex: Relatório Financeiro)"
+                value={reportConfig.report_title_prefix}
+                onChange={e => setReportConfig({ ...reportConfig, report_title_prefix: e.target.value })}
+              />
+            </div>
+
+            {/* Footer Text */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">Rodapé (Opcional)</h3>
+              <FloatingLabelInput
+                label="Texto do Rodapé (Lado Esquerdo)"
+                value={reportConfig.footer_text}
+                onChange={e => setReportConfig({ ...reportConfig, footer_text: e.target.value })}
+              />
+              <p className="text-xs text-gray-500">O número da página será adicionado automaticamente no lado direito.</p>
+            </div>
+
+          </div>
+
+          <div className="mt-6 pt-4 border-t dark:border-gray-700 flex justify-end">
+            <button
+              onClick={saveReportConfig}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors shadow-sm"
+            >
+              Salvar Configurações
+            </button>
+          </div>
         </div>
       )}
 

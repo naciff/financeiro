@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction, deleteTransaction, updateFinancial } from '../services/db'
+import { listAccounts, listTransactions, payTransaction, receiveTransaction, listClients, listCommitmentGroups, listCommitmentsByGroup, updateSchedule, reverseTransaction, updateTransaction, searchTransactions, getTransaction, deleteTransaction, updateFinancial, createFavorite } from '../services/db'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { supabase } from '../lib/supabase'
@@ -10,6 +10,7 @@ import { TransactionModal } from '../components/modals/TransactionModal'
 
 import { TransactionAttachments } from '../components/TransactionAttachments'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 
 export default function Ledger() {
   const store = useAppStore()
@@ -268,6 +269,35 @@ export default function Ledger() {
     setContextMenu({ x: e.pageX, y: e.pageY, tx })
   }
 
+  async function handleDefineFavorite() {
+    if (!contextMenu) return
+    const { tx } = contextMenu
+    setContextMenu(null)
+
+    if (!confirm('Deseja salvar este lançamento como Favorito?')) return
+
+    const data = {
+      organization_id: store.activeOrganization,
+      user_id: (await supabase.auth.getUser()).data.user?.id,
+      operacao: tx.operacao,
+      especie: tx.especie,
+      cliente_id: tx.cliente_id,
+      grupo_compromisso_id: tx.grupo_compromisso_id,
+      compromisso_id: tx.compromisso_id,
+      historico: tx.historico,
+      detalhes: typeof tx.detalhes === 'object' ? JSON.stringify(tx.detalhes) : tx.detalhes,
+      conta_id: tx.conta_id || tx.caixa_id,
+      valor: tx.valor_entrada || tx.valor_saida || 0
+    }
+
+    const res = await createFavorite(data)
+    if (res.error) {
+      alert('Erro ao salvar favorito: ' + res.error.message)
+    } else {
+      alert('Favorito salvo com sucesso!')
+    }
+  }
+
   function handleDuplicate() {
     if (!contextMenu) return
     const { tx } = contextMenu
@@ -515,36 +545,37 @@ export default function Ledger() {
 
           {/* Filters */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select
-                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[100px]"
+            <div className="min-w-[150px]">
+              <FloatingLabelSelect
+                label="Caixa"
                 value={accountFilter}
                 onChange={e => setAccountFilter(e.target.value)}
+                bgColor="bg-background-light dark:bg-background-dark"
               >
-                <option className="dark:bg-gray-800 dark:text-gray-100" value="">Caixa: Todos</option>
+                <option value="" className="dark:bg-gray-800">Todos</option>
                 {accounts.map(acc => (
-                  <option className="dark:bg-gray-800 dark:text-gray-100" key={acc.id} value={acc.id}>{acc.nome}</option>
+                  <option className="dark:bg-gray-800" key={acc.id} value={acc.id}>{acc.nome}</option>
                 ))}
-              </select>
+              </FloatingLabelSelect>
             </div>
 
-            <div className="flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2">
-              <select
-                className="bg-transparent text-sm py-1.5 focus:outline-none dark:text-gray-100 min-w-[150px]"
+            <div className="min-w-[200px]">
+              <FloatingLabelSelect
+                label="Tipo"
                 value={opFilter}
                 onChange={e => setOpFilter(e.target.value)}
+                bgColor="bg-background-light dark:bg-background-dark"
               >
-                <option className="dark:bg-gray-800 dark:text-gray-100">Tipo: Todas</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Receitas</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Despesas</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Aporte/Ret./Transf.</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Despesas e Retiradas</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Receitas e Aportes</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Aporte</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Retiradas</option>
-                <option className="dark:bg-gray-800 dark:text-gray-100">Somente Transferências</option>
-              </select>
-              <Icon name="filter" className="w-3 h-3 text-gray-400 ml-1" />
+                <option value="Todas" className="dark:bg-gray-800">Todas</option>
+                <option className="dark:bg-gray-800">Somente Receitas</option>
+                <option className="dark:bg-gray-800">Somente Despesas</option>
+                <option className="dark:bg-gray-800">Somente Aporte/Ret./Transf.</option>
+                <option className="dark:bg-gray-800">Despesas e Retiradas</option>
+                <option className="dark:bg-gray-800">Receitas e Aportes</option>
+                <option className="dark:bg-gray-800">Somente Aporte</option>
+                <option className="dark:bg-gray-800">Somente Retiradas</option>
+                <option className="dark:bg-gray-800">Somente Transferências</option>
+              </FloatingLabelSelect>
             </div>
           </div>
 
@@ -731,6 +762,10 @@ export default function Ledger() {
             className="fixed bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-xl z-50 py-1"
             style={{ top: contextMenu.y, left: contextMenu.x }}
           >
+            <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-yellow-600 dark:text-yellow-400" onClick={handleDefineFavorite}>
+              <Icon name="star" className="w-4 h-4" /> Definir Item Lançamento Favorito
+            </button>
+            <div className="border-t dark:border-gray-700 my-1"></div>
             <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
               const item = contextMenu.tx
               if (item) openModal(item)

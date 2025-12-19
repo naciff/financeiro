@@ -547,7 +547,9 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
     caixa: t.caixa,
     cliente: t.cliente,
     compromisso: t.compromisso,
-    grupo: t.grupo
+    grupo: t.grupo,
+    cost_center: t.cost_center,
+    cost_center_id: t.cost_center_id
   }))
 
   // Map schedules to financials shape
@@ -561,7 +563,9 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
     caixa: s.caixa,
     cliente: s.cliente,
     compromisso: s.compromisso,
-    grupo: s.grupo
+    grupo: s.grupo,
+    cost_center: s.cost_center,
+    cost_center_id: s.cost_center_id
   }))
 
   return { data: [...filteredFinancials, ...mappedTransactions, ...mappedSchedules], error: err1 || err2 || err3 }
@@ -747,15 +751,20 @@ export async function listMyOrganizations() {
   return supabase.from('organizations').select('*').order('name')
 }
 
+export async function getOrganization(id: string) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('organizations').select('*').eq('id', id).single()
+}
+
 export async function createOrganization(name: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('organizations').insert([{ name, owner_id: userId }]).select().single()
 }
 
-export async function updateOrganization(id: string, name: string) {
+export async function updateOrganization(id: string, updates: { name?: string, report_config?: any }) {
   if (!supabase) return { data: null, error: null }
-  return supabase.from('organizations').update({ name }).eq('id', id)
+  return supabase.from('organizations').update(updates).eq('id', id)
 }
 
 export async function deleteOrganization(id: string) {
@@ -786,4 +795,24 @@ export async function addOrgMemberAdmin(orgId: string, email: string, role: stri
 export async function updateOrganizationAdmin(id: string, name: string) {
   if (!supabase) return { data: null, error: { message: 'No connection' } }
   return supabase.rpc('update_organization_name_admin', { target_org_id: id, new_name: name })
+}
+
+export async function createFavorite(data: any) {
+  if (!supabase) return { data: null, error: { message: 'Backend unavailable' } }
+  return supabase.from('transaction_favorites').insert([data])
+}
+
+export async function listFavorites(orgId: string) {
+  if (!supabase) return { data: [], error: { message: 'Backend unavailable' } }
+  return supabase.from('transaction_favorites')
+    .select(`
+      *,
+      cliente:clients(id, nome),
+      compromisso:commitments(id, nome),
+      grupo:commitment_groups(id, nome),
+      conta:accounts(id, nome),
+      cost_center:cost_centers(id, descricao)
+    `)
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false })
 }

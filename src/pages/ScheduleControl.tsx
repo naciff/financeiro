@@ -325,6 +325,7 @@ export default function ScheduleControl() {
         cliente_id: s.cliente?.id ? String(s.cliente.id) : (s.cliente_id ? String(s.cliente_id) : ''),
         grupo_compromisso_id: s.agendamento?.grupo?.id ? String(s.agendamento.grupo.id) : (s.grupo_compromisso_id ? String(s.grupo_compromisso_id) : ''),
         compromisso_id: s.agendamento?.compromisso?.id ? String(s.agendamento.compromisso.id) : (s.compromisso_id ? String(s.compromisso_id) : ''),
+        cost_center_id: s.cost_center_id || s.agendamento?.cost_center_id || s.agendamento?.cost_center?.id || '',
         // Do not pass objects for 'compromisso' or 'cliente' as they conflict with string names used in Table
         conta_id: s.caixa_id ? String(s.caixa_id) : '',
         caixa_id: s.caixa_id ? String(s.caixa_id) : '',
@@ -532,6 +533,7 @@ export default function ScheduleControl() {
                 id="filterCaixa"
                 value={filterCaixa}
                 onChange={e => { setFilterCaixa(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="" className="dark:bg-gray-800">Todos</option>
                 {caixas.filter(c => c.ativo !== false).map(c => (
@@ -546,6 +548,7 @@ export default function ScheduleControl() {
                 id="filterOp"
                 value={filterOp}
                 onChange={e => { setFilterOp(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="Todas" className="dark:bg-gray-800">Todas</option>
                 <option value="Somente Receitas" className="dark:bg-gray-800">Receitas</option>
@@ -565,6 +568,7 @@ export default function ScheduleControl() {
                 id="filterGrupo"
                 value={filterGrupo}
                 onChange={e => { setFilterGrupo(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="" className="dark:bg-gray-800">Todos</option>
                 {grupos.map(g => (
@@ -579,6 +583,7 @@ export default function ScheduleControl() {
                 id="filterCostCenter"
                 value={filterCostCenter}
                 onChange={e => { setFilterCostCenter(e.target.value); setPage(1) }}
+                bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="" className="dark:bg-gray-800">Todos</option>
                 {costCenters.map(cc => (
@@ -1216,6 +1221,7 @@ export default function ScheduleControl() {
                     compromisso_id: modal.compromisso_id,
                     historico: modal.historico,
                     conta_id: modal.caixa_id,
+                    cost_center_id: modal.cost_center_id,
                     data_vencimento: modal.vencimento || modal.data_vencimento
                   } : undefined}
                   financialId={modal?.id}

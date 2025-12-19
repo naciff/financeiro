@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAppStore } from '../store/AppStore'
-import { listTransactions, listAccounts, listCommitmentGroups, listCommitmentsByGroup } from '../services/db'
+import { listTransactions, listAccounts, listCommitmentGroups, listCommitmentsByGroup, listCostCenters, listMyOrganizations } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { Icon } from '../components/ui/Icon'
+import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
+import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
 
 export default function Reports() {
   const store = useAppStore()
@@ -10,6 +12,7 @@ export default function Reports() {
   const [txs, setTxs] = useState<any[]>([])
   const [accounts, setAccounts] = useState<any[]>([])
   const [groups, setGroups] = useState<any[]>([])
+  const [costCenters, setCostCenters] = useState<any[]>([])
   const [commitments, setCommitments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -19,7 +22,9 @@ export default function Reports() {
   const [endDate, setEndDate] = useState(today)
   const [selectedAccount, setSelectedAccount] = useState('')
   const [selectedGroup, setSelectedGroup] = useState('')
+  const [selectedCostCenter, setSelectedCostCenter] = useState('')
   const [selectedCommitment, setSelectedCommitment] = useState('')
+  const [reportConfig, setReportConfig] = useState<any>(null)
 
   // View State
   const [viewType, setViewType] = useState<'analytic' | 'synthetic'>('synthetic')
@@ -44,14 +49,26 @@ export default function Reports() {
     if (!store.activeOrganization) return
     setLoading(true)
     const orgId = store.activeOrganization
-    const [t, a, g] = await Promise.all([
+    const [t, a, g, cc] = await Promise.all([
       listTransactions(3000, orgId), // Fetch a larger batch for reports
       listAccounts(orgId),
-      listCommitmentGroups(orgId)
+      listCommitmentGroups(orgId),
+      listCostCenters(orgId)
     ])
+
+    // Fetch Organization Config separately
+    const orgs = await listMyOrganizations()
+    if (orgs.data) {
+      const currentOrg = orgs.data.find((o: any) => o.id === orgId)
+      if (currentOrg && currentOrg.report_config) {
+        setReportConfig(currentOrg.report_config)
+      }
+    }
+
     setTxs(t.data || [])
     setAccounts(a.data || [])
     setGroups(g.data || [])
+    setCostCenters((cc as any).data || []) // costCenters might be the 4th result
     setLoading(false)
   }
 
@@ -81,6 +98,13 @@ export default function Reports() {
       if (selectedCommitment) {
         const tCommId = t.compromisso?.id || t.compromisso_id
         if (tCommId !== selectedCommitment) return false
+      }
+
+      // Cost Center Filter
+      if (selectedCostCenter) {
+        // Typically transaction has cost_center_id or joined object
+        const tCCId = t.cost_center_id || t.cost_center?.id
+        if (tCCId !== selectedCostCenter) return false
       }
 
       return true
@@ -167,10 +191,115 @@ export default function Reports() {
 
       const doc = new jsPDF()
 
-      doc.setFontSize(16)
-      doc.text(`Relatório Financeiro - ${viewType === 'analytic' ? 'Analítico' : 'Sintético'}`, 14, 15)
-      doc.setFontSize(10)
-      doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 14, 22)
+      // --- HEADERS CONFIGURATION ---
+      const hasCustomHeader = !!reportConfig
+      let startY = 25
+
+      if (hasCustomHeader) {
+        const {
+          logo_main, logo_secondary, company_name, cnpj,
+          address, site, email, phone, report_title_prefix
+        } = reportConfig
+
+        let currentY = 10
+
+        // 1. Main Logo (Left)
+        if (logo_main) {
+          try {
+            // Determine image format from extension roughly
+            const ext = logo_main.split('.').pop().toLowerCase()
+            const format = (ext === 'png') ? 'PNG' : 'JPEG'
+            doc.addImage(logo_main, format, 10, 5, 30, 15) // x, y, w, h
+          } catch (err) {
+            console.error('Error loading main logo', err)
+          }
+        }
+
+        // 2. Secondary Logo (Right)
+        if (logo_secondary) {
+          try {
+            const ext = logo_secondary.split('.').pop().toLowerCase()
+            const format = (ext === 'png') ? 'PNG' : 'JPEG'
+            doc.addImage(logo_secondary, format, 170, 5, 30, 15)
+          } catch (err) {
+            console.error('Error loading secondary logo', err)
+          }
+        }
+
+        // 3. Company Info (Center/Left - offset by logo)
+        // X Position: 45 if logo exists, else 14
+        const textX = logo_main ? 45 : 14
+
+        doc.setFontSize(14)
+        doc.setFont("helvetica", "bold")
+        doc.text(company_name || 'Minha Empresa', textX, 10)
+
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "normal")
+        if (cnpj) doc.text(`CNPJ: ${cnpj}`, textX, 15)
+
+        doc.setFontSize(8)
+        if (address) doc.text(address, textX, 19)
+
+        // Contact Line
+        let contactLine = ''
+        if (site) contactLine += `Site: ${site}  `
+        if (email) contactLine += `E-mail: ${email}  `
+        if (phone) contactLine += `Celular: ${phone}`
+        if (contactLine) doc.text(contactLine, textX, 23)
+
+        // 4. Report Title
+        // Draw a line separator
+        doc.setLineWidth(0.5)
+        doc.line(10, 26, 200, 26) // Horizontal line
+
+        doc.setFontSize(12)
+        doc.setFont("helvetica", "bold")
+        const titlePrefix = report_title_prefix || 'Relatório Financeiro'
+        const titleSuffix = viewType === 'analytic' ? 'Analítico' : 'Sintético'
+        doc.text(`${titlePrefix} - ${titleSuffix}`.toUpperCase(), 105, 32, { align: 'center' })
+
+
+        doc.setFontSize(10)
+        doc.setFont("helvetica", "normal")
+        doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 105, 37, { align: 'center' })
+
+        startY = 45
+      } else {
+        // Default Header
+        doc.setFontSize(16)
+        doc.text(`Relatório Financeiro - ${viewType === 'analytic' ? 'Analítico' : 'Sintético'}`, 14, 15)
+        doc.setFontSize(10)
+        doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 14, 22)
+      }
+
+      // Capture footer text before closure
+      const footerText = reportConfig?.footer_text || ''
+
+      // Define page content function for AutoTable hooks or post-processing
+      const drawFooter = (doc: any) => {
+        const pageCount = doc.internal.getNumberOfPages()
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i)
+          const pageWidth = doc.internal.pageSize.width
+          const pageHeight = doc.internal.pageSize.height
+
+          // Footer Line
+          doc.setLineWidth(0.5)
+          doc.line(10, pageHeight - 15, pageWidth - 10, pageHeight - 15)
+
+          doc.setFontSize(8)
+          doc.setFont("helvetica", "italic")
+
+          // Left Text
+          if (footerText) {
+            doc.text(footerText, 10, pageHeight - 10)
+          }
+
+          // Right Text (Page Number)
+          doc.text(`Página ${i} de ${pageCount}`, pageWidth - 10, pageHeight - 10, { align: 'right' })
+        }
+      }
 
       if (viewType === 'analytic') {
         const rows = reportData.map(t => [
@@ -184,11 +313,12 @@ export default function Reports() {
         ])
 
         autoTable(doc, {
-          startY: 25,
+          startY: startY,
           head: [['Vencto', 'Pagto', 'Caixa', 'Cliente', 'Grupo', 'Compromisso', 'Valor']],
           body: rows,
           styles: { fontSize: 8 },
-          headStyles: { fillColor: [66, 133, 244] }
+          headStyles: { fillColor: [66, 133, 244] },
+          margin: { top: startY }
         })
       } else {
         const rows = syntheticData.map(d => [
@@ -199,12 +329,16 @@ export default function Reports() {
         ])
 
         autoTable(doc, {
-          startY: 25,
+          startY: startY,
           head: [['Grupo / Categoria', 'Entradas', 'Saídas', 'Saldo']],
           body: rows,
-          headStyles: { fillColor: [66, 133, 244] }
+          headStyles: { fillColor: [66, 133, 244] },
+          margin: { top: startY }
         })
       }
+
+      // Draw footer on all pages
+      drawFooter(doc)
 
       doc.save(`relatorio_${viewType}.pdf`)
     } catch (e) {
@@ -225,73 +359,86 @@ export default function Reports() {
 
       {/* Filters Card */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
           {/* Calendar */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase">Período (Vencimento)</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                max="9999-12-31"
-                className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-              />
-              <span className="text-gray-400">a</span>
-              <input
-                type="date"
-                max="9999-12-31"
-                className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-              />
-            </div>
+          <div className="flex gap-2">
+            <FloatingLabelInput
+              type="date"
+              label="De"
+              max="9999-12-31"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              bgColor="bg-white dark:bg-gray-800"
+            />
+            <FloatingLabelInput
+              type="date"
+              label="Até"
+              max="9999-12-31"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              bgColor="bg-white dark:bg-gray-800"
+            />
           </div>
 
           {/* Account */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Caixa / Banco</label>
-            <select
-              className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <div>
+            <FloatingLabelSelect
+              label="Caixa / Banco"
               value={selectedAccount}
               onChange={e => setSelectedAccount(e.target.value)}
+              bgColor="bg-white dark:bg-gray-800"
             >
-              <option value="">Todos</option>
+              <option value="" className="dark:bg-gray-800">Todos</option>
               {accounts.map(a => (
-                <option key={a.id} value={a.id}>{a.nome}</option>
+                <option key={a.id} value={a.id} className="dark:bg-gray-800">{a.nome}</option>
               ))}
-            </select>
+            </FloatingLabelSelect>
           </div>
 
           {/* Group */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Grupo de Compromisso</label>
-            <select
-              className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <div>
+            <FloatingLabelSelect
+              label="Grupo de Compromisso"
               value={selectedGroup}
               onChange={e => setSelectedGroup(e.target.value)}
+              bgColor="bg-white dark:bg-gray-800"
             >
-              <option value="">Todos</option>
+              <option value="" className="dark:bg-gray-800">Todos</option>
               {groups.map(g => (
-                <option key={g.id} value={g.id}>{g.nome}</option>
+                <option key={g.id} value={g.id} className="dark:bg-gray-800">{g.nome}</option>
               ))}
-            </select>
+            </FloatingLabelSelect>
           </div>
 
           {/* Commitment */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Compromisso</label>
-            <select
-              className="w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <div>
+            <FloatingLabelSelect
+              label="Compromisso"
               value={selectedCommitment}
               onChange={e => setSelectedCommitment(e.target.value)}
+              bgColor="bg-white dark:bg-gray-800"
               disabled={!selectedGroup}
             >
-              <option value="">Todos</option>
+              <option value="" className="dark:bg-gray-800">Todos</option>
               {commitments.map(c => (
-                <option key={c.id} value={c.id}>{c.nome}</option>
+                <option key={c.id} value={c.id} className="dark:bg-gray-800">{c.nome}</option>
               ))}
-            </select>
+            </FloatingLabelSelect>
+          </div>
+
+          {/* Cost Center */}
+          <div>
+            <FloatingLabelSelect
+              label="Centro de Custo"
+              value={selectedCostCenter}
+              onChange={e => setSelectedCostCenter(e.target.value)}
+              bgColor="bg-white dark:bg-gray-800"
+            >
+              <option value="" className="dark:bg-gray-800">Todos</option>
+              {costCenters.map(cc => (
+                <option key={cc.id} value={cc.id} className="dark:bg-gray-800">{cc.descricao}</option>
+              ))}
+            </FloatingLabelSelect>
           </div>
         </div>
 

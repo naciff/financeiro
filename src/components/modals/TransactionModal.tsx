@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction, createTransaction, listAttachments, addAttachment, deleteAttachment, updateFinancial } from '../../services/db'
+import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction, createTransaction, listAttachments, addAttachment, deleteAttachment, updateFinancial, listCostCenters } from '../../services/db'
 import { hasBackend } from '../../lib/runtime'
 import { useAppStore } from '../../store/AppStore'
 import { supabase } from '../../lib/supabase'
@@ -24,6 +24,10 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
 
 
     const store = useAppStore()
+    const [valorFocused, setValorFocused] = useState(false)
+    const [descontoFocused, setDescontoFocused] = useState(false)
+    const [multaFocused, setMultaFocused] = useState(false)
+    const [jurosFocused, setJurosFocused] = useState(false)
     const [msg, setMsg] = useState('')
     const [activeTab, setActiveTab] = useState<'details' | 'attachments'>('details')
     const [showClientModal, setShowClientModal] = useState(false)
@@ -45,6 +49,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     const [accounts, setAccounts] = useState<any[]>([])
     const [clients, setClients] = useState<any[]>([])
     const [groups, setGroups] = useState<any[]>([])
+    const [costCenters, setCostCenters] = useState<any[]>([])
     const [commitments, setCommitments] = useState<any[]>([])
 
     // Attachments
@@ -64,6 +69,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     const [formCompromisso, setFormCompromisso] = useState('')
     const [formNotaFiscal, setFormNotaFiscal] = useState('')
     const [formDetalhes, setFormDetalhes] = useState('')
+    const [formCostCenter, setFormCostCenter] = useState('')
     const [formParcial, setFormParcial] = useState(false)
 
     useEffect(() => {
@@ -74,14 +80,16 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                     return
                 }
                 const orgId = store.activeOrganization
-                const [a, c, g] = await Promise.all([
+                const [a, c, g, cc] = await Promise.all([
                     listAccounts(orgId),
                     listClients(orgId),
-                    listCommitmentGroups(orgId)
+                    listCommitmentGroups(orgId),
+                    listCostCenters(orgId)
                 ])
                 setAccounts(a.data || [])
                 setClients(c.data || [])
                 setGroups(g.data || [])
+                setCostCenters((cc as any).data || [])
             } else {
                 setAccounts(store.accounts)
                 setClients(store.clients)
@@ -129,6 +137,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             setFormCompromisso(initialData.compromisso_id || initialData.compromisso?.id || (typeof initialData.compromisso === 'string' ? initialData.compromisso : '') || '')
             setFormNotaFiscal(initialData.nota_fiscal || '')
             setFormDetalhes(initialData.detalhes ? (typeof initialData.detalhes === 'string' ? initialData.detalhes : JSON.stringify(initialData.detalhes)) : '')
+            setFormCostCenter(initialData.cost_center_id || initialData.cost_center?.id || '')
             setFormParcial(!!initialData.parcial)
         } else {
             // Defaults
@@ -161,6 +170,16 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             }
         }
     }, [accounts, initialData])
+
+    // Auto-select principal cost center for new transactions
+    useEffect(() => {
+        if (!initialData && costCenters.length > 0 && !formCostCenter) {
+            const principal = costCenters.find(cc => cc.principal)
+            if (principal) {
+                setFormCostCenter(principal.id)
+            }
+        }
+    }, [costCenters, initialData])
 
 
 
@@ -205,6 +224,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             descontos: showComplementary ? formDesconto : 0,
             multa: showComplementary ? formMulta : 0,
             juros: showComplementary ? formJuros : 0,
+            cost_center_id: formCostCenter || null,
             financial_id: financialId || undefined,
             concluido_em: new Date().toISOString()
         }
@@ -419,7 +439,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
 
                                         let finalVal = data.valor
                                         if (showComplementary) {
-                                            finalVal = data.Valor + formMulta + formJuros - formDesconto
+                                            finalVal = data.valor + formMulta + formJuros - formDesconto
                                         }
 
                                         const isEntrada = formOperacao === 'receita' || formOperacao === 'aporte'
@@ -440,7 +460,8 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             especie: formEspecie,
                                             descontos: showComplementary ? formDesconto : 0,
                                             multa: showComplementary ? formMulta : 0,
-                                            juros: showComplementary ? formJuros : 0
+                                            juros: showComplementary ? formJuros : 0,
+                                            cost_center_id: formCostCenter || null
                                         }
 
                                         await executeSave(txData, data.action)
@@ -522,42 +543,57 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                     />
                                 </div>
 
-                                {/* Valor | Caixa */}
-                                <div>
-                                    <FloatingLabelInput
-                                        label="Valor *"
-                                        id="valor"
-                                        type="number"
-                                        step="0.01"
-                                        value={formValor}
-                                        onChange={e => setFormValor(parseFloat(e.target.value))}
-                                    />
-                                    <div className="flex items-center mt-1">
-                                        <input
-                                            type="checkbox"
-                                            disabled
-                                            checked={formParcial}
-                                            className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 opacity-60 cursor-not-allowed"
+                                {/* Valor | Caixa | Centro de Custo */}
+                                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <FloatingLabelInput
+                                            label="Valor (R$) *"
+                                            id="valor"
+                                            type="number"
+                                            step="0.01"
+                                            value={valorFocused ? formValor : formValor.toFixed(2)}
+                                            onFocus={() => setValorFocused(true)}
+                                            onBlur={() => setValorFocused(false)}
+                                            onChange={e => setFormValor(parseFloat(e.target.value))}
                                         />
-                                        <label className="ml-2 text-xs font-medium text-gray-900 dark:text-gray-300 opacity-60">
-                                            Registro Parcial
-                                        </label>
+                                        <div className="flex items-center mt-1">
+                                            <input
+                                                type="checkbox"
+                                                disabled
+                                                checked={formParcial}
+                                                className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 opacity-60 cursor-not-allowed"
+                                            />
+                                            <label className="ml-2 text-xs font-medium text-gray-900 dark:text-gray-300 opacity-60">
+                                                Registro Parcial
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
-                                <div>
-                                    <FloatingLabelSelect
-                                        label="Caixa Lançamento *"
-                                        id="caixa"
-                                        value={formContaId}
-                                        onChange={e => setFormContaId(e.target.value)}
-                                    >
-                                        <option value="">Selecione...</option>
-                                        {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
-                                    </FloatingLabelSelect>
+                                    <div>
+                                        <FloatingLabelSelect
+                                            label="Caixa Lançamento *"
+                                            id="caixa"
+                                            value={formContaId}
+                                            onChange={e => setFormContaId(e.target.value)}
+                                        >
+                                            <option value="">Selecione...</option>
+                                            {accounts.filter(acc => acc.ativo !== false).map(acc => <option key={acc.id} value={acc.id}>{acc.nome}</option>)}
+                                        </FloatingLabelSelect>
+                                    </div>
+                                    <div>
+                                        <FloatingLabelSelect
+                                            label="Centro de Custo"
+                                            id="centro_custo"
+                                            value={formCostCenter}
+                                            onChange={e => setFormCostCenter(e.target.value)}
+                                        >
+                                            <option value="">Selecione...</option>
+                                            {costCenters.map(cc => <option key={cc.id} value={cc.id}>{cc.descricao}</option>)}
+                                        </FloatingLabelSelect>
+                                    </div>
                                 </div>
 
                                 {/* Complementary Values Checkbox */}
-                                <div className="md:col-span-2 mt-4 pt-4 border-t dark:border-gray-700">
+                                <div className="md:col-span-2 mt-2 pt-2 border-t dark:border-gray-700">
                                     <label className="flex items-center space-x-2 cursor-pointer w-fit">
                                         <input
                                             type="checkbox"
@@ -565,20 +601,22 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             onChange={(e) => setShowComplementary(e.target.checked)}
                                             className="form-checkbox text-blue-600 rounded w-4 h-4 focus:ring-blue-500"
                                         />
-                                        <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                        <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">
                                             Valores Complementares
                                         </span>
                                     </label>
 
                                     {showComplementary && (
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 animate-fade-in bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 animate-fade-in bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
                                             <div>
                                                 <FloatingLabelInput
                                                     label="Desconto (R$)"
                                                     id="desconto"
                                                     type="number"
                                                     step="0.01"
-                                                    value={formDesconto}
+                                                    value={descontoFocused ? formDesconto : formDesconto.toFixed(2)}
+                                                    onFocus={() => setDescontoFocused(true)}
+                                                    onBlur={() => setDescontoFocused(false)}
                                                     onChange={e => setFormDesconto(parseFloat(e.target.value) || 0)}
                                                 />
                                             </div>
@@ -588,7 +626,9 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                                     id="multa"
                                                     type="number"
                                                     step="0.01"
-                                                    value={formMulta}
+                                                    value={multaFocused ? formMulta : formMulta.toFixed(2)}
+                                                    onFocus={() => setMultaFocused(true)}
+                                                    onBlur={() => setMultaFocused(false)}
                                                     onChange={e => setFormMulta(parseFloat(e.target.value) || 0)}
                                                 />
                                             </div>
@@ -598,11 +638,13 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                                     id="juros"
                                                     type="number"
                                                     step="0.01"
-                                                    value={formJuros}
+                                                    value={jurosFocused ? formJuros : formJuros.toFixed(2)}
+                                                    onFocus={() => setJurosFocused(true)}
+                                                    onBlur={() => setJurosFocused(false)}
                                                     onChange={e => setFormJuros(parseFloat(e.target.value) || 0)}
                                                 />
                                             </div>
-                                            <div> // TODO: This field is read-only, layout might need care with FloatingInput disabled style
+                                            <div>
                                                 <FloatingLabelInput
                                                     label="Valor Final (R$)"
                                                     id="final"

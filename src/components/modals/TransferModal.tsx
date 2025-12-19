@@ -22,13 +22,21 @@ export function TransferModal({ onClose }: Props) {
     const [loading, setLoading] = useState(false)
 
     useEffect(() => {
-        if (hasBackend) listAccounts().then(r => setAccounts(r.data || []))
-        else setAccounts(store.accounts)
+        if (hasBackend) {
+            if (store.activeOrganization) {
+                listAccounts(store.activeOrganization).then(r => {
+                    const activeAccounts = (r.data || []).filter((a: any) => a.ativo)
+                    setAccounts(activeAccounts)
+                })
+            }
+        } else {
+            setAccounts(store.accounts.filter(a => a.ativo))
+        }
 
         // Set default date to today
         const today = new Date().toISOString().split('T')[0]
         setDate(today)
-    }, [])
+    }, [store.activeOrganization])
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault()
