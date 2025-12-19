@@ -34,38 +34,22 @@ export function PartialConfirmModal({ isOpen, title = 'Registro Parcial', item, 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-[500px] overflow-hidden border dark:border-gray-700">
 
                 {/* Header Style matching BulkTransactionModal */}
-                <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 p-3 border-b border-gray-300 dark:border-gray-700 flex justify-between items-center">
+                <div className="bg-white dark:bg-gray-900 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <div className="bg-green-500 rounded-full p-1 border-2 border-white shadow-sm">
-                            <Icon name="check" className="w-5 h-5 text-white" />
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 shadow-sm">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                             {title}
                         </h2>
                     </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            onClick={onClose}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-400 dark:border-gray-500 rounded text-sm font-medium transition-colors text-gray-800 dark:text-gray-200"
-                        >
-                            <Icon name="x" className="w-4 h-4 text-red-600" />
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleConfirm}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-gray-100 hover:bg-white dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-400 dark:border-gray-500 rounded text-sm font-medium transition-colors text-gray-800 dark:text-gray-200 shadow-sm"
-                        >
-                            <div className="text-green-600 font-bold flex items-center gap-1">
-                                <Icon name="check" className="w-4 h-4" />
-                                Confirmar
-                            </div>
-                        </button>
-                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    >
+                        <Icon name="x" className="w-5 h-5" />
+                    </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6 bg-gray-50 dark:bg-gray-900">
+                <div className="p-6 bg-white dark:bg-gray-800">
                     <div className="flex gap-6 items-start">
                         {/* Left: Value Input (Read-Only) */}
                         <div className="w-[140px]">
@@ -75,7 +59,7 @@ export function PartialConfirmModal({ isOpen, title = 'Registro Parcial', item, 
                                 <input
                                     type="text"
                                     disabled
-                                    className="w-full bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-right pr-3 py-2 text-base font-bold text-gray-800 dark:text-gray-100 focus:outline-none rounded"
+                                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-right pr-3 py-2 text-base font-bold text-gray-800 dark:text-gray-100 focus:outline-none rounded"
                                     value={formatMoneyBr(displayValue)}
                                 />
                             </div>
@@ -83,7 +67,7 @@ export function PartialConfirmModal({ isOpen, title = 'Registro Parcial', item, 
 
                         {/* Right: Radio Options */}
                         <div className="flex flex-col gap-4 mt-1">
-                            <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer hover:opacity-80 transition-opacity">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:opacity-80 transition-opacity">
                                 <div className={`w-4 h-4 rounded-full border border-gray-400 flex items-center justify-center ${action === 'keep_open' ? 'border-blue-600 bg-white' : 'bg-white'}`}>
                                     {action === 'keep_open' && <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>}
                                 </div>
@@ -96,7 +80,7 @@ export function PartialConfirmModal({ isOpen, title = 'Registro Parcial', item, 
                                 />
                                 Manter Agendamento Aberto
                             </label>
-                            <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer hover:opacity-80 transition-opacity">
+                            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer hover:opacity-80 transition-opacity">
                                 <div className={`w-4 h-4 rounded-full border border-gray-400 flex items-center justify-center ${action === 'finalize' ? 'border-blue-600 bg-white' : 'bg-white'}`}>
                                     {action === 'finalize' && <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>}
                                 </div>
@@ -111,6 +95,22 @@ export function PartialConfirmModal({ isOpen, title = 'Registro Parcial', item, 
                             </label>
                         </div>
                     </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <button
+                        className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors"
+                        onClick={onClose}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-medium shadow-sm transition-colors flex items-center gap-2"
+                        onClick={handleConfirm}
+                    >
+                        Confirmar
+                    </button>
                 </div>
 
             </div>

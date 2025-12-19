@@ -141,11 +141,9 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             setFormParcial(!!initialData.parcial)
         } else {
             // Defaults
-            const today = new Date().toISOString().split('T')[0]
-            setFormDataLancamento(today)
             setFormDataVencimento(today)
         }
-    }, [initialData])
+    }, [initialData?.id])
 
 
 
@@ -427,16 +425,13 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                     currentValue={formValor} // TODO: Add complementary processing here if partial modal needs real value? Usually partial modal is just about confirmation of splitting.
                                     onClose={() => setShowPartialConfirm(false)}
                                     onConfirm={async (data) => {
-                                        setFormValor(data.valor)
-                                        setShowPartialConfirm(false)
+                                        // Logic for Partial: 
+                                        // 1. Transaction will use the 'data.valor' (User typed value)
+                                        // 2. Financial Item will be:
+                                        //    If 'keep_open': Reduced by this value, stays pending.
+                                        //    If 'finalize': Marked as Paid/Realized.
 
                                         // Recalculate Final Logic inside Confirm because 'data.valor' is the override
-                                        // Wait, usually Partial Modal returns the 'paid' value. 
-                                        // If using Complementary, 'data.valor' is likely the Principal?
-                                        // Let's assume Partial Modal returns the User-Typed Value in "Valor Pago".
-                                        // We should respect that as Final Value or Principal?
-                                        // Since checks are complex, let's treat the returned value as the Principal base.
-
                                         let finalVal = data.valor
                                         if (showComplementary) {
                                             finalVal = data.valor + formMulta + formJuros - formDesconto
@@ -461,7 +456,9 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             descontos: showComplementary ? formDesconto : 0,
                                             multa: showComplementary ? formMulta : 0,
                                             juros: showComplementary ? formJuros : 0,
-                                            cost_center_id: formCostCenter || null
+                                            cost_center_id: formCostCenter || null,
+                                            financial_id: financialId || undefined,
+                                            concluido_em: new Date().toISOString()
                                         }
 
                                         await executeSave(txData, data.action)

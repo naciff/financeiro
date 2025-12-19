@@ -83,6 +83,50 @@ export default function ScheduleControl() {
   const [confirmItem, setConfirmItem] = useState<any>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
 
+  // Bulk Launch State
+  // Bulk Launch State derived from 'conferido' status
+  const [showBulkLaunchModal, setShowBulkLaunchModal] = useState(false)
+
+  // Items checked in the interface
+  const itemsReadyToLaunch = useMemo(() => remote.filter(i => i.conferido), [remote])
+
+  async function handleBulkLaunch(data: { date: string, accountId: string, total: number }) {
+    setShowBulkLaunchModal(false)
+    const itemsToLaunch = itemsReadyToLaunch
+
+    let errorCount = 0
+    for (const item of itemsToLaunch) {
+      try {
+        const res = await confirmProvision(item.id, {
+          valor: item.despesa || item.receita,
+          data: data.date,
+          cuentaId: data.accountId
+        })
+
+        if (res.error) {
+          console.error('Error confirming item:', item.id, res.error)
+          errorCount++
+        } else {
+          // Success: Update Schedule if needed
+          if (item.scheduleId) {
+            const nextDue = getNextVencimento(item.vencimento, item.periodo)
+            await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+          }
+        }
+      } catch (e) {
+        console.error(e)
+        errorCount++
+      }
+    }
+
+    if (errorCount > 0) {
+      alert(`Processo finalizado com ${errorCount} erro(s). Verifique o console.`)
+    } else {
+      // Force reload to refresh
+      window.location.reload()
+    }
+  }
+
   async function handleConfirmSingle() {
     if (!confirmItem) return
     setShowConfirmModal(false)
@@ -813,11 +857,21 @@ export default function ScheduleControl() {
                                         <input
                                           type="checkbox"
                                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                          checked={item.conferido}
+                                          checked={!!item.conferido}
                                           onChange={async (e) => {
                                             if (hasBackend) {
-                                              setConfirmItem(item)
-                                              setShowConfirmModal(true)
+                                              const newVal = !item.conferido
+                                              // Optimistic Update
+                                              setRemote(prev => prev.map(p => p.id === item.id ? { ...p, conferido: newVal } : p))
+
+                                              try {
+                                                if (store.activeOrganization) {
+                                                  await updateFinancial(item.id, { conferido: newVal }, store.activeOrganization)
+                                                }
+                                              } catch (err) {
+                                                console.error('Failed to toggle conferido', err)
+                                                setRemote(prev => prev.map(p => p.id === item.id ? { ...p, conferido: !newVal } : p))
+                                              }
                                             }
                                           }}
                                         />
@@ -931,12 +985,22 @@ export default function ScheduleControl() {
                                   <td className="px-4 py-2 text-center align-top" onClick={e => e.stopPropagation()}>
                                     <input
                                       type="checkbox"
-                                      checked={item.conferido}
+                                      checked={!!item.conferido}
                                       className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                                       onChange={async (e) => {
                                         if (hasBackend) {
-                                          setConfirmItem(item)
-                                          setShowConfirmModal(true)
+                                          const newVal = !item.conferido
+                                          // Optimistic Update
+                                          setRemote(prev => prev.map(p => p.id === item.id ? { ...p, conferido: newVal } : p))
+
+                                          try {
+                                            if (store.activeOrganization) {
+                                              await updateFinancial(item.id, { conferido: newVal }, store.activeOrganization)
+                                            }
+                                          } catch (err) {
+                                            console.error('Failed to toggle conferido', err)
+                                            setRemote(prev => prev.map(p => p.id === item.id ? { ...p, conferido: !newVal } : p))
+                                          }
                                         }
                                       }}
                                     />
@@ -1108,6 +1172,19 @@ export default function ScheduleControl() {
                     if (skipId) {
                       if (hasBackend) {
                         await skipFinancialItem(skipId)
+
+                        // Fix: Update Schedule Proxima Vencimento logic (Rollover)
+                        const itemToSkip = rows.allData.find(r => r.id === skipId)
+                        if (itemToSkip && itemToSkip.scheduleId) {
+                          try {
+                            const nextDue = getNextVencimento(itemToSkip.vencimento, itemToSkip.periodo)
+                            console.log('Skipping rollover schedule:', itemToSkip.scheduleId, 'Period:', itemToSkip.periodo, 'New Date:', nextDue.toISOString())
+                            await updateSchedule(itemToSkip.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                          } catch (err) {
+                            console.error('Error rolling over skipped schedule:', err)
+                          }
+                        }
+
                         listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                       } else {
                         alert('Necessário backend')
@@ -1266,7 +1343,15 @@ export default function ScheduleControl() {
           </div>
         )
       }
+      {showBulkLaunchModal && (
+        <BulkTransactionModal
+          isOpen={showBulkLaunchModal}
+          onClose={() => setShowBulkLaunchModal(false)}
+          onConfirm={handleBulkLaunch}
+          items={itemsReadyToLaunch}
+          accounts={caixas}
+        />
+      )}
     </div>
   )
 }
-

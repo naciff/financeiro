@@ -246,10 +246,20 @@ export async function confirmProvision(itemId: string, info: { valor: number, da
 export async function skipFinancialItem(itemId: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.rpc('fn_skip_ledger_item', {
+  const rpc = await supabase.rpc('fn_skip_ledger_item', {
     p_item_id: itemId,
     p_user_id: userId
   })
+
+  if (!rpc.error) {
+    // Audit: set 'conferido' equivalent logic for skipped items if needed, or just track who skipped it
+    // The user explicitly asked to fill data_confirmacao and usuario_confirmou
+    await supabase.from('financials').update({
+      data_confirmacao: new Date().toISOString(),
+      usuario_confirmou: userId
+    }).eq('id', itemId)
+  }
+  return rpc
 }
 
 export async function payTransaction(txId: string, contaId: string, amount: number, date?: string) {
