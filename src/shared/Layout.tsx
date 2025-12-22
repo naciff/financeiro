@@ -9,10 +9,13 @@ import { TransferModal } from '../components/modals/TransferModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 import { useLocation } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
-import { listMyMemberships, listMyOrganizations } from '../services/db'
+import { listMyMemberships, listMyOrganizations, getProfile } from '../services/db'
+import { useLayout } from '../context/LayoutContext'
+import { CookieConsentModal } from '../components/modals/CookieConsentModal'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const store = useAppStore()
+  const { settings, setSettings } = useLayout()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [showCalculator, setShowCalculator] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
@@ -20,12 +23,43 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isOrgOwner, setIsOrgOwner] = useState(false)
+  const [myProfile, setMyProfile] = useState<any>(null)
 
   useEffect(() => {
     if (supabase) {
       supabase.auth.getUser().then(r => {
-        setCurrentUser(r.data.user?.id || null)
-        setUserEmail(r.data.user?.email || null)
+        const u = r.data.user
+        setCurrentUser(u?.id || null)
+        setUserEmail(u?.email || null)
+
+        // Fetch Profile for sidebar
+        getProfile().then(async (r) => {
+          // Merge with user metadata for fallback
+          let profileData = { ...r.data } as any;
+
+          if (u?.user_metadata) {
+            if (!profileData.name) profileData.name = u.user_metadata.full_name || u.user_metadata.name;
+            if (!profileData.avatar_url) profileData.avatar_url = u.user_metadata.avatar_url || u.user_metadata.picture;
+          }
+
+          // If avatar_url is a storage path (not http), download it
+          if (profileData.avatar_url && !profileData.avatar_url.startsWith('http') && !profileData.avatar_url.startsWith('blob:')) {
+            try {
+              const { data, error } = await supabase.storage.from('avatars').download(profileData.avatar_url)
+              if (!error && data) {
+                profileData.avatar_url = URL.createObjectURL(data)
+              }
+            } catch (e) {
+              console.error("Error downloading avatar", e)
+            }
+          }
+
+          setMyProfile({
+            name: profileData.name || u?.email?.split('@')[0] || 'Usuário',
+            email: u?.email || '',
+            avatar_url: profileData.avatar_url || null
+          })
+        })
       })
     }
   }, [])
@@ -141,18 +175,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   currentTitle = findTitle(nav) || 'Dashboard'
 
   // State for sidebar collapse (persisted)
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem('sidebar.collapsed') === 'true'
-    } catch { return false }
-  })
+
 
   const toggleCollapse = () => {
-    setCollapsed(prev => {
-      const n = !prev
-      localStorage.setItem('sidebar.collapsed', String(n))
-      return n
-    })
+    setSettings(prev => ({
+      ...prev,
+      nav: { ...prev.nav, collapsed: !prev.nav.collapsed }
+    }))
   }
 
   return (
@@ -162,22 +191,43 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 flex">
           <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)}></div>
           <div className="relative bg-surface-light dark:bg-surface-dark w-64 h-full shadow-xl">
-            <Sidebar items={nav} onLogout={() => supabase?.auth.signOut()} mobile onClose={() => setMobileOpen(false)} />
+            <Sidebar items={nav} onLogout={() => supabase?.auth.signOut()} mobile onClose={() => setMobileOpen(false)} user={myProfile} />
           </div>
         </div>
       )}
 
-      {/* Desktop Sidebar */}
-      <aside className={`hidden md:flex flex-col flex-shrink-0 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark overflow-y-auto transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'}`}>
-        <Sidebar
-          items={nav}
-          onLogout={() => supabase?.auth.signOut()}
-          collapsed={collapsed}
-          onToggle={toggleCollapse}
-        />
-      </aside>
+      {/* Desktop Sidebar (Only if position is SIDE) */}
+      {settings.nav.open && settings.nav.position === 'side' && (
+        <aside className={`hidden md:flex flex-col flex-shrink-0 bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark overflow-y-auto transition-all duration-300 ${settings.nav.collapsed ? 'w-16' : 'w-64'}`}>
+          <Sidebar
+            items={nav}
+            onLogout={() => supabase?.auth.signOut()}
+            onToggle={toggleCollapse}
+            user={myProfile}
+          />
+        </aside>
+      )}
 
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto flex flex-col">
+
+        {/* Top Navigation Mode (If position is TOP) */}
+        {settings.nav.open && settings.nav.position === 'top' && (
+          <div className="hidden md:block bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
+            {/* We render a horizontal version of the sidebar/nav here. For simplicity, reusing Sidebar but might need a horizontal variant. 
+                    Given standard 'Sidebar' is vertical, we might need a HorizontalMenu component. 
+                    However, usually 'Top' nav replaces the header or sits below it. 
+                    Let's try to adapt Sidebar or render a simple horizontal strip using the same 'nav' items. */}
+            <div className="container mx-auto px-4 overflow-x-auto flex items-center h-14 no-scrollbar">
+              {nav.map(item => (
+                <a key={item.to} href={item.to} className="flex items-center gap-2 px-4 py-2 text-sm text-text-muted-light dark:text-text-muted-dark hover:text-primary whitespace-nowrap">
+                  <span className="material-icons-outlined text-[18px]">{item.icon}</span>
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         <Header
           onMenuToggle={() => setMobileOpen(true)}
           title={currentTitle}
@@ -186,7 +236,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onOpenTransfer={() => setShowTransfer(true)}
         />
 
-        <div className="flex-1 overflow-y-auto relative p-6">
+        <div className="flex-1 relative p-6">
           {children}
         </div>
 
@@ -196,6 +246,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {showCalculator && <CalculatorModal onClose={() => setShowCalculator(false)} />}
       {showTransfer && <TransferModal onClose={() => setShowTransfer(false)} />}
       {showTransaction && <TransactionModal onClose={() => setShowTransaction(false)} />}
+
+      <CookieConsentModal />
     </div>
   )
 }

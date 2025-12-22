@@ -6,6 +6,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import { useAuth } from './contexts/AuthContext'
 import { useAutoLogout } from './hooks/useAutoLogout'
 import { useDailyAutomation } from './hooks/useDailyAutomation'
+import { LayoutProvider } from './context/LayoutContext'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -32,7 +33,11 @@ export default function App() {
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/register" element={<Navigate to="/" replace />} />
       <Route path="/forgot-password" element={<Navigate to="/" replace />} />
-      <Route path="/*" element={<AppRoutes />} />
+      <Route path="/*" element={
+        <LayoutProvider>
+          <AppRoutes />
+        </LayoutProvider>
+      } />
     </Routes>
   )
 }

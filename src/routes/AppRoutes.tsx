@@ -20,6 +20,7 @@ import ScheduleControl from '../pages/ScheduleControl'
 import AdminUsers from '../pages/AdminUsers'
 import { CostCenters } from '../pages/CostCenters'
 import DbManager from '../pages/DbManager'
+import { Help } from '../pages/Help'
 
 export function AppRoutes() {
   return (
@@ -46,6 +47,7 @@ export function AppRoutes() {
         <Route path="/permissoes" element={<Permissions />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/db-manager" element={<DbManager />} />
+        <Route path="/help" element={<Help />} />
       </Routes>
     </Layout>
   )

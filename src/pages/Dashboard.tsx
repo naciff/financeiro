@@ -6,6 +6,7 @@ import { ExpensesBarChart } from '../components/charts/ExpensesBarChart'
 import { useState, useEffect } from 'react'
 import { getProfile } from '../services/db'
 import { useAppStore } from '../store/AppStore'
+import { CountUp } from '../components/ui/CountUp'
 
 export default function Dashboard() {
   const store = useAppStore()
@@ -66,7 +67,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total entrada (Fixa/Mês)</p>
-            <h3 className="text-xl font-bold text-profit">R$ {formatCurrency(totalReceitasFixasMes)}</h3>
+            <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasFixasMes || 0} /></h3>
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
@@ -75,7 +76,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total despesas (Fixa/Mês)</p>
-            <h3 className="text-xl font-bold text-loss">R$ {formatCurrency(totalRetiradaFixaMes)}</h3>
+            <h3 className="text-xl font-bold text-loss"><CountUp end={totalRetiradaFixaMes || 0} /></h3>
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
@@ -84,7 +85,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total de despesas lançadas</p>
-            <h3 className="text-xl font-bold text-text-main-light dark:text-text-main-dark">R$ {formatCurrency(totalDespesasGeral)}</h3>
+            <h3 className="text-xl font-bold text-text-main-light dark:text-text-main-dark"><CountUp end={totalDespesasGeral || 0} /></h3>
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
@@ -93,7 +94,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão divisão de lucro Anual</p>
-            <h3 className="text-xl font-bold text-profit">R$ {formatCurrency(totalReceitasDivisaoLucro)}</h3>
+            <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasDivisaoLucro || 0} /></h3>
           </div>
         </div>
       </div>
@@ -106,7 +107,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total recebido</p>
-            <h3 className="text-xl font-bold text-neutral">{totais ? `R$ ${formatCurrency(Number(totais.real_total_recebido || 0))}` : 'R$ 0,00'}</h3>
+            <h3 className="text-xl font-bold text-neutral"><CountUp end={Number(totais?.real_total_recebido || 0)} /></h3>
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
@@ -115,7 +116,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total pago</p>
-            <h3 className="text-xl font-bold text-loss">{totais ? `R$ ${formatCurrency(Number(totais.real_total_pago || 0))}` : 'R$ 0,00'}</h3>
+            <h3 className="text-xl font-bold text-loss"><CountUp end={Number(totais?.real_total_pago || 0)} /></h3>
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
@@ -124,7 +125,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Saldo Atual</p>
-            <h3 className={`text-xl font-bold ${Number(totais?.saldo_atual || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>{totais ? `R$ ${formatCurrency(Number(totais.saldo_atual || 0))}` : 'R$ 0,00'}</h3>
+            <h3 className={`text-xl font-bold ${Number(totais?.saldo_atual || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.saldo_atual || 0)} /></h3>
           </div>
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
@@ -133,7 +134,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão Saldo Mês Atual</p>
-            <h3 className={`text-xl font-bold ${Number(totais?.previsao_saldo || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>{totais ? `R$ ${formatCurrency(Number(totais.previsao_saldo || 0))}` : 'R$ 0,00'}</h3>
+            <h3 className={`text-xl font-bold ${Number(totais?.previsao_saldo || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.previsao_saldo || 0)} /></h3>
           </div>
         </div>
       </div>

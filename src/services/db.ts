@@ -583,9 +583,8 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
 
 export async function listFinancialsBySchedule(scheduleId: string, orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
 
-  return supabase.from('financials')
+  let query = supabase.from('financials')
     .select(`
       *,
       caixa: caixa_id(id, nome, cor),
@@ -597,7 +596,15 @@ export async function listFinancialsBySchedule(scheduleId: string, orgId?: strin
         grupo: grupo_compromisso_id(id, nome)
       )
     `)
-    .eq('user_id', userId as any)
+
+  if (orgId) {
+    query = query.eq('organization_id', orgId)
+  } else {
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    query = query.eq('user_id', userId as any)
+  }
+
+  return query
     .eq('id_agendamento', scheduleId)
     .order('data_vencimento', { ascending: true })
 }

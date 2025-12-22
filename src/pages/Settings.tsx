@@ -6,6 +6,7 @@ import { listMyMemberships, getProfile, listOrganizationMembers, addOrganization
 import Permissions from './Permissions'
 import AdminUsers from './AdminUsers'
 import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
+import { SettingsContent } from '../components/layout/SettingsContent'
 
 
 
@@ -13,18 +14,18 @@ export default function Settings() {
   const { activeOrganization, setActiveOrganization } = useAppStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTab = (searchParams.get('tab') as any) || 'organizacoes'
-  const [activeTab, setActiveTab] = useState<'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users'>(initialTab)
+  const [activeTab, setActiveTab] = useState<'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users' | 'ajustes'>(initialTab)
 
   useEffect(() => {
     const tab = searchParams.get('tab')
     if (tab === 'geral') {
       setActiveTab('config_relatorios')
-    } else if (tab && ['config_relatorios', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users'].includes(tab)) {
+    } else if (tab && ['config_relatorios', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users', 'ajustes'].includes(tab)) {
       setActiveTab(tab as any)
     }
   }, [searchParams])
 
-  const handleTabChange = (tab: 'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users') => {
+  const handleTabChange = (tab: 'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users' | 'ajustes') => {
     setActiveTab(tab)
     setSearchParams({ tab })
   }
@@ -366,7 +367,7 @@ export default function Settings() {
         )}
 
         {/* Context: General Settings */}
-        {(['config_relatorios', 'integracao', 'users'].includes(activeTab)) && (
+        {(['config_relatorios', 'integracao', 'users', 'ajustes'].includes(activeTab)) && (
           <>
             <button
               className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'config_relatorios' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
@@ -386,9 +387,25 @@ export default function Settings() {
             >
               Integrações
             </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'ajustes' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              onClick={() => handleTabChange('ajustes')}
+            >
+              Ajustes
+            </button>
           </>
         )}
       </div>
+
+      {activeTab === 'ajustes' && (
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+          <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <Icon name="settings" className="w-5 h-5 text-gray-500" />
+            Ajustes de Layout
+          </h2>
+          <SettingsContent />
+        </div>
+      )}
 
       {activeTab === 'config_relatorios' && (
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">

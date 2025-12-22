@@ -546,8 +546,9 @@ export default function Schedules() {
             setActiveTab(map[item.operacao])
           }
 
-          // Open Modal
-          openEditForm(id)
+          // Highlight the item instead of opening the form
+          setSelectedIds(new Set([id]))
+
           // Clear state so it doesn't reopen on refresh/re-nav
           navigate(location.pathname, { replace: true, state: {} })
         }
@@ -562,7 +563,7 @@ export default function Schedules() {
           } else if (map[item.operacao]) {
             setActiveTab(map[item.operacao])
           }
-          openEditForm(id)
+          setSelectedIds(new Set([id]))
           navigate(location.pathname, { replace: true, state: {} })
         }
       }
