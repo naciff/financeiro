@@ -63,7 +63,7 @@ export function Sidebar({
 
       {/* User Panel (Top) */}
       {settings.nav.showUserPanel && user && (
-        <div className={`px-4 py-6 flex flex-col items-center transition-colors ${settings.theme.style === 'default' ? 'text-white' : 'border-b border-border-light dark:border-border-dark'}`}>
+        <div className={`px-4 py-2 flex flex-col items-center transition-colors ${settings.theme.style === 'default' ? 'text-white border-b border-white/10' : 'border-b border-border-light dark:border-border-dark'}`}>
           <div className="relative mb-3 group cursor-pointer" title="Meu Perfil">
             <div className={`${isCollapsed ? 'w-10 h-10' : 'w-20 h-20'} rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex items-center justify-center ${isCollapsed ? 'text-sm' : 'text-2xl'} font-bold text-gray-500 dark:text-gray-300 ring-2 ring-offset-2 ring-gray-200 dark:ring-gray-700 ring-offset-surface-light dark:ring-offset-surface-dark transition-all`}>
               {user.avatar_url ? (
@@ -112,7 +112,7 @@ export function Sidebar({
       )}
 
       {/* Navigation */}
-      <nav className={`flex-1 px-2 py-4 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar ${isDefaultDark ? 'scrollbar-dark' : ''}`}>
+      <nav className={`flex-1 px-2 py-1 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar ${isDefaultDark ? 'scrollbar-dark' : ''}`}>
         {items.map((i) => {
           // Check active state recursively
           const isChildActive = i.children?.some(c =>

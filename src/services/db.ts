@@ -474,19 +474,14 @@ export async function getProfile() {
 
 export async function getDailyFinancials(dateIso: string, orgId?: string) {
   if (!supabase) return { data: [], error: null }
-  const userId = orgId || (await supabase.auth.getUser()).data.user?.id
 
-  // Calculate generic range (Date - 1 day to Date + 1 day) to handle Timezone shifts
-  // We will filter strictly in JS.
+  // Calculate generic range
   const targetDate = new Date(dateIso)
   const prevDate = new Date(targetDate)
   prevDate.setDate(prevDate.getDate() - 1)
+  const gteStr = prevDate.toISOString().split('T')[0]
 
-  const gteStr = prevDate.toISOString().split('T')[0] // YYYY-MM-DD
-  const lteStr = `${dateIso}T23:59:59`
-
-  // 1. Fetch Scheduled Financials (Books)
-  const { data: financials, error: err1 } = await supabase.from('financials')
+  let financialsQuery = supabase.from('financials')
     .select(`
       *,
       caixa: caixa_id(id, nome),
@@ -496,13 +491,10 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
         grupo: grupo_compromisso_id(id, nome)
       )
     `)
-    .eq('user_id', userId as any)
-    .gte('data_vencimento', gteStr) // Start from yesterday
-    //.lte('data_vencimento', lteStr) // Allow up to end of today. (Actually we don't need strict upper bound if we filter later, but let's keep it reasonable)
+    .gte('data_vencimento', gteStr)
     .order('tipo', { ascending: false })
 
-  // 2. Fetch Transactions (Realized)
-  const { data: transactions, error: err2 } = await supabase.from('transactions')
+  let transactionsQuery = supabase.from('transactions')
     .select(`
       *,
       caixa: conta_id(id, nome),
@@ -510,11 +502,9 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
       compromisso: compromisso_id(id, nome),
       grupo: grupo_compromisso_id(id, nome)
     `)
-    .eq('user_id', userId as any)
     .gte('data_vencimento', gteStr)
 
-  // 3. Fetch Schedules (Agendamentos)
-  const { data: schedules, error: err3 } = await supabase.from('schedules')
+  let schedulesQuery = supabase.from('schedules')
     .select(`
       *,
       caixa: caixa_id(id, nome),
@@ -522,8 +512,27 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
       compromisso: compromisso_id(id, nome),
       grupo: grupo_compromisso_id(id, nome)
     `)
-    .eq('user_id', userId as any)
     .gte('proxima_vencimento', gteStr)
+
+  if (orgId) {
+    financialsQuery = financialsQuery.eq('organization_id', orgId)
+    transactionsQuery = transactionsQuery.eq('organization_id', orgId)
+    schedulesQuery = schedulesQuery.eq('organization_id', orgId)
+  } else {
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    financialsQuery = financialsQuery.eq('user_id', userId as any)
+    transactionsQuery = transactionsQuery.eq('user_id', userId as any)
+    schedulesQuery = schedulesQuery.eq('user_id', userId as any)
+  }
+
+  // 1. Fetch Scheduled Financials (Books)
+  const { data: financials, error: err1 } = await financialsQuery
+
+  // 2. Fetch Transactions (Realized)
+  const { data: transactions, error: err2 } = await transactionsQuery
+
+  // 3. Fetch Schedules (Agendamentos)
+  const { data: schedules, error: err3 } = await schedulesQuery
 
   // Merge
   const list1 = financials || []
@@ -563,20 +572,29 @@ export async function getDailyFinancials(dateIso: string, orgId?: string) {
   }))
 
   // Map schedules to financials shape
-  const mappedSchedules = filteredSchedules.map(s => ({
-    ...s,
-    id: s.id,
-    valor: s.valor,
-    tipo: 'agendamento', // Flag as scheduled
-    operacao: s.operacao,
-    data_vencimento: s.proxima_vencimento || s.ano_mes_inicial,
-    caixa: s.caixa,
-    cliente: s.cliente,
-    compromisso: s.compromisso,
-    grupo: s.grupo,
-    cost_center: s.cost_center,
-    cost_center_id: s.cost_center_id
-  }))
+  const mappedSchedules = filteredSchedules.map(s => {
+    let finalValue = s.valor
+    if (s.valor_parcela) {
+      finalValue = s.valor_parcela
+    } else if (s.parcelas && s.parcelas > 1) {
+      finalValue = s.valor / s.parcelas
+    }
+
+    return {
+      ...s,
+      id: s.id,
+      valor: finalValue,
+      tipo: 'agendamento', // Flag as scheduled
+      operacao: s.operacao,
+      data_vencimento: s.proxima_vencimento || s.ano_mes_inicial,
+      caixa: s.caixa,
+      cliente: s.cliente,
+      compromisso: s.compromisso,
+      grupo: s.grupo,
+      cost_center: s.cost_center,
+      cost_center_id: s.cost_center_id
+    }
+  })
 
   return { data: [...filteredFinancials, ...mappedTransactions, ...mappedSchedules], error: err1 || err2 || err3 }
 }

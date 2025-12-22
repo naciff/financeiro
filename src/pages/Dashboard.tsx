@@ -8,6 +8,8 @@ import { getProfile } from '../services/db'
 import { useAppStore } from '../store/AppStore'
 import { CountUp } from '../components/ui/CountUp'
 
+import { LoadingSpinner } from '../components/ui/LoadingSpinner'
+
 export default function Dashboard() {
   const store = useAppStore()
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
@@ -39,7 +41,7 @@ export default function Dashboard() {
   const { monthlyData, expensesByGroup, loading: chartsLoading } = useChartData(store.activeOrganization)
 
   if (metricsLoading) {
-    return <div className="p-6">Carregando...</div>
+    return <LoadingSpinner />
   }
 
   return (

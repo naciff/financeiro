@@ -1,12 +1,13 @@
 import { supabase } from '../../lib/supabase'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getProfile, listFavorites } from '../../services/db'
+import { getProfile, listFavorites, getDailyFinancials } from '../../services/db'
 import { TransactionModal } from '../modals/TransactionModal'
 import { useAppStore } from '../../store/AppStore'
 import { OrganizationModal } from '../modals/OrganizationModal'
 import { useLayout } from '../../context/LayoutContext'
 import { SettingsDrawer } from './SettingsDrawer'
+import { formatCurrency } from '../../utils/formatCurrency'
 
 export function Header({
   onMenuToggle,
@@ -36,9 +37,37 @@ export function Header({
   const [showTxModal, setShowTxModal] = useState(false)
   const [selectedFav, setSelectedFav] = useState<any>(null)
 
+  // Notifications State
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+
   useEffect(() => {
     if (store.activeOrganization) {
       listFavorites(store.activeOrganization).then(r => setFavorites(r.data || []))
+
+      // Fetch Daily Notifications
+      // Note: We use today's date in local time string roughly to match API expectations or ISO Date
+      const todayIso = new Date().toISOString().split('T')[0]
+      getDailyFinancials(todayIso, store.activeOrganization).then(r => {
+        if (r.data) {
+          // Filter: Only pending items for today
+          // Status 1 = Pending, 2 = Paid/Concluded. We want pending.
+          // In the mixed return from getDailyFinancials:
+          // 'agendamento' type usually doesn't have numeric status in the same way, but mappedSchedules sets type='agendamento'.
+          // 'financials' have situacao. 1 = Pending.
+          // 'transactions' (realizado) are done, so we probably exclude them or include if user wants 'due today' validation.
+          // User request: "quando tiver algum item no calendario vencendo no dia" -> implies pending things to pay/receive.
+
+          const pending = r.data.filter(item => {
+            // For financials/schedules
+            if (item.situacao === 2) return false // Already paid/received
+            if (item.status === 'pago' || item.status === 'recebido' || item.status === 'realizado') return false
+
+            return true
+          })
+          setNotifications(pending)
+        }
+      })
     }
   }, [store.activeOrganization, showFavMenu])
 
@@ -61,6 +90,17 @@ export function Header({
   const theme = settings.theme.style
 
   const updateTheme = (style: any) => setSettings(prev => ({ ...prev, theme: { ...prev.theme, style } }))
+
+  // Group Notifications by Account (Caixa)
+  const groupedNotifications = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    notifications.forEach(item => {
+      const accountName = item.caixa?.nome || 'Sem Conta'
+      if (!groups[accountName]) groups[accountName] = []
+      groups[accountName].push(item)
+    })
+    return groups
+  }, [notifications])
 
   if (!settings.header.visible) return <SettingsDrawer />
 
@@ -184,16 +224,91 @@ export function Header({
                 <span className="material-icons-outlined text-[20px]">fullscreen</span>
               </button>
 
-              <button
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-muted-light dark:text-text-muted-dark transition-colors relative"
-                title="Notificações"
-              >
-                <span className="material-icons-outlined text-[20px]">notifications</span>
-                {/* Badge Example (Static for now) */}
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-surface-light dark:border-surface-dark">
-                  3
-                </span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-muted-light dark:text-text-muted-dark transition-colors relative ${showNotifications ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
+                  title="Notificações"
+                >
+                  <span className="material-icons-outlined text-[20px]">notifications</span>
+                  {notifications.length > 0 && (
+                    <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-surface-light dark:border-surface-dark">
+                      {notifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowNotifications(false)}></div>
+                    <div className="absolute top-full right-0 mt-2 w-80 md:w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-3 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-between items-center">
+                        <h3 className="font-semibold text-gray-700 dark:text-gray-200">Notificações</h3>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{notifications.length} pendências hoje</span>
+                      </div>
+
+                      <div className="max-h-[400px] overflow-y-auto p-2 space-y-4">
+                        {notifications.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <span className="material-icons-outlined text-4xl mb-2 opacity-50 block">check_circle</span>
+                            <p>Tudo em dia!</p>
+                            <p className="text-xs">Nenhum vencimento pendente para hoje.</p>
+                          </div>
+                        ) : (
+                          Object.entries(groupedNotifications).map(([accountName, items]) => (
+                            <div key={accountName} className="space-y-2">
+                              {/* Account Header */}
+                              <div className="flex items-center gap-2 px-2">
+                                <span className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 bg-white dark:bg-gray-800 z-10 py-1">{accountName}</span>
+                                <div className="h-px bg-gray-200 dark:bg-gray-700 flex-1"></div>
+                              </div>
+
+                              {/* Items List */}
+                              <div className="space-y-2">
+                                {items.map((item, idx) => (
+                                  <div key={item.id || idx} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                                    {/* Left colored border based on operation */}
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.operacao === 'receita' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+
+                                    <div className="pl-3">
+                                      <div className="flex justify-between items-start mb-1">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.operacao === 'receita' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>
+                                            {item.operacao}
+                                          </span>
+                                          <span className="text-[10px] text-gray-400 uppercase tracking-wide">
+                                            {item.tipo === 'agendamento' ? 'Agendamento' : 'Transação'}
+                                          </span>
+                                        </div>
+                                        <span className={`text-sm font-bold ${item.operacao === 'receita' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                          {item.operacao === 'despesa' ? '-' : '+'} {formatCurrency(item.valor)}
+                                        </span>
+                                      </div>
+
+                                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate pr-4" title={item.historico || item.descricao}>
+                                        {item.historico || item.descricao || 'Sem descrição'}
+                                      </div>
+
+                                      <div className="flex justify-between items-end mt-2">
+                                        <div className="text-xs text-gray-500">
+                                          {item.cliente?.nome || 'Sem cliente'}
+                                        </div>
+                                        <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full border border-amber-100 dark:border-amber-900/30">
+                                          Pendente
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="hidden md:block h-6 w-px bg-border-light dark:bg-border-dark"></div>

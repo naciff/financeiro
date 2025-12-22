@@ -487,9 +487,8 @@ export default function Schedules() {
         detalhes, valor: valor2, proxima_vencimento: proxima || todayIso,
         periodo, parcelas: tipo === 'variavel' ? parcelas : 1,
         nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1,
-        parcial, cost_center_id: costCenterId || null,
-        organization_id: store.activeOrganization
-      })
+        parcial, cost_center_id: costCenterId || null
+      }, store.activeOrganization)
       if (r.error) { setMsg(r.error.message); setMsgType('error') }
       else { setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); await fetchRemoteSchedules(); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus() }
     } else {
@@ -997,14 +996,19 @@ export default function Schedules() {
                           onChange={async e => {
                             const v = e.target.value
                             setClienteBusca(v)
+                            setClienteId('') // Force clear ID on change
                             setClientIndex(-1)
                             if (v.length >= 3) {
                               if (hasBackend) {
-                                const r = await (await import('../services/db')).searchClients(v)
-                                if (!r.error && r.data) setClientes(r.data as any)
+                                if (store.activeOrganization) {
+                                  const r = await (await import('../services/db')).searchClients(v, store.activeOrganization)
+                                  if (!r.error && r.data) setClientes(r.data as any)
+                                }
                               } else {
                                 setClientes(store.clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
                               }
+                            } else {
+                              setClientes([])
                             }
                           }}
                         />

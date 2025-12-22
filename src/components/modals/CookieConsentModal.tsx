@@ -31,8 +31,8 @@ export function CookieConsentModal() {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed bottom-4 left-4 z-[9999] p-0 pointer-events-auto">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border dark:border-gray-700 max-w-sm w-full p-6 text-center animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed bottom-4 right-4 z-[9999] p-0 pointer-events-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border dark:border-gray-700 max-w-xs w-full p-6 text-center animate-in slide-in-from-bottom-5 duration-300">
                 <h2 className="text-lg font-bold mb-3 text-gray-800 dark:text-gray-100">Sua privacidade é importante</h2>
                 <p className="text-gray-600 dark:text-gray-300 text-xs mb-6 leading-relaxed">
                     Utilizamos cookies para melhorar sua experiência.
