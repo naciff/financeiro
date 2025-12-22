@@ -85,7 +85,11 @@ export default function Calendar() {
       if (d >= from && d <= to) {
         // Use installment value (valor_parcela) if available (common for variable/installments), 
         // fallback to main value (common for fixed with no specific parcel value)
-        const val = Number(s.valor_parcela) || Number(s.valor)
+        // Use installment value for variable schedules, otherwise full value
+        let val = Number(s.valor)
+        if (s.tipo === 'variavel' && s.parcelas && s.parcelas > 1) {
+          val = val / s.parcelas
+        }
 
         list.push({
           id: s.id,
