@@ -24,6 +24,11 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
 
 
     const store = useAppStore()
+
+    useEffect(() => {
+        console.log('TransactionModal: Mounted')
+    }, [])
+
     const [valorFocused, setValorFocused] = useState(false)
     const [descontoFocused, setDescontoFocused] = useState(false)
     const [multaFocused, setMultaFocused] = useState(false)
@@ -98,6 +103,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
         }
         loadData()
 
+        const today = new Date().toISOString().split('T')[0]
         if (initialData) {
             setFormOperacao(initialData.operacao)
             setFormContaId(initialData.conta_id || initialData.caixa_id || '')
@@ -127,7 +133,6 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                 setShowComplementary(true)
             }
 
-            const today = new Date().toISOString().split('T')[0]
             setFormDataVencimento(initialData.data_vencimento ? initialData.data_vencimento.split('T')[0] : today)
             setFormDataLancamento(initialData.data_lancamento ? initialData.data_lancamento.split('T')[0] : today)
             setFormStatus(initialData.status || 'pendente')

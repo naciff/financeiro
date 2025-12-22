@@ -43,7 +43,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           }
 
           // If avatar_url is a storage path (not http), download it
-          if (profileData.avatar_url && !profileData.avatar_url.startsWith('http') && !profileData.avatar_url.startsWith('blob:')) {
+          if (supabase && profileData.avatar_url && !profileData.avatar_url.startsWith('http') && !profileData.avatar_url.startsWith('blob:')) {
             try {
               const { data, error } = await supabase.storage.from('avatars').download(profileData.avatar_url)
               if (!error && data) {
@@ -63,6 +63,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       })
     }
   }, [])
+
+  // Heartbeat: Update last_login every 5 minutes if user is active
+  useEffect(() => {
+    if (!currentUser) return
+
+    // Initial update on mount/login
+    import('../services/db').then(db => {
+      db.updateProfile(currentUser, { last_login: new Date().toISOString() })
+    })
+
+    const intervalId = setInterval(() => {
+      import('../services/db').then(db => {
+        db.updateProfile(currentUser, { last_login: new Date().toISOString() })
+      })
+    }, 5 * 60 * 1000) // 5 minutes
+
+    return () => clearInterval(intervalId)
+  }, [currentUser])
 
   // Auto-select organization
   useEffect(() => {
@@ -232,7 +250,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onMenuToggle={() => setMobileOpen(true)}
           title={currentTitle}
           onOpenCalculator={() => setShowCalculator(true)}
-          onOpenTransaction={() => setShowTransaction(true)}
+          onOpenTransaction={() => { console.log('Layout: Opening Transaction Modal'); setShowTransaction(true) }}
           onOpenTransfer={() => setShowTransfer(true)}
         />
 

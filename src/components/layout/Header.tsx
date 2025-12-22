@@ -128,7 +128,7 @@ export function Header({
             {/* 1. Shortcuts */}
             <div className="hidden md:flex items-center gap-4 text-text-muted-light dark:text-text-muted-dark">
               <button onClick={onOpenCalculator} className="hover:text-primary transition-colors" title="Calculadora"><span className="material-icons-outlined">calculate</span></button>
-              <button onClick={onOpenTransaction} className="hover:text-primary transition-colors" title="Novo Lançamento"><span className="material-icons-outlined">add</span></button>
+              <button onClick={() => { console.log('Header: Clicked Add Button'); if (onOpenTransaction) onOpenTransaction() }} className="hover:text-primary transition-colors" title="Novo Lançamento"><span className="material-icons-outlined">add</span></button>
               <button onClick={onOpenTransfer} className="hover:text-primary transition-colors" title="Transferências"><span className="material-icons-outlined">swap_horiz</span></button>
               <div className="relative">
                 <button

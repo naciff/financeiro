@@ -709,6 +709,12 @@ export async function listAllProfiles() {
 
 }
 
+
+export async function updateProfile(id: string, updates: any) {
+  if (!supabase) return { error: { message: 'Supabase não inicializado' } }
+  return supabase.from('profiles').update(updates).eq('id', id)
+}
+
 export async function deleteUser(userId: string) {
   if (!supabase) return { error: { message: 'Supabase não inicializado' } }
   return supabase.rpc('delete_user_by_admin', { p_user_id: userId })

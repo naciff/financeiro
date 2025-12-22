@@ -79,47 +79,55 @@ export default function AdminUsers() {
                                     <th className="px-6 py-4">Telefone</th>
                                     <th className="px-6 py-4">Data Cadastro</th>
                                     <th className="px-6 py-4">Último Acesso</th>
+                                    <th className="px-6 py-4 text-center">On-Line</th>
                                     <th className="px-6 py-4 text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {users.map((user) => (
-                                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-sm">
-                                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 flex items-center gap-3">
-                                            {user.avatar_url ? (
-                                                <img src={user.avatar_url} className="w-8 h-8 rounded-full bg-gray-200 object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded-full bg-[#014d6d] text-white flex items-center justify-center text-xs font-bold">
-                                                    {user.name?.charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
-                                            {user.name || 'Sem nome'}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                            {user.email}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                            {user.phone || '-'}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                            {user.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : '-'}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                                            {user.last_login
-                                                ? new Date(user.last_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-                                                : '-'}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button
-                                                onClick={() => handleDelete(user.id, user.name || user.email)}
-                                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                title="Excluir Usuário"
-                                            >
-                                                <Icon name="delete" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {users.map((user) => {
+                                    const isOnline = user.last_login && (new Date().getTime() - new Date(user.last_login).getTime() < 5 * 60 * 1000 + 30000) // 5m 30s tolerance
+
+                                    return (
+                                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-sm">
+                                            <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 flex items-center gap-3">
+                                                {user.avatar_url ? (
+                                                    <img src={user.avatar_url} className="w-8 h-8 rounded-full bg-gray-200 object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-[#014d6d] text-white flex items-center justify-center text-xs font-bold">
+                                                        {user.name?.charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                {user.name || 'Sem nome'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                {user.email}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                {user.phone || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                {user.created_at ? new Date(user.created_at).toLocaleDateString('pt-BR') : '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                                                {user.last_login
+                                                    ? new Date(user.last_login).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                                                    : '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className={`w-3 h-3 rounded-full mx-auto ${isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-300 dark:bg-gray-600'}`} title={isOnline ? 'Online' : 'Offline'}></div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button
+                                                    onClick={() => handleDelete(user.id, user.name || user.email)}
+                                                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                    title="Excluir Usuário"
+                                                >
+                                                    <Icon name="delete" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </table>
                     </div>
