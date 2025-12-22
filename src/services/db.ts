@@ -5,6 +5,11 @@ export async function listAccounts(orgId: string) {
   return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,dia_bom,cor,agencia,conta,banco_codigo').eq('organization_id', orgId).order('created_at', { ascending: true })
 }
 
+export async function searchAccounts(term: string, orgId: string) {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('accounts').select('id,nome,tipo,ativo,principal,dia_vencimento,dia_bom,cor,agencia,conta,banco_codigo').eq('organization_id', orgId).ilike('nome', `%${term}%`).limit(20)
+}
+
 export async function createAccount(payload: { nome: string; tipo: string; saldo_inicial?: number; observacoes?: string; banco_codigo?: string | null; agencia?: string | null; conta?: string | null; dia_vencimento?: number | null; dia_bom?: number | null; cor?: string; principal?: boolean; organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id

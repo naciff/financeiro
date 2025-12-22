@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { listAllProfiles, deleteUser } from '../services/db'
 import { Icon } from '../components/ui/Icon'
 import { SystemModal } from '../components/modals/SystemModal'
+import { supabase } from '../lib/supabase'
 
 export default function AdminUsers() {
     const [users, setUsers] = useState<any[]>([])
@@ -19,6 +20,17 @@ export default function AdminUsers() {
             setUsers(data)
         }
         setLoading(false)
+    }
+
+    function getAvatarUrl(path: string) {
+        if (!path) return null
+        if (path.startsWith('http') || path.startsWith('blob:')) return path
+        try {
+            if (!supabase) return null
+            return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
+        } catch (e) {
+            return null
+        }
     }
 
     function handleDelete(id: string, name: string) {
@@ -91,7 +103,7 @@ export default function AdminUsers() {
                                         <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-sm">
                                             <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 flex items-center gap-3">
                                                 {user.avatar_url ? (
-                                                    <img src={user.avatar_url} className="w-8 h-8 rounded-full bg-gray-200 object-cover" alt="" />
+                                                    <img src={getAvatarUrl(user.avatar_url) || ''} className="w-8 h-8 rounded-full bg-gray-200 object-cover" alt="" />
                                                 ) : (
                                                     <div className="w-8 h-8 rounded-full bg-[#014d6d] text-white flex items-center justify-center text-xs font-bold">
                                                         {user.name?.charAt(0).toUpperCase()}

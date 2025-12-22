@@ -13,6 +13,8 @@ import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
 import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
 import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
+import { CommitmentGroupModal } from '../components/modals/CommitmentGroupModal'
+import { CommitmentModal } from '../components/modals/CommitmentModal'
 
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
@@ -44,6 +46,8 @@ export default function Schedules() {
   const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([])
   const [clienteNome, setClienteNome] = useState('')
   const [clientModal, setClientModal] = useState(false)
+  const [groupModal, setGroupModal] = useState(false)
+  const [commitmentModal, setCommitmentModal] = useState(false)
   const [historico, setHistorico] = useState('')
   const [valor, setValor] = useState<number>(0)
   const [valorFocused, setValorFocused] = useState(false)
@@ -63,6 +67,7 @@ export default function Schedules() {
   const [compromissoId, setCompromissoId] = useState('')
   const [grupoCompromissoFilter, setGrupoCompromissoFilter] = useState('')
   const [allCommitmentGroups, setAllCommitmentGroups] = useState<{ id: string; nome: string }[]>([])
+  const [allCommitments, setAllCommitments] = useState<{ id: string; nome: string }[]>([])
   const [compromissos, setCompromissos] = useState<{ id: string; nome: string; grupo_id?: string }[]>([])
   const [caixaId, setCaixaId] = useState('')
   const [caixas, setCaixas] = useState<{ id: string; nome: string }[]>([])
@@ -941,7 +946,7 @@ export default function Schedules() {
                       >
                         <option value="dinheiro">Dinheiro</option>
                         <option value="pix">PIX</option>
-                        <option value="cartao">Cartão</option>
+                        <option value="cartao">Cartão de Crédito</option>
                         <option value="boleto">Boleto</option>
                         <option value="transferencia">Transferência</option>
                         <option value="debito_automatico">Débito Automático</option>
@@ -1039,31 +1044,41 @@ export default function Schedules() {
                     {errors.clienteId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.clienteId}</div>}
                   </div>
 
-                  <div>
-                    <FloatingLabelSelect
-                      label="Grupo de Compromisso *"
-                      id="grupoId"
-                      value={grupoId}
-                      onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}
-                      className={errors.grupoId ? 'border-red-500' : ''}
-                    >
-                      <option value="">Selecione</option>
-                      {grupos.filter(g => (g.operacao || (g as any).tipo) === operacao).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                    </FloatingLabelSelect>
+                  <div className="flex gap-2 items-start">
+                    <div className="flex-1">
+                      <FloatingLabelSelect
+                        label="Grupo de Compromisso *"
+                        id="grupoId"
+                        value={grupoId}
+                        onChange={e => { setGrupoId(e.target.value); setCompromissoId(''); setErrors({ ...errors, grupoId: '' }) }}
+                        className={errors.grupoId ? 'border-red-500' : ''}
+                      >
+                        <option value="">Selecione</option>
+                        {grupos.filter(g => (g.operacao || (g as any).tipo) === operacao).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                      </FloatingLabelSelect>
+                    </div>
+                    <button type="button" className="flex items-center justify-center bg-black dark:bg-gray-900 text-white rounded px-3 h-[48px] hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setGroupModal(true)} title="Novo Grupo" style={{ marginTop: '0px' }}>
+                      <Icon name="add" className="w-4 h-4" />
+                    </button>
                     {errors.grupoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.grupoId}</div>}
                   </div>
 
-                  <div>
-                    <FloatingLabelSelect
-                      label="Compromisso *"
-                      id="compromissoId"
-                      value={compromissoId}
-                      onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}
-                      className={errors.compromissoId ? 'border-red-500' : ''}
-                    >
-                      <option value="">Selecione</option>
-                      {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </FloatingLabelSelect>
+                  <div className="flex gap-2 items-start">
+                    <div className="flex-1">
+                      <FloatingLabelSelect
+                        label="Compromisso *"
+                        id="compromissoId"
+                        value={compromissoId}
+                        onChange={e => { const id = e.target.value; setCompromissoId(id); const c = compromissos.find(x => x.id === id); if (c && showForm === 'create') setHistorico(c.nome); setErrors({ ...errors, compromissoId: '' }) }}
+                        className={errors.compromissoId ? 'border-red-500' : ''}
+                      >
+                        <option value="">Selecione</option>
+                        {compromissos.filter(c => !c.grupo_id || c.grupo_id === grupoId).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      </FloatingLabelSelect>
+                    </div>
+                    <button type="button" className="flex items-center justify-center bg-black dark:bg-gray-900 text-white rounded px-3 h-[48px] hover:bg-gray-800 dark:hover:bg-black transition-colors" onClick={() => setCommitmentModal(true)} title="Novo Compromisso" style={{ marginTop: '0px' }}>
+                      <Icon name="add" className="w-4 h-4" />
+                    </button>
                     {errors.compromissoId && <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.compromissoId}</div>}
                   </div>
 
@@ -1140,7 +1155,13 @@ export default function Schedules() {
                       className={errors.caixaId ? 'border-red-500' : ''}
                     >
                       <option value="">Selecione</option>
-                      {contas.filter(c => c.ativo !== false).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      {contas.filter(c => {
+                        if (c.ativo === false) return false
+                        if (especie === 'cartao') return c.tipo === 'cartao'
+                        if (especie === 'dinheiro') return c.tipo === 'carteira'
+                        if (especie === 'pix' || especie === 'transferencia') return c.tipo === 'banco'
+                        return true
+                      }).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                     </FloatingLabelSelect>
                     {errors.caixaId && <div className="text-xs text-red-600 mt-1">{errors.caixaId}</div>}
                   </div>
@@ -1497,6 +1518,30 @@ export default function Schedules() {
             setClientes(prev => [client, ...prev])
             setClienteId(client.id)
           }}
+        />
+      }
+      {
+        <CommitmentGroupModal
+          isOpen={groupModal}
+          onClose={() => setGroupModal(false)}
+          onSuccess={(group) => {
+            setGrupos(prev => [...prev, group])
+            setGrupoId(group.id)
+          }}
+          initialOperation={operacao}
+        />
+      }
+      {
+        <CommitmentModal
+          isOpen={commitmentModal}
+          onClose={() => setCommitmentModal(false)}
+          onSuccess={(comp) => {
+            setCompromissos(prev => [...prev, comp])
+            setCompromissoId(comp.id)
+            if (showForm === 'create') setHistorico(comp.nome)
+          }}
+          groups={grupos.filter(g => (g.operacao || (g as any).tipo) === operacao).map(g => ({ id: g.id, nome: g.nome }))}
+          initialGroupId={grupoId}
         />
       }
       {

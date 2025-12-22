@@ -69,13 +69,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!currentUser) return
 
     // Initial update on mount/login
-    import('../services/db').then(db => {
-      db.updateProfile(currentUser, { last_login: new Date().toISOString() })
+    import('../services/db').then(async db => {
+      const { error } = await db.updateProfile(currentUser, { last_login: new Date().toISOString() })
+      if (error) console.error('Heartbeat Init Error:', error)
     })
 
     const intervalId = setInterval(() => {
-      import('../services/db').then(db => {
-        db.updateProfile(currentUser, { last_login: new Date().toISOString() })
+      import('../services/db').then(async db => {
+        const { error } = await db.updateProfile(currentUser, { last_login: new Date().toISOString() })
+        if (error) console.error('Heartbeat Interval Error:', error)
       })
     }, 5 * 60 * 1000) // 5 minutes
 
