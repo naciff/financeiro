@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '../store/AppStore'
@@ -19,7 +19,7 @@ import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
 
-const GROUP_TITLES = ['Meses Anteriores', 'Vencidos', 'Próximos Lançamentos']
+const GROUP_TITLES = ['Meses Anteriores', 'Vencidos', 'PrÃ³ximos LanÃ§amentos']
 
 function toBr(iso: string) {
   if (!iso) return ''
@@ -87,45 +87,8 @@ export default function ScheduleControl() {
   // Bulk Launch State derived from 'conferido' status
   const [showBulkLaunchModal, setShowBulkLaunchModal] = useState(false)
 
-  // Items checked in the interface
-  const itemsReadyToLaunch = useMemo(() => remote.filter(i => i.conferido), [remote])
 
-  async function handleBulkLaunch(data: { date: string, accountId: string, total: number }) {
-    setShowBulkLaunchModal(false)
-    const itemsToLaunch = itemsReadyToLaunch
 
-    let errorCount = 0
-    for (const item of itemsToLaunch) {
-      try {
-        const res = await confirmProvision(item.id, {
-          valor: item.despesa || item.receita,
-          data: data.date,
-          cuentaId: data.accountId
-        })
-
-        if (res.error) {
-          console.error('Error confirming item:', item.id, res.error)
-          errorCount++
-        } else {
-          // Success: Update Schedule if needed
-          if (item.scheduleId) {
-            const nextDue = getNextVencimento(item.vencimento, item.periodo)
-            await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
-          }
-        }
-      } catch (e) {
-        console.error(e)
-        errorCount++
-      }
-    }
-
-    if (errorCount > 0) {
-      alert(`Processo finalizado com ${errorCount} erro(s). Verifique o console.`)
-    } else {
-      // Force reload to refresh
-      window.location.reload()
-    }
-  }
 
   async function handleConfirmSingle() {
     if (!confirmItem) return
@@ -148,9 +111,33 @@ export default function ScheduleControl() {
       if (res.data && !res.data.success) throw new Error(res.data.message)
 
       if (item.scheduleId) {
-        const nextDue = getNextVencimento(item.vencimento, item.periodo)
-        console.log('Rolling over schedule:', item.scheduleId, '(', item.periodo, ') to', nextDue.toISOString())
-        await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+        const isVariable = item.tipo === 'variavel'
+        const isLastInstallment = isVariable && (item.parcela === item.totalParcelas)
+
+        if (item.tipo === 'fixo' || (isVariable && !isLastInstallment)) {
+          const nextDue = getNextVencimento(item.vencimento, item.periodo)
+          console.log('Rolling over schedule:', item.scheduleId, '(', item.periodo, ') to', nextDue.toISOString())
+
+          let nextHistorico = item.historico
+          if (isVariable) {
+            const match = (item.historico || '').match(/\((\d+)\/(\d+)\)/)
+            if (match) {
+              const cur = parseInt(match[1], 10)
+              const total = parseInt(match[2], 10)
+              if (cur < total) {
+                nextHistorico = item.historico.replace(`(${cur}/${total})`, `(${cur + 1}/${total})`)
+              }
+            }
+          }
+
+          await updateSchedule(item.scheduleId, {
+            proxima_vencimento: nextDue.toISOString(),
+            historico: nextHistorico
+          })
+        } else if (isVariable && isLastInstallment) {
+          console.log('Concluding variable schedule:', item.scheduleId)
+          await updateSchedule(item.scheduleId, { situacao: 2 })
+        }
       }
 
       // Force page reload as requested by user ("F5 automatico")
@@ -227,7 +214,7 @@ export default function ScheduleControl() {
 
   const [partialModal, setPartialModal] = useState<{ open: boolean, item: any } | null>(null)
 
-  // Carregar dados do Livro Financeiro (Todos para permitir histórico no resumo)
+  // Carregar dados do Livro Financeiro (Todos para permitir histÃ³rico no resumo)
   async function refresh() {
     if (hasBackend && store.activeOrganization) {
       const r = await listFinancials({ orgId: store.activeOrganization })
@@ -248,9 +235,9 @@ export default function ScheduleControl() {
 
 
   const rows = useMemo(() => {
-    // Se estiver usando store local, não temos tabela livro_financeiro, então fallback ou vazio?
+    // Se estiver usando store local, nÃ£o temos tabela livro_financeiro, entÃ£o fallback ou vazio?
     // User pediu para usar a tabela nova. Vamos assumir backend apenas para essa feature ou adaptar.
-    // Como a migration é backend only, store.schedules não vai funcionar aqui.
+    // Como a migration Ã© backend only, store.schedules nÃ£o vai funcionar aqui.
     // Vamos usar 'remote' apenas.
     const src = remote.filter((r: any) => r.situacao === 1)
     const now = new Date()
@@ -326,7 +313,7 @@ export default function ScheduleControl() {
       }
 
       // Mapeamento de campos
-      // id_livro é a PK, usamos como id
+      // id_livro Ã© a PK, usamos como id
 
       // Parse installment info from historico if available "Description (1/3)"
       const match = (s.historico || '').match(/\((\d+)\/(\d+)\)/)
@@ -349,7 +336,7 @@ export default function ScheduleControl() {
         grupoCompromisso: s.agendamento?.grupo?.nome || '',
         grupoCompromissoId: s.agendamento?.grupo?.id || '',
         historico: s.historico || '',
-        notaFiscal: '', // Não temos NF no livro financeiro ainda? Podemos puxar do agendamento se quiser, mas usually é na transação
+        notaFiscal: '', // NÃ£o temos NF no livro financeiro ainda? Podemos puxar do agendamento se quiser, mas usually Ã© na transaÃ§Ã£o
         detalhes: '',
         especie: s.especie || '',
         receita: isReceita ? valor : 0,
@@ -390,7 +377,7 @@ export default function ScheduleControl() {
         if (filterOp === 'Receitas e Aportes') return ['receita', 'aporte'].includes(r.operacao || '')
         if (filterOp === 'Somente Aporte') return r.operacao === 'aporte'
         if (filterOp === 'Somente Retiradas') return r.operacao === 'retirada'
-        if (filterOp === 'Somente Transferências') return r.operacao === 'transferencia'
+        if (filterOp === 'Somente TransferÃªncias') return r.operacao === 'transferencia'
         return true
       })
       .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo)
@@ -443,9 +430,83 @@ export default function ScheduleControl() {
     }
   }, [remote, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter])
 
+  // Items checked in the interface - USE rows.allData to get enriched fields (tipo, totalParcelas)
+  const itemsReadyToLaunch = useMemo(() => rows.allData.filter(i => i.conferido), [rows.allData])
+
+  async function handleBulkLaunch(data: { date: string, accountId: string, total: number }) {
+    setShowBulkLaunchModal(false)
+    setShowBulkConfirm(false)
+    const itemsToLaunch = itemsReadyToLaunch
+
+    let errorCount = 0
+    let lastError = ''
+    for (const item of itemsToLaunch) {
+      try {
+        const res = await confirmProvision(item.id, {
+          valor: item.despesa || item.receita,
+          data: data.date,
+          cuentaId: data.accountId
+        })
+
+        if (res.error) {
+          console.error('Error confirming item:', item.id, res.error)
+          lastError = (res.error as any).message || JSON.stringify(res.error)
+          errorCount++
+        } else {
+          // Success: Update Schedule if needed
+          // Logic: 
+          // 1. Fixed (fixo): Always rollover
+          // 2. Variable (variavel): Only rollover if installments > 1 (meaning it's a multi-payment)
+          if (item.scheduleId) {
+            const isVariable = item.tipo === 'variavel'
+            const isLastInstallment = isVariable && (item.parcela === item.totalParcelas)
+
+            if (item.tipo === 'fixo' || (isVariable && !isLastInstallment)) {
+              const nextDue = getNextVencimento(item.vencimento, item.periodo)
+
+              let nextHistorico = item.historico
+              if (isVariable) {
+                const match = (item.historico || '').match(/\((\d+)\/(\d+)\)/)
+                if (match) {
+                  const cur = parseInt(match[1], 10)
+                  const total = parseInt(match[2], 10)
+                  if (cur < total) {
+                    nextHistorico = item.historico.replace(`(${cur}/${total})`, `(${cur + 1}/${total})`)
+                  }
+                }
+              }
+
+              await updateSchedule(item.scheduleId, {
+                proxima_vencimento: nextDue.toISOString(),
+                historico: nextHistorico
+              })
+            } else if (isVariable && isLastInstallment) {
+              await updateSchedule(item.scheduleId, { situacao: 2 })
+            }
+          }
+        }
+      } catch (e) {
+        console.error(e)
+        errorCount++
+      }
+    }
+
+    if (errorCount > 0) {
+      setTestResultModal({
+        open: true,
+        title: 'Atenção',
+        message: `Processo finalizado com ${errorCount} erro(s). \nÚltimo erro: ${lastError}`
+      })
+    } else {
+      // Force reload to refresh
+      window.location.reload()
+    }
+  }
+
+
   const buttons: Array<{ id: Filter; label: string }> = [
     { id: 'vencidos', label: 'Vencidos/Dia Atual' },
-    { id: '7dias', label: 'até 7 Dias' },
+    { id: '7dias', label: 'atÃ© 7 Dias' },
     { id: 'mesAtual', label: 'Mês Atual' },
     { id: 'proximoMes', label: 'Próximo Mês' },
     { id: '2meses', label: 'Até 2 Meses' },
@@ -500,7 +561,7 @@ export default function ScheduleControl() {
       <ConfirmModal
         isOpen={showTestConfirm}
         title="Testar Relatório"
-        message="Deseja enviar o relatório diário agora para o WhatsApp?"
+        message="Deseja enviar o relatÃ³rio diÃ¡rio agora para o WhatsApp?"
         onClose={() => setShowTestConfirm(false)}
         onConfirm={async () => {
           setShowTestConfirm(false)
@@ -508,7 +569,7 @@ export default function ScheduleControl() {
           if (res && typeof res === 'object') {
             setTestResultModal({
               open: true,
-              title: res.success ? 'Sucesso' : 'Atenção',
+              title: res.success ? 'Sucesso' : 'AtenÃ§Ã£o',
               message: res.message
             })
           }
@@ -554,7 +615,7 @@ export default function ScheduleControl() {
             title="Testar Relatório"
           >
             <Icon name="whatsapp" className="w-4 h-4" />
-            <span className="hidden sm:inline">Testar Relatório</span>
+            <span className="hidden sm:inline">Testar RelatÃ³rio</span>
           </button>
 
 
@@ -602,7 +663,7 @@ export default function ScheduleControl() {
                 <option value="Receitas e Aportes" className="dark:bg-gray-800">Rec. e Aportes</option>
                 <option value="Somente Aporte" className="dark:bg-gray-800">Aporte</option>
                 <option value="Somente Retiradas" className="dark:bg-gray-800">Retiradas</option>
-                <option value="Somente Transferências" className="dark:bg-gray-800">Transferências</option>
+                <option value="Somente TransferÃªncias" className="dark:bg-gray-800">TransferÃªncias</option>
               </FloatingLabelSelect>
             </div>
 
@@ -654,13 +715,13 @@ export default function ScheduleControl() {
           )}
 
           <PageInfo>
-            A tela de Controle e Previsão apresenta de forma integrada os indicadores financeiros e operacionais do sistema, permitindo acompanhar em tempo real as entradas e saídas previstas.
+            A tela de Controle e PrevisÃ£o apresenta de forma integrada os indicadores financeiros e operacionais do sistema, permitindo acompanhar em tempo real as entradas e saÃ­das previstas.
           </PageInfo>
         </div>
 
         {/* Row 2: Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-2 overflow-x-auto">
-          <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2">
+          <div role="group" aria-label="Filtros por perÃ­odo" className="flex flex-nowrap gap-2">
             {buttons.map(b => (
               <button
                 key={b.id}
@@ -678,7 +739,7 @@ export default function ScheduleControl() {
                 <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
                   SOMA ITENS ({selectedIds.size})
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Lançamentos Selecionados</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">LanÃ§amentos Selecionados</div>
                 <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
                   {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
                 </div>
@@ -694,7 +755,7 @@ export default function ScheduleControl() {
           className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'realizar' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
           onClick={() => setActiveMainTab('realizar')}
         >
-          Previsão à Realizar
+          PrevisÃ£o Ã  Realizar
         </button>
         <button
           className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'resumida' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
@@ -741,7 +802,7 @@ export default function ScheduleControl() {
                   {rows.data.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
                       <Icon name="check-circle" className="w-10 h-10 mb-2 opacity-50" />
-                      <p>Nenhum lançamento pendente para este período.</p>
+                      <p>Nenhum lanÃ§amento pendente para este perÃ­odo.</p>
                     </div>
                   )}
                   {rows.data.length > 0 && GROUP_TITLES.map(groupTitle => {
@@ -758,7 +819,7 @@ export default function ScheduleControl() {
                       } else if (groupTitle === 'Vencidos') {
                         return vencimento >= firstDayOfCurrentMonth && vencimento < today
                       } else {
-                        // Próximos Lançamentos (Hoje ou Futuro)
+                        // PrÃ³ximos LanÃ§amentos (Hoje ou Futuro)
                         return vencimento >= today
                       }
                     })
@@ -777,7 +838,7 @@ export default function ScheduleControl() {
                           onClick={() => setExpanded(prev => ({ ...prev, [groupTitle]: !prev[groupTitle] }))}>
                           <div className="flex items-center gap-2">
                             <Icon name={!expanded[groupTitle] ? 'chevron-down' : 'chevron-right'} className="w-5 h-5" />
-                            <span>Situação: {groupTitle}</span>
+                            <span>SituaÃ§Ã£o: {groupTitle}</span>
                           </div>
                           <div className="flex items-center gap-4">
                             <span className={groupTotal >= 0 ? 'text-green-300' : 'text-red-300'}>
@@ -859,6 +920,17 @@ export default function ScheduleControl() {
                                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                                           checked={!!item.conferido}
                                           onChange={async (e) => {
+                                            if (!item.conferido) {
+                                              const hasDifferentAccount = rows.allData.some(r => r.conferido && r.caixaId !== item.caixaId)
+                                              if (hasDifferentAccount) {
+                                                setTestResultModal({
+                                                  open: true,
+                                                  title: 'Atenção',
+                                                  message: 'Para ações em massa, todos os itens selecionados devem pertencer ao mesmo "Caixa de Lançamento".'
+                                                })
+                                                return
+                                              }
+                                            }
                                             if (hasBackend) {
                                               const newVal = !item.conferido
                                               // Optimistic Update
@@ -903,12 +975,12 @@ export default function ScheduleControl() {
                   })}
                 </div >
               ) : (
-                // Tabela Padrão para outros filtros (não agrupada por Situação/Meses, ou simples)
+                // Tabela PadrÃ£o para outros filtros (nÃ£o agrupada por SituaÃ§Ã£o/Meses, ou simples)
                 <div className="space-y-4">
                   {rows.data.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
                       <Icon name="check-circle" className="w-10 h-10 mb-2 opacity-50" />
-                      <p>Nenhum lançamento pendente para este período.</p>
+                      <p>Nenhum lanÃ§amento pendente para este perÃ­odo.</p>
                     </div>
                   )}
                   {rows.data.length > 0 && (
@@ -988,6 +1060,17 @@ export default function ScheduleControl() {
                                       checked={!!item.conferido}
                                       className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                                       onChange={async (e) => {
+                                        if (!item.conferido) {
+                                          const hasDifferentAccount = rows.allData.some(r => r.conferido && r.caixaId !== item.caixaId)
+                                          if (hasDifferentAccount) {
+                                            setTestResultModal({
+                                              open: true,
+                                              title: 'Atenção',
+                                              message: 'Para ações em massa, todos os itens selecionados devem pertencer ao mesmo "Caixa de Lançamento".'
+                                            })
+                                            return
+                                          }
+                                        }
                                         if (hasBackend) {
                                           const newVal = !item.conferido
                                           // Optimistic Update
@@ -1053,7 +1136,7 @@ export default function ScheduleControl() {
                         }
                         setContextMenu(null)
                       } else {
-                        alert('Este item não possui agendamento vinculado.')
+                        alert('Este item nÃ£o possui agendamento vinculado.')
                         setContextMenu(null)
                       }
                     }}>
@@ -1075,7 +1158,7 @@ export default function ScheduleControl() {
                       setContextMenu(null)
                     }}>
                       <Icon name="skip-forward" className="w-4 h-4" />
-                      Saltar Lançamento
+                      Saltar LanÃ§amento
                     </button>
                     <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
                       const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
@@ -1167,7 +1250,7 @@ export default function ScheduleControl() {
                 <ConfirmModal
                   isOpen={showSkipConfirm}
                   title="Saltar Lançamento"
-                  message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
+                  message="Tem certeza que deseja saltar este lanÃ§amento? Ele nÃ£o serÃ¡ contabilizado nos totais."
                   onConfirm={async () => {
                     if (skipId) {
                       if (hasBackend) {
@@ -1187,7 +1270,7 @@ export default function ScheduleControl() {
 
                         listFinancials({ status: 1, orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
                       } else {
-                        alert('Necessário backend')
+                        alert('NecessÃ¡rio backend')
                       }
                     }
                     setShowSkipConfirm(false)
@@ -1204,7 +1287,7 @@ export default function ScheduleControl() {
                 <ConfirmModal
                   isOpen={showConfirmModal}
                   title="Confirmar Baixa"
-                  message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
+                  message={`Deseja realmente baixar o lanÃ§amento "${pendingConfirmation?.item?.historico}"?`}
                   onClose={() => {
                     setShowConfirmModal(false)
                     setPendingConfirmation(null)
@@ -1263,20 +1346,7 @@ export default function ScheduleControl() {
                   items={rows.allData.filter(r => r.conferido)}
                   accounts={caixas}
                   onClose={() => setShowBulkConfirm(false)}
-                  onConfirm={async (data) => {
-                    const checkedItems = rows.allData.filter(r => r.conferido)
-                    if (hasBackend) {
-                      for (const item of checkedItems) {
-                        await confirmProvision(item.id, { valor: item.despesa || item.receita, data: data.date, cuentaId: data.accountId })
-                        if (item.scheduleId) {
-                          const nextDue = getNextVencimento(item.vencimento, item.periodo)
-                          await updateSchedule(item.scheduleId, { proxima_vencimento: nextDue.toISOString() })
-                        }
-                      }
-                      listFinancials({ orgId: store.activeOrganization! }).then(r => { if (!r.error && r.data) setRemote(r.data as any) })
-                    }
-                    setShowBulkConfirm(false)
-                  }}
+                  onConfirm={handleBulkLaunch}
                 />
               )
             }
@@ -1304,11 +1374,19 @@ export default function ScheduleControl() {
                   financialId={modal?.id}
                   onSuccess={async () => {
                     // Check if we need to roll over schedule date
+                    // Logic for manual edit/confirm via Modal:
+                    // Currently checks modal.scheduleId. 'modal' here is the enriched item from rows.data or similar.
+                    // We need to ensure 'modal' has type/totalParcelas or retrieve it.
+                    // 'modal' is set from openModal(item), item comes from rows.data. So it HAS enriched fields.
                     if (modal && modal.scheduleId && modal.vencimento) {
                       try {
-                        const nextDue = getNextVencimento(modal.vencimento, modal.periodo)
-                        console.log('Rolling over schedule (Edit Modal):', modal.scheduleId, '(', modal.periodo, ') to', nextDue.toISOString())
-                        await updateSchedule(modal.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                        const shouldRollover = modal.tipo === 'fixo' || (modal.tipo === 'variavel' && modal.totalParcelas > 1)
+
+                        if (shouldRollover) {
+                          const nextDue = getNextVencimento(modal.vencimento, modal.periodo)
+                          console.log('Rolling over schedule (Edit Modal):', modal.scheduleId, '(', modal.periodo, ') to', nextDue.toISOString())
+                          await updateSchedule(modal.scheduleId, { proxima_vencimento: nextDue.toISOString() })
+                        }
                       } catch (err) {
                         console.error('Failed to update schedule date', err)
                       }

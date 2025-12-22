@@ -236,16 +236,67 @@ export async function confirmProvision(itemId: string, info: { valor: number, da
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
 
-  // If the RPC wasn't updated to take orgId, it still uses user_id. 
-  // However, the transaction it creates should inherit orgId from the item if the RPC is smart, 
-  // but if not, we might need to handle it or the RLS will catch it.
-  return supabase.rpc('fn_confirm_ledger_item', {
-    p_item_id: itemId,
-    p_user_id: userId,
-    p_valor_pago: info.valor,
-    p_data_pagamento: info.data,
-    p_conta_id: info.cuentaId
-  })
+  // 1. Get the financial item to copy data from
+  const { data: item, error: fetchError } = await supabase
+    .from('financials')
+    .select('*')
+    .eq('id', itemId)
+    .single()
+
+  if (fetchError || !item) {
+    return { data: { success: false, message: 'Item não encontrado' }, error: fetchError }
+  }
+
+  // 2. Insert into Transactions (Cash Book)
+  // Ensure we copy all relevant relational IDs and context (organization_id!)
+  const { data: transaction, error: insertError } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      organization_id: item.organization_id, // Critical fix: attributes to the correct org
+      operacao: item.operacao,
+      especie: item.especie,
+      historico: item.historico || 'Lançamento Confirmado',
+      conta_id: info.cuentaId,
+      compromisso_id: item.compromisso_id,
+      grupo_compromisso_id: item.grupo_compromisso_id, // Copy group
+      cliente_id: item.cliente_id || item.favorecido_id, // Handle aliasing if needed, schema usually uses cliente_id in transactions
+      cost_center_id: item.cost_center_id, // Copy cost center
+      financial_id: itemId, // Link back
+      data_vencimento: item.vencimento || item.data_vencimento, // Preserve original due date
+      data_lancamento: info.data, // The actual payment date
+      valor_entrada: ['receita', 'aporte'].includes(item.operacao) ? info.valor : 0,
+      valor_saida: ['despesa', 'retirada'].includes(item.operacao) ? info.valor : 0,
+      nota_fiscal: item.nota_fiscal,
+      detalhes: item.detalhes
+    })
+    .select('id')
+    .single()
+
+  if (insertError) {
+    console.error('Error inserting transaction:', insertError)
+    return { data: { success: false, message: 'Erro ao criar transação' }, error: insertError }
+  }
+
+  // 3. Update Financials to Confirmed
+  const { error: updateError } = await supabase
+    .from('financials')
+    .update({
+      situacao: 2, // Confirmado
+      data_confirmacao: info.data,
+      usuario_confirmou: userId,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', itemId)
+
+  if (updateError) {
+    // Should we rollback transaction? Hard to do without transactions. 
+    // But failing to update status is bad.
+    console.error('Error updating financial status:', updateError)
+    return { data: { success: false, message: 'Transação criada, mas erro ao atualizar status.' }, error: updateError }
+  }
+
+  return { data: { success: true, message: 'Lançamento confirmado com sucesso', transaction_id: transaction.id }, error: null }
 }
 
 export async function skipFinancialItem(itemId: string) {
@@ -372,13 +423,13 @@ export async function deleteCommitmentGroup(id: string) {
   return supabase.from('commitment_groups').delete().eq('id', id)
 }
 
-export async function createCostCenter(payload: { descricao: string; principal?: boolean; situacao?: boolean; organization_id: string }) {
+export async function createCostCenter(payload: { descricao: string; principal?: boolean; situacao?: boolean; compartilhado?: boolean; organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('cost_centers').insert([{ user_id: userId, ...payload }]).select('id').single()
 }
 
-export async function updateCostCenter(id: string, payload: { descricao?: string; principal?: boolean; situacao?: boolean }) {
+export async function updateCostCenter(id: string, payload: { descricao?: string; principal?: boolean; situacao?: boolean; compartilhado?: boolean }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('cost_centers').update(payload).eq('id', id).eq('user_id', userId as any).select('id').single()
@@ -393,7 +444,7 @@ export async function deleteCostCenter(id: string) {
 export async function createCommitment(payload: { grupo_id: string; nome: string; ir?: boolean; organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('commitments').insert([{ user_id: userId, ...payload }]).select('id').single()
+  return supabase.from('commitments').insert([{ user_id: userId, ...payload }]).select('id, nome, grupo_id').single()
 }
 export async function updateCommitment(id: string, payload: { grupo_id?: string; nome?: string; ir?: boolean }) {
   if (!supabase) return { data: null, error: null }
@@ -425,13 +476,20 @@ export async function setAccountPrincipal(id: string, principal: boolean) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
 
-  // If setting as principal, first unmark ALL other accounts (only one principal total)
+  // If setting as principal, first unmark ALL other accounts of the SAME TYPE (only one principal per type)
   if (principal) {
-    await supabase
-      .from('accounts')
-      .update({ principal: false })
-      .eq('user_id', userId as any)
-      .neq('id', id)
+    // 1. Get the account type
+    const { data: account } = await supabase.from('accounts').select('tipo, organization_id').eq('id', id).maybeSingle()
+
+    if (account) {
+      await supabase
+        .from('accounts')
+        .update({ principal: false })
+        .eq('user_id', userId as any)
+        .eq('organization_id', account.organization_id)
+        .eq('tipo', account.tipo)
+        .neq('id', id)
+    }
   }
 
   return supabase.from('accounts').update({ principal }).eq('id', id).eq('user_id', userId as any)

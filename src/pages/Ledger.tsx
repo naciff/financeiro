@@ -10,6 +10,7 @@ import { TransactionModal } from '../components/modals/TransactionModal'
 
 import { TransactionAttachments } from '../components/TransactionAttachments'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { AlertModal } from '../components/ui/AlertModal'
 import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 
 export default function Ledger() {
@@ -42,6 +43,10 @@ export default function Ledger() {
   const [dateFilterType, setDateFilterType] = useState<'payment' | 'launch'>('payment')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+
+  // New Alert Modal state
+  const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '' })
+  const [showFavoriteConfirm, setShowFavoriteConfirm] = useState(false)
 
   // Dados para dropdowns
   const [clients, setClients] = useState<any[]>([])
@@ -263,38 +268,44 @@ export default function Ledger() {
     const a = accounts.find(x => x.id === id)
     return a ? a.nome : id
   }
-
   function handleContextMenu(e: React.MouseEvent, tx: any) {
+    if (e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault()
     setContextMenu({ x: e.pageX, y: e.pageY, tx })
   }
 
   async function handleDefineFavorite() {
     if (!contextMenu) return
+    setShowFavoriteConfirm(true)
+  }
+
+  async function confirmFavorite() {
+    if (!contextMenu) return
     const { tx } = contextMenu
+    setShowFavoriteConfirm(false)
     setContextMenu(null)
 
-    if (!confirm('Deseja salvar este lançamento como Favorito?')) return
+    if (hasBackend && supabase) {
+      const data = {
+        organization_id: store.activeOrganization,
+        user_id: (await supabase.auth.getUser()).data.user?.id,
+        operacao: tx.operacao,
+        especie: tx.especie,
+        cliente_id: tx.cliente_id,
+        grupo_compromisso_id: tx.grupo_compromisso_id,
+        compromisso_id: tx.compromisso_id,
+        historico: tx.historico,
+        detalhes: typeof tx.detalhes === 'object' ? JSON.stringify(tx.detalhes) : tx.detalhes,
+        conta_id: tx.conta_id || tx.caixa_id,
+        valor: tx.valor_entrada || tx.valor_saida || 0
+      }
 
-    const data = {
-      organization_id: store.activeOrganization,
-      user_id: (await supabase.auth.getUser()).data.user?.id,
-      operacao: tx.operacao,
-      especie: tx.especie,
-      cliente_id: tx.cliente_id,
-      grupo_compromisso_id: tx.grupo_compromisso_id,
-      compromisso_id: tx.compromisso_id,
-      historico: tx.historico,
-      detalhes: typeof tx.detalhes === 'object' ? JSON.stringify(tx.detalhes) : tx.detalhes,
-      conta_id: tx.conta_id || tx.caixa_id,
-      valor: tx.valor_entrada || tx.valor_saida || 0
-    }
-
-    const res = await createFavorite(data)
-    if (res.error) {
-      alert('Erro ao salvar favorito: ' + res.error.message)
-    } else {
-      alert('Favorito salvo com sucesso!')
+      const res = await createFavorite(data)
+      if (res.error) {
+        setAlertModal({ open: true, title: 'Erro', message: 'Erro ao salvar favorito: ' + res.error.message })
+      } else {
+        setAlertModal({ open: true, title: 'Sucesso', message: 'Favorito salvo com sucesso!' })
+      }
     }
   }
 
@@ -373,7 +384,7 @@ export default function Ledger() {
       }
       setTimeout(() => setMsg(''), 3000)
     } catch (error: any) {
-      alert('Erro ao estornar: ' + error.message)
+      setAlertModal({ open: true, title: 'Erro ao Estornar', message: error.message })
     } finally {
       setPendingTx(null)
     }
@@ -502,29 +513,16 @@ export default function Ledger() {
               if (tx) {
                 // Check if item is linked to Schedule/Financial
                 if (tx.financial_id || tx.agendamento_id || tx.schedule_id) {
-                  alert("Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!")
+                  setAlertModal({
+                    open: true,
+                    title: 'Atenção',
+                    message: "Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!"
+                  })
                   return
                 }
 
-                if (window.confirm('Deseja realmente excluir este lançamento manual?')) {
-                  // Direct delete for manual items
-                  if (hasBackend) {
-                    deleteTransaction(tx.id).then(r => {
-                      if (r.error) alert('Erro ao excluir: ' + r.error.message)
-                      else {
-                        load()
-                        setMsg('Lançamento excluído com sucesso')
-                        setTimeout(() => setMsg(''), 3000)
-                      }
-                    })
-                  } else {
-                    store.deleteTransaction(tx.id)
-                    load()
-                    setMsg('Lançamento excluído com sucesso')
-                    setTimeout(() => setMsg(''), 3000)
-                  }
-                  setSelectedIds(new Set())
-                }
+                setItemToDelete(tx)
+                setShowDeleteConfirm(true)
               }
             }}
             disabled={selectedIds.size !== 1}
@@ -669,8 +667,8 @@ export default function Ledger() {
               <input type="date" max="9999-12-31" className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={endDate} onChange={e => setEndDate(e.target.value)} />
               <button
                 onClick={async () => {
-                  if (startDate && startDate.length > 10) return alert('Data Inicial inválida. Verifique o ano.')
-                  if (endDate && endDate.length > 10) return alert('Data Final inválida. Verifique o ano.')
+                  if (startDate && startDate.length > 10) return setAlertModal({ open: true, title: 'Data Inválida', message: 'Data Inicial inválida. Verifique o ano.' })
+                  if (endDate && endDate.length > 10) return setAlertModal({ open: true, title: 'Data Inválida', message: 'Data Final inválida. Verifique o ano.' })
 
                   setAppliedDates({ start: startDate, end: endDate })
 
@@ -776,7 +774,11 @@ export default function Ledger() {
             <button className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={() => {
               const item = contextMenu.tx
               if (item.financial_id || item.agendamento_id || item.schedule_id) {
-                alert("Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!")
+                setAlertModal({
+                  open: true,
+                  title: 'Atenção',
+                  message: "Item de Agendamento e/ou Faturamento não pode ser excluído.\n\nEstorne e/ou Cancele o Item!!!"
+                })
               } else {
                 setItemToDelete(item)
                 setShowDeleteConfirm(true)
@@ -851,7 +853,7 @@ export default function Ledger() {
 
           if (hasBackend) {
             const r = await deleteTransaction(itemToDelete.id)
-            if (r.error) alert('Erro ao excluir: ' + r.error.message)
+            if (r.error) setAlertModal({ open: true, title: 'Erro ao excluir', message: r.error.message })
             else {
               load()
               setMsg('Lançamento excluído com sucesso')
@@ -869,6 +871,21 @@ export default function Ledger() {
         title="Excluir Lançamento"
         message="Deseja realmente excluir este lançamento manual?"
       />
-    </div >
+
+      <ConfirmModal
+        isOpen={showFavoriteConfirm}
+        onClose={() => setShowFavoriteConfirm(false)}
+        onConfirm={confirmFavorite}
+        title="Salvar Favorito"
+        message="Deseja salvar este lançamento como Favorito?"
+      />
+
+      <AlertModal
+        isOpen={alertModal.open}
+        title={alertModal.title}
+        message={alertModal.message}
+        onClose={() => setAlertModal({ ...alertModal, open: false })}
+      />
+    </div>
   )
 }

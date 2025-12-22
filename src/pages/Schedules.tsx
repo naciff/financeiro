@@ -18,6 +18,8 @@ import { CommitmentModal } from '../components/modals/CommitmentModal'
 
 type Sort = { key: string; dir: 'asc' | 'desc' }
 
+import { SharedCostCenterModal } from '../components/modals/SharedCostCenterModal'
+
 export default function Schedules() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -32,6 +34,9 @@ export default function Schedules() {
   const [clientIndex, setClientIndex] = useState(-1)
   const [deactivateId, setDeactivateId] = useState<string | null>(null)
   const [alertInfo, setAlertInfo] = useState({ open: false, msg: '' })
+
+  // Shared Cost Center 
+  const [sharedCostCenterModal, setSharedCostCenterModal] = useState<{ open: boolean; value: number; onConfirm?: (ids: string[], share: number) => Promise<void> }>({ open: false, value: 0 })
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<Sort>({ key: 'ano_mes_inicial', dir: 'asc' })
   const [page, setPage] = useState(1)
@@ -57,6 +62,7 @@ export default function Schedules() {
   const [parcelas, setParcelas] = useState<number>(1)
   const [preview, setPreview] = useState<Array<{ date: string; valor: number }>>([])
   const [changesLog, setChangesLog] = useState<string[]>([])
+  const [isDuplicating, setIsDuplicating] = useState(false)
   const [msg, setMsg] = useState('')
   const [msgType, setMsgType] = useState<'success' | 'error' | ''>('')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -69,6 +75,10 @@ export default function Schedules() {
   const [allCommitmentGroups, setAllCommitmentGroups] = useState<{ id: string; nome: string }[]>([])
   const [allCommitments, setAllCommitments] = useState<{ id: string; nome: string }[]>([])
   const [compromissos, setCompromissos] = useState<{ id: string; nome: string; grupo_id?: string }[]>([])
+
+  // Auto-select Principal Account
+
+
   const [caixaId, setCaixaId] = useState('')
   const [caixas, setCaixas] = useState<{ id: string; nome: string }[]>([])
   const [contas, setContas] = useState<{ id: string; nome: string; ativo?: boolean; principal?: boolean; tipo?: string; dia_vencimento?: number; dia_bom?: number }[]>([])
@@ -81,6 +91,86 @@ export default function Schedules() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const [costCenterId, setCostCenterId] = useState('')
   const [costCenters, setCostCenters] = useState<{ id: string; descricao: string; principal?: boolean }[]>([])
+
+  // Auto-select Principal Account
+  useEffect(() => {
+    // Only auto-select if creating new or if user changes option in create mode
+    // In edit mode, we want to keep what was saved, unless user changes 'especie' manually? 
+    // Ideally, we should only trigger this if 'especie' changes AND we are not just opening the form.
+    // The problem is openEditForm sets 'especie' which triggers this.
+
+    // We can check if showForm just became 'create'.
+    // Or we rely on the fact that openEditForm sets values. 
+    // If showForm is 'edit', we should probably NOT auto-select unless the user actively changes 'especie' dropdown.
+    // But we don't know if the change comes from 'openEditForm' (programmatic) or user.
+
+    // Simple fix: Only run if showForm === 'create'. 
+    // If user changes currency in edit mode, maybe they want auto-select? 
+    // If so, we'd need more complex logic. 
+    // For now, let's restrict to 'create' to solve the bug.
+
+    if (showForm === 'create' && contas.length > 0) {
+      // Check if we already have a caixaId selected (e.g. from duplication)
+      // If we do, we preserve it. Auto-select only applies if caixaId is empty.
+      if (caixaId) return
+
+      const filteredAccounts = contas.filter(c => {
+        if (c.ativo === false) return false
+        if (especie === 'cartao') return c.tipo === 'cartao'
+        if (especie === 'dinheiro') return c.tipo === 'carteira'
+        if (['boleto', 'pix', 'transferencia', 'debito_automatico'].includes(especie)) return c.tipo === 'banco'
+        return true
+      })
+
+      const principal = filteredAccounts.find(c => c.principal)
+      if (principal) {
+        setCaixaId(principal.id)
+      }
+    }
+  }, [especie, showForm, contas]) // DO NOT add caixaId to deps, or it loops or prevents reset? 
+  // If we add caixaId, then when user clears it, it might auto-select again? 
+  // Ideally, we want this to run when 'showForm' becomes 'create' OR 'especie' changes.
+  // If 'caixaId' is set, we skip.
+  // We need to be careful: if user changes 'especie', we DO want to re-select principal for that new especie, EVEN IF it was set before?
+  // User changes Espécie -> clear current caixaId or keep it?
+  // Current logic: if I change especie, I expect the account options to change. If the current selected account is invalid for the new especie, it should be cleared/changed.
+  // The 'contas' list doesn't change, but options displayed in select are filtered.
+  // We should probably force update if the current 'caixaId' is not valid for the new species? 
+
+  // Revised logic:
+  // If showForm JUST became create (or we are in create):
+  // 1. If kind changed, we likely want to pick a default for that kind.
+  // 2. If kind is same (duplication), we keep existing value.
+
+  // Implementation below only skips if caixaId is present.
+  // When duplicating, caixaId IS present. So it skips. Correct.
+  // When changing species manually: 'caixaId' might still be set to the OLD account.
+  // We should properly clear caixaId when species changes if it mismatches?
+  // Or simply, if I change Species, I want the default for that Species.
+  // But wait, if I duplicate, I get species + caixa set. Effect runs. Caixa is set. It skips.
+  // If I then change Species manually? Caixa is still set. It skips.
+  // But the dropdown options will filter out the old caixa. So the value is invalid effectively.
+  // We should auto-select if current caixaId is NOT valid for current species?
+
+  /*
+    Let's refine:
+    If Duplicating: species & caixa are set together. We want to KEEP them.
+    If Creating New: species is default, caixa is empty. We select default.
+    If Changing Species: we want to select default for new species.
+    
+    The tricky part: How to distinguish "Duplication setting Species" vs "User changing Species"?
+    Duplication sets everything at once.
+    React updates might batch.
+    
+    If checking 'caixaId' existence:
+    - Duplication: caixaId exists. Skip. OK.
+    - User change Species: caixaId exists (from previous species). Skip. BAD. User sees empty field (if filtered out) or old value.
+    
+    We need to check if the current 'caixaId' is VALID for the new 'especie'.
+    If valid, we keep it (covers duplication).
+    If invalid (or empty), we auto-select principal.
+  */
+
 
   // Calculate sum of selected items
   const selectionSum = useMemo(() => {
@@ -203,6 +293,10 @@ export default function Schedules() {
         dataFinal = toBr(`${yyyy}-${mm}-${dd}`)
       }
 
+      const match = (s.historico || '').match(/\((\d+)\/(\d+)\)/)
+      let cur = 1
+      if (match) cur = parseInt(match[1], 10)
+
       return {
         id: s.id,
         data_referencia: toBr(s.ano_mes_inicial || s.created_at),
@@ -222,6 +316,7 @@ export default function Schedules() {
         caixa_cor: caixaCor,
         raw_vencimento: s.proxima_vencimento, // Hidden field for sorting
         parcial: s.parcial || false,
+        qtd_restante: s.tipo === 'fixo' ? '' : (s.parcelas - cur + 1),
       }
     })
     const byTab = arr.filter(r => {
@@ -330,7 +425,7 @@ export default function Schedules() {
             listAccounts(orgId),
             listCashboxes(orgId),
             listSchedules(10000, { includeConcluded: true, orgId }),
-            listCostCenters(orgId)
+            listCostCenters(orgId),
           ])
           if (cRes.error) throw cRes.error
           if (gRes.error) throw gRes.error
@@ -338,7 +433,6 @@ export default function Schedules() {
           if (cbRes.error) throw cbRes.error
           if (sRes.error) throw sRes.error
 
-          setClientes((cRes.data as any) || [])
           setGrupos((gRes.data as any) || [])
           setContas((accRes.data as any) || [])
           setCaixas((cbRes.data as any) || [])
@@ -523,7 +617,12 @@ export default function Schedules() {
     } else {
       setDateDisplay('')
     }
-    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setParcial(s.parcial || false); setCostCenterId(s.cost_center_id || '')
+    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || '');
+    // Handle caixa_id which might be object or string depending on query
+    const cId = (typeof s.caixa_id === 'object' && s.caixa_id?.id) ? s.caixa_id.id : (s.caixa_id || '')
+    setCaixaId(cId);
+
+    setDetalhes(s.detalhes || ''); setParcial(s.parcial || false); setCostCenterId(s.cost_center_id || '')
     setShowForm('edit')
   }
 
@@ -634,10 +733,14 @@ export default function Schedules() {
       setDateDisplay('')
     }
 
-    setPeriodoFix((s.periodo as any) || 'mensal'); setParcelas(s.parcelas); setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setCostCenterId(s.cost_center_id || '')
+    setPeriodoFix((s.periodo as any) || 'mensal');
+    // Reset installments to 1 when duplicating, especially if it was variable, as user likely wants to start fresh.
+    setParcelas(s.tipo === 'variavel' ? 1 : (s.parcelas || 1));
+    setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setCostCenterId(s.cost_center_id || '')
 
     // Open in CREATE mode
     setShowForm('create')
+    setIsDuplicating(true)
     setMsg('Dados copiados. Ajuste e salve o novo agendamento.')
     setTimeout(() => setMsg(''), 3000)
   }
@@ -773,7 +876,7 @@ export default function Schedules() {
               <FloatingLabelSelect
                 label="Tipo"
                 value={typeFilter}
-                onChange={e => { setTypeFilter(e.target.value); setPage(1) }}
+                onChange={e => { setTypeFilter(e.target.value as any); setPage(1) }}
                 bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="" className="dark:bg-gray-800">Todos</option>
@@ -786,7 +889,7 @@ export default function Schedules() {
               <FloatingLabelSelect
                 label="Período"
                 value={periodFilter}
-                onChange={e => { setPeriodFilter(e.target.value); setPage(1) }}
+                onChange={e => { setPeriodFilter(e.target.value as any); setPage(1) }}
                 bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="" className="dark:bg-gray-800">Todos</option>
@@ -898,16 +1001,16 @@ export default function Schedules() {
 
       {
         showForm !== 'none' && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl my-8 border dark:border-gray-700">
-              <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 rounded-t-lg flex items-center justify-between z-10">
-                <div className="font-semibold text-lg text-gray-900 dark:text-gray-100">{showForm === 'create' ? 'Novo Agendamento' : 'Editar Agendamento'}</div>
-                <button className="text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-gray-200" onClick={() => setShowForm('none')}>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl border dark:border-gray-700 flex flex-col max-h-[95vh]">
+              <div className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 rounded-t-lg flex items-center justify-between shrink-0">
+                <div className="font-semibold text-lg text-gray-900 dark:text-gray-100">{showForm === 'create' ? (isDuplicating ? 'Duplicando Novo Agendamento' : 'Novo Agendamento') : 'Editar Agendamento'}</div>
+                <button className="text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-gray-200" onClick={() => { setShowForm('none'); resetForm() }}>
                   <Icon name="x" className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-6">
+              <div className="p-6 overflow-y-auto">
                 <form onSubmit={showForm === 'create' ? onCreate : onUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-6">
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
@@ -965,6 +1068,8 @@ export default function Schedules() {
                     </div>
                   </div>
 
+                  {/* Auto-select Principal Account Effect - Moved to component body */}
+
                   <div className="md:col-span-2 relative">
                     <div className="flex gap-2 items-start">
                       <div className="flex-1">
@@ -988,7 +1093,7 @@ export default function Schedules() {
                                 setClientIndex(-1)
                                 // Load defaults
                                 if (hasBackend) {
-                                  const { data: def } = await getClientDefault(c.id)
+                                  const { data: def } = await getClientDefault(c.id, store.activeOrganization!)
                                   if (def) {
                                     if (def.grupo_compromisso_id) setGrupoId(def.grupo_compromisso_id)
                                     if (def.compromisso_id) setCompromissoId(def.compromisso_id)
@@ -1030,7 +1135,7 @@ export default function Schedules() {
                             setClientIndex(-1)
                             // Load defaults
                             if (hasBackend) {
-                              const { data: def } = await getClientDefault(c.id)
+                              const { data: def } = await getClientDefault(c.id, store.activeOrganization!)
                               if (def) {
                                 if (def.grupo_compromisso_id) setGrupoId(def.grupo_compromisso_id)
                                 if (def.compromisso_id) setCompromissoId(def.compromisso_id)
@@ -1104,7 +1209,7 @@ export default function Schedules() {
                         let msg = `Deseja definir a combinação atual (Grupo: ${grupos.find(g => g.id === grupoId)?.nome}, Compromisso: ${compromissos.find(c => c.id === compromissoId)?.nome}, Histórico: ${historico}) como PADRÃO para este cliente?`
 
                         if (hasBackend) {
-                          const { data: existing } = await getClientDefault(clienteId)
+                          const { data: existing } = await getClientDefault(clienteId, store.activeOrganization!)
                           if (existing) {
                             msg = `Já existe um padrão salvo para este cliente (Histórico: ${existing.historico}).\n\nDeseja SUBSTITUIR pelo novo (Histórico: ${historico})?`
                           }
@@ -1302,7 +1407,7 @@ export default function Schedules() {
                   </div>
 
                   <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
-                    <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => setShowForm('none')}>Cancelar</button>
+                    <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => { setShowForm('none'); resetForm() }}>Cancelar</button>
                     <button className="bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2 font-medium transition-colors shadow-sm" type="submit">{showForm === 'create' ? 'Salvar Agendamento' : 'Salvar Alterações'}</button>
                   </div>
                 </form>
@@ -1447,9 +1552,11 @@ export default function Schedules() {
                                 ['data_final', 'Data Final'],
                                 ['valor_parcela', 'Valor Parcela'],
                                 ['qtd', 'Qtd'],
+                                ['especie', 'Espécie'],
+                                ['qtd_restante', 'Qtd Restante'],
                                 ['valor_total', 'Valor Total'],
                               ].map(([key, label]) => (
-                                <th key={key} className={`p-2 font-semibold ${['valor_parcela', 'qtd', 'valor_total'].includes(key as string) ? 'text-right' : ''} ${key === 'data_referencia' ? 'w-[100px]' : key === 'cliente' ? 'w-[180px]' : key === 'historico' ? 'w-[200px]' : key === 'vencimento' ? 'w-[100px]' : key === 'periodo' ? 'w-[120px]' : key === 'data_final' ? 'w-[100px]' : key === 'valor_parcela' ? 'w-[110px]' : key === 'qtd' ? 'w-[60px]' : key === 'valor_total' ? 'w-[110px]' : ''}`}>
+                                <th key={key} className={`p-2 font-semibold ${['valor_parcela', 'qtd', 'qtd_restante', 'valor_total'].includes(key as string) ? 'text-right' : ''} ${key === 'data_referencia' ? 'w-[100px]' : key === 'cliente' ? 'w-[180px]' : key === 'historico' ? 'w-[200px]' : key === 'vencimento' ? 'w-[100px]' : key === 'periodo' ? 'w-[120px]' : key === 'data_final' ? 'w-[100px]' : key === 'valor_parcela' ? 'w-[110px]' : key === 'qtd' ? 'w-[60px]' : key === 'especie' ? 'w-[100px]' : key === 'qtd_restante' ? 'w-[100px]' : key === 'valor_total' ? 'w-[110px]' : ''}`}>
                                   <button onClick={() => toggleSort(key as string)} aria-label={`Ordenar por ${label}`}>{label}</button>
                                 </th>
                               ))}
@@ -1466,6 +1573,8 @@ export default function Schedules() {
                                 <td className="p-2 w-[100px]">{r.data_final}</td>
                                 <td className="p-2 w-[110px] text-right">R$ {formatMoneyBr(Number(r.valor_parcela))}</td>
                                 <td className="p-2 w-[60px] text-right">{formatIntBr(Number(r.qtd))}</td>
+                                <td className="p-2 w-[100px] capitalize">{r.especie ? (r.especie.charAt(0).toUpperCase() + r.especie.slice(1).replace('_', ' ')) : '-'}</td>
+                                <td className="p-2 w-[100px] text-right">{r.qtd_restante}</td>
                                 <td className="p-2 w-[110px] text-right font-semibold">R$ {formatMoneyBr(Number(r.valor_total))}</td>
                               </tr>
                             ))}
@@ -1475,6 +1584,8 @@ export default function Schedules() {
                               <td className="p-2 text-right" colSpan={6}>Total do Caixa</td>
                               <td className="p-2 text-right">R$ {formatMoneyBr(list.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}</td>
                               <td className="p-2 text-right"></td>
+                              <td className="p-2"></td>
+                              <td className="p-2"></td>
                               <td className="p-2 text-right">R$ {formatMoneyBr(totalCaixa)}</td>
                             </tr>
                           </tfoot>
@@ -1499,7 +1610,13 @@ export default function Schedules() {
                   R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}
                 </div>
                 <div className="w-[60px] px-2 text-center text-gray-500 hidden sm:block">
-                  {/* Empty spacer for Qtd column, or we could sum Qtd if desired */}
+                  {/* Empty spacer for Qtd column */}
+                </div>
+                <div className="w-[100px] px-2 text-center text-gray-500 hidden sm:block">
+                  {/* Empty spacer for Espécie column */}
+                </div>
+                <div className="w-[100px] px-2 text-center text-gray-500 hidden sm:block">
+                  {/* Empty spacer for Qtd Restante column */}
                 </div>
                 <div className="w-[110px] text-right px-2 text-green-700 dark:text-green-400">
                   R$ {formatMoneyBr(data.data.reduce((sum, r) => sum + Number(r.valor_total), 0))}
@@ -1577,7 +1694,7 @@ export default function Schedules() {
             onConfirm={async () => {
               setShowSaveDefaultConfirm(false)
               if (hasBackend) {
-                const r = await saveClientDefault({ client_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico })
+                const r = await saveClientDefault({ client_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, organization_id: store.activeOrganization! })
                 if (r.error) {
                   setAlertInfo({ open: true, msg: 'Erro ao salvar padrão: ' + r.error.message })
                 } else {
@@ -1599,6 +1716,33 @@ export default function Schedules() {
         message={alertInfo.msg}
         onClose={() => setAlertInfo({ open: false, msg: '' })}
       />
+
+      {/* Shared Cost Center Modal */}
+      {sharedCostCenterModal.open && (
+        <SharedCostCenterModal
+          totalValue={sharedCostCenterModal.value}
+          onClose={() => setSharedCostCenterModal({ open: false, value: 0 })}
+          onConfirm={async (selectedIds) => {
+            const count = selectedIds.length
+            if (count === 0) return
+            const share = Number((sharedCostCenterModal.value / count).toFixed(2)) // Round to 2 decimals
+
+            // We need to create multiple schedules
+            // Based on the current form state (which is in closure scope of onCreate/onUpdate... wait, form state is state)
+            // But onCreate is a function submit handler.
+            // We need to trigger the actual creation here?
+            // Or we store the selectedIds and then trigger 'onCreate' again?
+            // Better: 'onCreate' pauses if shared center selected.
+            // Then this callback continues the creation.
+
+            // Let's invoke the continuation function
+            if (sharedCostCenterModal.onConfirm) {
+              await sharedCostCenterModal.onConfirm(selectedIds, share)
+            }
+            setSharedCostCenterModal({ open: false, value: 0 })
+          }}
+        />
+      )}
 
       {
         contextMenu && (

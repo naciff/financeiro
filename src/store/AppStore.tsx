@@ -45,6 +45,8 @@ type Schedule = {
   compromisso_id?: string
   caixa_id?: string
   situacao?: number
+  parcial?: boolean
+  cost_center_id?: string
 }
 
 type Organization = { id: string; name: string; owner_id: string }

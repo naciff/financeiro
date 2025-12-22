@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Icon } from './ui/Icon'
 import { listAttachments, addAttachment, deleteAttachment } from '../services/db'
+import { ConfirmModal } from './ui/ConfirmModal'
+import { AlertModal } from './ui/AlertModal'
 
 type Props = {
     transactionId: string | null
@@ -16,6 +18,9 @@ export function TransactionAttachments({ transactionId, pendingAttachments = [],
     const [zoom, setZoom] = useState(1)
     const [rotation, setRotation] = useState(0)
     const [uploading, setUploading] = useState(false)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+    const [idToDelete, setIdToDelete] = useState<string | null>(null)
+    const [alertModal, setAlertModal] = useState({ open: false, title: '', message: '' })
 
     useEffect(() => {
         if (transactionId) {
@@ -39,7 +44,7 @@ export function TransactionAttachments({ transactionId, pendingAttachments = [],
         const file = e.target.files[0]
 
         if (file.size > 5 * 1024 * 1024) {
-            alert('Arquivo muito grande. Máximo 5MB.')
+            setAlertModal({ open: true, title: 'Arquivo muito grande', message: 'Arquivo muito grande. Máximo 5MB.' })
             setUploading(false)
             return
         }
@@ -58,12 +63,12 @@ export function TransactionAttachments({ transactionId, pendingAttachments = [],
                     })
 
                     if (error) {
-                        alert('Erro ao enviar imagem: ' + error.message)
+                        setAlertModal({ open: true, title: 'Erro', message: 'Erro ao enviar imagem: ' + error.message })
                     } else {
                         await loadAttachments()
                     }
                 } catch (err: any) {
-                    alert('Erro: ' + err.message)
+                    setAlertModal({ open: true, title: 'Erro', message: 'Erro: ' + err.message })
                 } finally {
                     setUploading(false)
                 }
@@ -76,7 +81,13 @@ export function TransactionAttachments({ transactionId, pendingAttachments = [],
     }
 
     async function handleDeleteAttachment(id: string) {
-        if (!confirm('Tem certeza que deseja excluir este comprovante?')) return
+        setIdToDelete(id)
+        setShowDeleteConfirm(true)
+    }
+
+    async function confirmDelete() {
+        if (!idToDelete) return
+        setShowDeleteConfirm(false)
 
         if (transactionId) {
             await deleteAttachment(id)
@@ -266,6 +277,21 @@ export function TransactionAttachments({ transactionId, pendingAttachments = [],
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={showDeleteConfirm}
+                onClose={() => { setShowDeleteConfirm(false); setIdToDelete(null) }}
+                onConfirm={confirmDelete}
+                title="Excluir Comprovante"
+                message="Tem certeza que deseja excluir este comprovante?"
+            />
+
+            <AlertModal
+                isOpen={alertModal.open}
+                title={alertModal.title}
+                message={alertModal.message}
+                onClose={() => setAlertModal({ ...alertModal, open: false })}
+            />
         </div>
     )
 }

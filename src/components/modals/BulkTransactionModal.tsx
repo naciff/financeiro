@@ -44,10 +44,7 @@ export function BulkTransactionModal({ isOpen, onClose, onConfirm, items, accoun
                 {/* Using a clean modern interpretation of the "Header bar" */}
                 <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 p-3 border-b border-gray-300 dark:border-gray-700 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <div className="bg-green-500 rounded-full p-1 border-2 border-white shadow-sm">
-                            <Icon name="check" className="w-5 h-5 text-white" />
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 shadow-sm">
+                        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 shadow-sm ml-2">
                             Confirmação de Registro do(s) Item(s)
                         </h2>
                     </div>
@@ -55,19 +52,15 @@ export function BulkTransactionModal({ isOpen, onClose, onConfirm, items, accoun
                     <div className="flex gap-2">
                         <button
                             onClick={onClose}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-400 dark:border-gray-500 rounded text-sm font-medium transition-colors text-gray-800 dark:text-gray-200"
+                            className="px-4 py-2 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600 transition-colors font-medium text-sm"
                         >
-                            <Icon name="x" className="w-4 h-4 text-red-600" />
                             Cancelar
                         </button>
                         <button
                             onClick={() => onConfirm({ date, accountId, total: totalToRegister })}
-                            className="flex items-center gap-1 px-4 py-1.5 bg-gray-100 hover:bg-white dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-400 dark:border-gray-500 rounded text-sm font-medium transition-colors text-gray-800 dark:text-gray-200 shadow-sm"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors font-medium text-sm shadow-sm"
                         >
-                            <div className="text-green-600 font-bold flex items-center gap-1">
-                                <Icon name="check" className="w-4 h-4" />
-                                Confirmar
-                            </div>
+                            Confirmar
                         </button>
                     </div>
                 </div>
@@ -94,6 +87,7 @@ export function BulkTransactionModal({ isOpen, onClose, onConfirm, items, accoun
                                 id="account"
                                 value={accountId}
                                 onChange={e => setAccountId(e.target.value)}
+                                disabled={true}
                             >
                                 <option value="" className="dark:bg-gray-800">Selecione...</option>
                                 {accounts.map(acc => (
@@ -179,6 +173,8 @@ export function BulkTransactionModal({ isOpen, onClose, onConfirm, items, accoun
                 </div>
 
             </div>
+
+            {/* Footer removed as buttons moved to header */}
         </div>
     )
 }

@@ -17,6 +17,7 @@ export function CostCenters() {
     const [editId, setEditId] = useState('')
     const [descricao, setDescricao] = useState('')
     const [principal, setPrincipal] = useState(false)
+    const [compartilhado, setCompartilhado] = useState(false)
     const [situacao, setSituacao] = useState(true)
 
     // Selection
@@ -46,6 +47,7 @@ export function CostCenters() {
         setEditId('')
         setDescricao('')
         setPrincipal(false)
+        setCompartilhado(false)
         setSituacao(true)
         setShowForm(true)
     }
@@ -58,6 +60,7 @@ export function CostCenters() {
             setEditId(item.id)
             setDescricao(item.descricao)
             setPrincipal(item.principal)
+            setCompartilhado(!!item.compartilhado)
             setSituacao(item.situacao)
             setShowForm(true)
         }
@@ -67,7 +70,7 @@ export function CostCenters() {
         e.preventDefault()
         if (!descricao) return alert('Preencha a descrição')
 
-        const payload = { descricao, principal, situacao }
+        const payload = { descricao, principal, situacao, compartilhado }
 
         if (editId) {
             await updateCostCenter(editId, payload)
@@ -184,6 +187,15 @@ export function CostCenters() {
                             />
                             <span className="text-sm">Principal</span>
                         </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="w-4 h-4 text-blue-600 rounded"
+                                checked={compartilhado}
+                                onChange={e => setCompartilhado(e.target.checked)}
+                            />
+                            <span className="text-sm">Compartilhado</span>
+                        </label>
                     </div>
 
                     <div className="mb-2">
@@ -202,7 +214,7 @@ export function CostCenters() {
                         <button
                             type="button"
                             className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            onClick={() => { setShowForm(false); setEditId(''); setDescricao('') }}
+                            onClick={() => { setShowForm(false); setEditId(''); setDescricao(''); setCompartilhado(false) }}
                         >
                             Cancelar
                         </button>
@@ -241,6 +253,7 @@ export function CostCenters() {
                                         </th>
                                         <th className="p-3">Descrição</th>
                                         <th className="p-3 text-center w-24">Principal</th>
+                                        <th className="p-3 text-center w-24">Compartilhado</th>
                                         <th className="p-3 text-center w-24">Situação</th>
                                     </tr>
                                 </thead>
@@ -254,6 +267,7 @@ export function CostCenters() {
                                                 setEditId(item.id)
                                                 setDescricao(item.descricao)
                                                 setPrincipal(item.principal)
+                                                setCompartilhado(!!item.compartilhado)
                                                 setSituacao(item.situacao)
                                                 setShowForm(true)
                                             }}
@@ -268,6 +282,9 @@ export function CostCenters() {
                                             <td className="p-3">{item.descricao}</td>
                                             <td className="p-3 text-center">
                                                 {item.principal && <Icon name="check" className="w-5 h-5 text-green-500 mx-auto" />}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {item.compartilhado && <Icon name="check" className="w-5 h-5 text-blue-500 mx-auto" />}
                                             </td>
                                             <td className="p-3 text-center">
                                                 <span className={`px-2 py-1 rounded text-xs font-semibold ${item.situacao ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
