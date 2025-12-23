@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatCurrency } from '../../utils/formatCurrency'
+import { useAppStore } from '../../store/AppStore'
 
 interface CountUpProps {
     end: number
@@ -8,6 +9,7 @@ interface CountUpProps {
 }
 
 export function CountUp({ end, duration = 1000, className }: CountUpProps) {
+    const { showValues } = useAppStore()
     const [count, setCount] = useState(0)
 
     useEffect(() => {
@@ -33,6 +35,10 @@ export function CountUp({ end, duration = 1000, className }: CountUpProps) {
 
         return () => cancelAnimationFrame(animationFrameId)
     }, [end, duration])
+
+    if (!showValues) {
+        return <span className={className}>*****</span>
+    }
 
     return <span className={className}>R$ {formatCurrency(count).replace('R$', '').trim()}</span>
 }

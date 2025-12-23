@@ -1,10 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAppStore } from '../store/AppStore'
-import { listTransactions, listAccounts, listCommitmentGroups, listCommitmentsByGroup, listCostCenters, listMyOrganizations } from '../services/db'
+import { listTransactions, listAccounts, listCommitmentGroups, listCommitmentsByGroup, listCostCenters, listMyOrganizations, listFinancials, listScheduleCostCenters } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { Icon } from '../components/ui/Icon'
 import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
+const monthNames = [
+  'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN',
+  'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'
+]
 
 export default function Reports() {
   const store = useAppStore()
@@ -13,6 +17,7 @@ export default function Reports() {
   const [accounts, setAccounts] = useState<any[]>([])
   const [groups, setGroups] = useState<any[]>([])
   const [costCenters, setCostCenters] = useState<any[]>([])
+  const [allSplits, setAllSplits] = useState<any[]>([])
   const [commitments, setCommitments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -27,9 +32,10 @@ export default function Reports() {
   const [reportConfig, setReportConfig] = useState<any>(null)
 
   // View State
-  const [viewType, setViewType] = useState<'analytic' | 'synthetic'>('synthetic')
+  const [viewType, setViewType] = useState<'analytic' | 'synthetic' | 'cc_detailed'>('synthetic')
   const [reportData, setReportData] = useState<any[]>([])
   const [syntheticData, setSyntheticData] = useState<any[]>([])
+  const [ccDetailedData, setCcDetailedData] = useState<{ months: string[], rows: any[] }>({ months: [], rows: [] })
   const [generated, setGenerated] = useState(false)
 
   useEffect(() => {
@@ -49,11 +55,13 @@ export default function Reports() {
     if (!store.activeOrganization) return
     setLoading(true)
     const orgId = store.activeOrganization
-    const [t, a, g, cc] = await Promise.all([
+    const [t, a, g, cc, f, scc] = await Promise.all([
       listTransactions(3000, orgId), // Fetch a larger batch for reports
       listAccounts(orgId),
       listCommitmentGroups(orgId),
-      listCostCenters(orgId)
+      listCostCenters(orgId),
+      listFinancials({ status: 1, orgId }), // Also fetch pending items (forecasts)
+      listScheduleCostCenters(orgId)
     ])
 
     // Fetch Organization Config separately
@@ -65,10 +73,25 @@ export default function Reports() {
       }
     }
 
-    setTxs(t.data || [])
+    // Normalize and Combine
+    const transactions = t.data || []
+    const financials = (f.data || []).map((item: any) => ({
+      ...item,
+      valor_entrada: ['receita', 'aporte'].includes(item.operacao) ? item.valor : 0,
+      valor_saida: ['despesa', 'retirada'].includes(item.operacao) ? item.valor : 0,
+      conta_id: item.caixa_id,
+      cliente_id: item.favorecido_id,
+      grupo: item.grupo || item.agendamento?.grupo,
+      compromisso: item.compromisso || item.agendamento?.compromisso,
+      cost_center: item.cost_center || item.agendamento?.cost_center,
+      isForecast: true
+    }))
+
+    setTxs([...transactions, ...financials])
     setAccounts(a.data || [])
     setGroups(g.data || [])
-    setCostCenters((cc as any).data || []) // costCenters might be the 4th result
+    setCostCenters((cc as any).data || [])
+    setAllSplits(scc.data || [])
     setLoading(false)
   }
 
@@ -78,9 +101,9 @@ export default function Reports() {
   }
 
   function handleGenerate() {
-    // 1. Filter Transactions
-    const filtered = txs.filter(t => {
-      // Date Filter (Vencimento as requested)
+    // 1. Initial Filtering (General filters)
+    let processed = txs.filter(t => {
+      // Date Filter
       const dateToCheck = t.data_vencimento ? t.data_vencimento.split('T')[0] : t.data_lancamento.split('T')[0]
       if (dateToCheck < startDate || dateToCheck > endDate) return false
 
@@ -88,7 +111,6 @@ export default function Reports() {
       if (selectedAccount && t.conta_id !== selectedAccount) return false
 
       // Group Filter
-      // Note: Transaction has group info in joined object 'grupo' or 'grupo_compromisso_id'
       if (selectedGroup) {
         const tGroupId = t.grupo?.id || t.grupo_compromisso_id
         if (tGroupId !== selectedGroup) return false
@@ -100,35 +122,110 @@ export default function Reports() {
         if (tCommId !== selectedCommitment) return false
       }
 
-      // Cost Center Filter
-      if (selectedCostCenter) {
-        // Typically transaction has cost_center_id or joined object
-        const tCCId = t.cost_center_id || t.cost_center?.id
-        if (tCCId !== selectedCostCenter) return false
-      }
-
       return true
     })
 
-    // 2. Process for Views
+    // 2. Resolve Shared Cost Centers Splits
+    processed = processed.flatMap(t => {
+      const ccId = t.cost_center_id || t.cost_center?.id
+      const cc = costCenters.find(c => c.id === ccId)
+
+      // If it's a shared center, try to find original split definitions
+      if (cc?.compartilhado) {
+        const schedId = t.id_agendamento || t.schedule_id || (t.isForecast ? t.id : null)
+        const splits = allSplits.filter(s => s.schedule_id === schedId)
+
+        if (splits.length > 0) {
+          return splits.map(s => {
+            const splitCC = costCenters.find(c => c.id === s.cost_center_id)
+            const factor = 1 / splits.length
+            return {
+              ...t,
+              cost_center: splitCC,
+              cost_center_id: s.cost_center_id,
+              valor_entrada: (t.valor_entrada || 0) * factor,
+              valor_saida: (t.valor_saida || 0) * factor
+            }
+          })
+        }
+      }
+      return [t]
+    })
+
+    // 3. Apply Cost Center Filter (Final step)
+    if (selectedCostCenter) {
+      processed = processed.filter(t => (t.cost_center_id || t.cost_center?.id) === selectedCostCenter)
+    }
+
+    // 4. Process for Views
+    const filtered = processed
     setReportData(filtered)
 
     // Synthetic Processing
     const grouped = filtered.reduce((acc: any, t: any) => {
-      const groupName = t.grupo?.nome || t.grupo_compromisso?.nome || 'Sem Grupo'
-      if (!acc[groupName]) {
-        acc[groupName] = { name: groupName, income: 0, expense: 0, total: 0 }
+      const gName = t.grupo?.nome || t.grupo_compromisso?.nome || 'Sem Grupo'
+      const ccName = t.cost_center?.descricao || t.cost_center?.nome || '-'
+      const key = `${gName}|${ccName}`
+
+      if (!acc[key]) {
+        acc[key] = { groupName: gName, ccName: ccName, income: 0, expense: 0, total: 0 }
       }
       const valEntrada = Number(t.valor_entrada || 0)
       const valSaida = Number(t.valor_saida || 0)
 
-      acc[groupName].income += valEntrada
-      acc[groupName].expense += valSaida
-      acc[groupName].total += (valEntrada - valSaida)
+      acc[key].income += valEntrada
+      acc[key].expense += valSaida
+      acc[key].total += (valEntrada - valSaida)
       return acc
     }, {})
 
-    setSyntheticData(Object.values(grouped).sort((a: any, b: any) => a.name.localeCompare(b.name)))
+    const processedSynthetic = Object.values(grouped)
+      .filter((d: any) => d.income !== 0 || d.expense !== 0) // Hide zero values
+      .sort((a: any, b: any) => a.groupName.localeCompare(b.groupName) || a.ccName.localeCompare(b.ccName))
+
+    setSyntheticData(processedSynthetic)
+
+    // CC Detailed Processing (Pivot by month)
+    if (viewType === 'cc_detailed') {
+      let [y, m] = startDate.split('-').map(Number)
+      let [ey, em] = endDate.split('-').map(Number)
+
+      const months: string[] = []
+      let cy = y
+      let cm = m
+
+      while (cy < ey || (cy === ey && cm <= em)) {
+        months.push(`${cy}-${String(cm).padStart(2, '0')}`)
+        cm++
+        if (cm > 12) {
+          cm = 1
+          cy++
+        }
+        if (months.length > 36) break // Limit to 3 years for performance
+      }
+
+      const groupedCC = filtered.reduce((acc: any, t: any) => {
+        const ccName = t.cost_center?.descricao || t.cost_center?.nome || 'Sem Centro de Custo'
+        const dateStr = (t.data_vencimento ? t.data_vencimento.split('T')[0] : t.data_lancamento.split('T')[0])
+        const parts = dateStr.split('-')
+        const mKey = `${parts[0]}-${parts[1]}`
+
+        if (!acc[ccName]) {
+          acc[ccName] = { ccName, monthly: {}, total: 0 }
+        }
+
+        const val = Number(t.valor_entrada || 0) - Number(t.valor_saida || 0)
+        acc[ccName].monthly[mKey] = (acc[ccName].monthly[mKey] || 0) + val
+        acc[ccName].total += val
+        return acc
+      }, {})
+
+      setCcDetailedData({
+        months,
+        rows: Object.values(groupedCC).sort((a: any, b: any) => a.ccName.localeCompare(b.ccName))
+      })
+    }
+
     setGenerated(true)
   }
 
@@ -142,7 +239,7 @@ export default function Reports() {
     let csvContent = "data:text/csv;charset=utf-8,"
 
     if (viewType === 'analytic') {
-      csvContent += "Vencimento;Pagamento;Caixa;Cliente;Grupo;Compromisso;Valor Entrada;Valor Saida;Valor Liquido\n"
+      csvContent += "Vencimento;Pagamento;Caixa;Cliente;Grupo;Compromisso;Centro de Custo;Valor Entrada;Valor Saida;Valor Liquido\n"
       reportData.forEach(t => {
         const valEntrada = Number(t.valor_entrada || 0).toFixed(2).replace('.', ',')
         const valSaida = Number(t.valor_saida || 0).toFixed(2).replace('.', ',')
@@ -154,19 +251,30 @@ export default function Reports() {
           t.cliente?.nome || '-',
           t.grupo?.nome || '-',
           t.compromisso?.nome || '-',
+          t.cost_center?.descricao || t.cost_center?.nome || '-',
           valEntrada,
           valSaida,
           valLiq
         ].join(';')
         csvContent += row + "\r\n"
       })
+    } else if (viewType === 'cc_detailed') {
+      const header = ["Centro de Custo", ...ccDetailedData.months.map(m => {
+        const [year, mon] = m.split('-')
+        return `${monthNames[parseInt(mon) - 1]}/${year}`
+      }), "TOTAL"].join(';')
+      csvContent += header + "\n"
+      ccDetailedData.rows.forEach(row => {
+        const monthlyVals = ccDetailedData.months.map(m => (row.monthly[m] || 0).toFixed(2).replace('.', ','))
+        const totalVal = row.total.toFixed(2).replace('.', ',')
+        csvContent += [row.ccName, ...monthlyVals, totalVal].join(';') + "\r\n"
+      })
     } else {
-      csvContent += "Grupo;Entradas;Saidas;Saldo\n"
+      csvContent += "Grupo;Centro de Custo;Total\n"
       syntheticData.forEach(d => {
         const row = [
-          d.name,
-          d.income.toFixed(2).replace('.', ','),
-          d.expense.toFixed(2).replace('.', ','),
+          d.groupName,
+          d.ccName,
           d.total.toFixed(2).replace('.', ',')
         ].join(';')
         csvContent += row + "\r\n"
@@ -189,7 +297,8 @@ export default function Reports() {
       const jsPDF = (await import('jspdf')).default
       const autoTable = (await import('jspdf-autotable')).default
 
-      const doc = new jsPDF()
+      const orientation = viewType === 'cc_detailed' ? 'l' : 'p'
+      const doc = new jsPDF(orientation)
 
       // --- HEADERS CONFIGURATION ---
       const hasCustomHeader = !!reportConfig
@@ -256,19 +365,20 @@ export default function Reports() {
         doc.setFontSize(12)
         doc.setFont("helvetica", "bold")
         const titlePrefix = report_title_prefix || 'Relatório Financeiro'
-        const titleSuffix = viewType === 'analytic' ? 'Analítico' : 'Sintético'
-        doc.text(`${titlePrefix} - ${titleSuffix}`.toUpperCase(), 105, 32, { align: 'center' })
+        const titleSuffix = viewType === 'analytic' ? 'Analítico' : (viewType === 'cc_detailed' ? 'Centro de Custo Detalhado' : 'Sintético')
+        doc.text(`${titlePrefix} - ${titleSuffix}`.toUpperCase(), doc.internal.pageSize.width / 2, 32, { align: 'center' })
 
 
         doc.setFontSize(10)
         doc.setFont("helvetica", "normal")
-        doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 105, 37, { align: 'center' })
+        doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, doc.internal.pageSize.width / 2, 37, { align: 'center' })
 
         startY = 45
       } else {
         // Default Header
         doc.setFontSize(16)
-        doc.text(`Relatório Financeiro - ${viewType === 'analytic' ? 'Analítico' : 'Sintético'}`, 14, 15)
+        const titleSuffix = viewType === 'analytic' ? 'Analítico' : (viewType === 'cc_detailed' ? 'Centro de Custo Detalhado' : 'Sintético')
+        doc.text(`Relatório Financeiro - ${titleSuffix}`, 14, 15)
         doc.setFontSize(10)
         doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 14, 22)
       }
@@ -309,28 +419,52 @@ export default function Reports() {
           t.cliente?.nome || '-',
           t.grupo?.nome || '-',
           t.compromisso?.nome || '-',
+          t.cost_center?.descricao || t.cost_center?.nome || '-',
           formatMoneyBr(Number(t.valor_entrada || 0) - Number(t.valor_saida || 0))
         ])
 
         autoTable(doc, {
           startY: startY,
-          head: [['Vencto', 'Pagto', 'Caixa', 'Cliente', 'Grupo', 'Compromisso', 'Valor']],
+          head: [['Vencto', 'Pagto', 'Caixa', 'Cliente', 'Grupo', 'Compromisso', 'Centro de Custo', 'Valor']],
           body: rows,
           styles: { fontSize: 8 },
           headStyles: { fillColor: [66, 133, 244] },
           margin: { top: startY }
         })
+      } else if (viewType === 'cc_detailed') {
+        const head = [
+          'Centro de Custo',
+          ...ccDetailedData.months.map(m => {
+            const [year, mon] = m.split('-')
+            return `${monthNames[parseInt(mon) - 1]}/${year.slice(-2)}`
+          }),
+          'TOTAL'
+        ]
+        const rows = ccDetailedData.rows.map(row => [
+          row.ccName,
+          ...ccDetailedData.months.map(m => row.monthly[m] ? formatMoneyBr(Math.abs(row.monthly[m])) : '-'),
+          formatMoneyBr(Math.abs(row.total))
+        ])
+
+        autoTable(doc, {
+          startY: startY,
+          head: [head],
+          body: rows,
+          styles: { fontSize: 7, halign: 'center' },
+          columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
+          headStyles: { fillColor: [66, 133, 244] },
+          margin: { top: startY }
+        })
       } else {
         const rows = syntheticData.map(d => [
-          d.name,
-          formatMoneyBr(d.income),
-          formatMoneyBr(d.expense),
+          d.groupName,
+          d.ccName,
           formatMoneyBr(d.total)
         ])
 
         autoTable(doc, {
           startY: startY,
-          head: [['Grupo / Categoria', 'Entradas', 'Saídas', 'Saldo']],
+          head: [['Grupo', 'Centro de Custo', 'Total']],
           body: rows,
           headStyles: { fillColor: [66, 133, 244] },
           margin: { top: startY }
@@ -462,6 +596,15 @@ export default function Reports() {
               />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Analítico (Detalhado)</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="viewType"
+                checked={viewType === 'cc_detailed'}
+                onChange={() => setViewType('cc_detailed')}
+              />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Centro de Custo (Detalhado)</span>
+            </label>
           </div>
 
           <div className="flex gap-2 items-center">
@@ -503,7 +646,46 @@ export default function Reports() {
             </div>
           </div>
 
-          {viewType === 'analytic' ? (
+          {viewType === 'cc_detailed' ? (
+            <div className="overflow-x-auto text-sm">
+              <table className="w-full text-left text-gray-900 dark:text-gray-100 table-auto border-collapse">
+                <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] uppercase">
+                  <tr>
+                    <th className="p-3 border sticky left-0 bg-gray-100 dark:bg-gray-700 z-10">Centro de Custo</th>
+                    {ccDetailedData.months.map(m => {
+                      const [year, mon] = m.split('-')
+                      return <th key={m} className="p-3 border text-center whitespace-nowrap">{monthNames[parseInt(mon) - 1]} / {year}</th>
+                    })}
+                    <th className="p-3 border text-right bg-blue-50 dark:bg-blue-900/20">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-xs">
+                  {ccDetailedData.rows.length === 0 ? (
+                    <tr><td colSpan={ccDetailedData.months.length + 2} className="p-4 text-center text-gray-500">Nenhum registro encontrado</td></tr>
+                  ) : (
+                    ccDetailedData.rows.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="p-3 border font-medium sticky left-0 bg-white dark:bg-gray-800 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">{row.ccName}</td>
+                        {ccDetailedData.months.map(m => {
+                          const val = row.monthly[m] || 0
+                          return (
+                            <td key={m} className={`p-3 border text-center ${val === 0 ? 'text-gray-300 dark:text-gray-600' : (val > 0 ? 'text-green-600' : 'text-red-500')}`}>
+                              {val !== 0 ? formatMoneyBr(Math.abs(val)) : '-'}
+                              {val !== 0 && <span className="text-[8px] ml-0.5">{val > 0 ? 'C' : 'D'}</span>}
+                            </td>
+                          )
+                        })}
+                        <td className={`p-3 border text-right font-bold bg-blue-50/50 dark:bg-blue-900/10 ${row.total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatMoneyBr(Math.abs(row.total))}
+                          <span className="text-[8px] ml-0.5">{row.total >= 0 ? 'C' : 'D'}</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : viewType === 'analytic' ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-gray-900 dark:text-gray-100">
                 <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs uppercase">
@@ -514,26 +696,28 @@ export default function Reports() {
                     <th className="p-3">Cliente</th>
                     <th className="p-3">Grupo</th>
                     <th className="p-3">Compromisso</th>
+                    <th className="p-3">Centro de Custo</th>
                     <th className="p-3 text-right">Valor</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {reportData.length === 0 ? (
-                    <tr><td colSpan={7} className="p-4 text-center text-gray-500">Nenhum registro encontrado</td></tr>
+                    <tr><td colSpan={8} className="p-4 text-center text-gray-500">Nenhum registro encontrado</td></tr>
                   ) : (
                     reportData.map(t => {
                       const val = Number(t.valor_entrada || 0) - Number(t.valor_saida || 0)
+                      if (val === 0 && Number(t.valor_entrada || 0) === 0 && Number(t.valor_saida || 0) === 0) return null
                       return (
                         <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                           <td className="p-3">{toBr(t.data_vencimento)}</td>
                           <td className="p-3">{toBr(t.data_lancamento)}</td>
-                          <td className="p-3 hover:text-gray-900 dark:hover:text-gray-100 text-gray-600 dark:text-gray-400">{t.conta_id === t.caixa?.id /* complex logic skipped, showing just ID if name missing in join */}
-                            {/* Assuming we might not have full joins everywhere, but listTransactions does */}
+                          <td className="p-3 text-gray-600 dark:text-gray-400">
                             {t.caixa?.nome || accounts.find(a => a.id === t.conta_id)?.nome || '-'}
                           </td>
                           <td className="p-3">{t.cliente?.nome || '-'}</td>
                           <td className="p-3">{t.grupo?.nome || '-'}</td>
                           <td className="p-3">{t.compromisso?.nome || '-'}</td>
+                          <td className="p-3">{t.cost_center?.descricao || t.cost_center?.nome || '-'}</td>
                           <td className={`p-3 text-right font-medium ${val >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                             {formatMoneyBr(Math.abs(val))}
                             <span className="text-[10px] ml-1 text-gray-400">{val >= 0 ? 'C' : 'D'}</span>
@@ -551,22 +735,21 @@ export default function Reports() {
                 <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs uppercase">
                   <tr>
                     <th className="p-3">Grupo de Compromisso</th>
-                    <th className="p-3 text-right text-green-700 dark:text-green-400">Entradas</th>
-                    <th className="p-3 text-right text-red-700 dark:text-red-400">Saídas</th>
+                    <th className="p-3">Centro de Custo</th>
                     <th className="p-3 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {syntheticData.length === 0 ? (
-                    <tr><td colSpan={4} className="p-4 text-center text-gray-500">Nenhum registro encontrado</td></tr>
+                    <tr><td colSpan={3} className="p-4 text-center text-gray-500">Nenhum registro encontrado</td></tr>
                   ) : (
                     syntheticData.map((d, i) => (
                       <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="p-3 font-medium">{d.name}</td>
-                        <td className="p-3 text-right text-green-600 dark:text-green-400">{formatMoneyBr(d.income)}</td>
-                        <td className="p-3 text-right text-red-500 dark:text-red-400">{formatMoneyBr(d.expense)}</td>
-                        <td className={`p-3 text-right font-bold ${d.total >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400'}`}>
-                          {formatMoneyBr(d.total)}
+                        <td className="p-3 font-medium">{d.groupName}</td>
+                        <td className="p-3 text-gray-600 dark:text-gray-400">{d.ccName}</td>
+                        <td className={`p-3 text-right font-bold ${d.total >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {formatMoneyBr(Math.abs(d.total))}
+                          <span className="text-[10px] ml-1 text-gray-400">{d.total >= 0 ? 'C' : 'D'}</span>
                         </td>
                       </tr>
                     ))

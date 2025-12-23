@@ -40,6 +40,27 @@ export function Header({
   // Notifications State
   const [notifications, setNotifications] = useState<any[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(false)
+
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      const doc = document as any
+      const isFull = !!(doc.fullscreenElement || doc.mozFullScreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement)
+      setIsFullScreen(isFull)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullScreenChange)
+    document.addEventListener('mozfullscreenchange', handleFullScreenChange)
+    document.addEventListener('MSFullscreenChange', handleFullScreenChange)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullScreenChange)
+      document.removeEventListener('mozfullscreenchange', handleFullScreenChange)
+      document.removeEventListener('MSFullscreenChange', handleFullScreenChange)
+    }
+  }, [])
 
   useEffect(() => {
     if (store.activeOrganization) {
@@ -158,7 +179,7 @@ export function Header({
                           >
                             <div className="font-medium truncate">{fav.historico || 'Sem Histórico'}</div>
                             <div className="text-xs text-gray-500 truncate flex justify-between">
-                              <span>R$ {Number(fav.valor).toFixed(2)}</span>
+                              <span>{store.showValues ? `R$ ${Number(fav.valor).toFixed(2)}` : '*****'}</span>
                               <span className="uppercase">{fav.operacao}</span>
                             </div>
                           </button>
@@ -182,6 +203,16 @@ export function Header({
 
             {/* 3. Actions: Fullscreen & Notifications */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => store.setShowValues(!store.showValues)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-muted-light dark:text-text-muted-dark transition-colors"
+                title={store.showValues ? "Ocultar Valores" : "Mostrar Valores"}
+              >
+                <span className="material-icons-outlined text-[20px]">
+                  {store.showValues ? 'visibility' : 'visibility_off'}
+                </span>
+              </button>
+
               <button
                 onClick={() => {
                   const toggleFullScreen = () => {
@@ -219,9 +250,11 @@ export function Header({
                   toggleFullScreen();
                 }}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-muted-light dark:text-text-muted-dark transition-colors"
-                title="Tela Cheia (F11)"
+                title={isFullScreen ? "Sair da Tela Cheia" : "Tela Cheia (F11)"}
               >
-                <span className="material-icons-outlined text-[20px]">fullscreen</span>
+                <span className="material-icons-outlined text-[20px]">
+                  {isFullScreen ? 'fullscreen_exit' : 'fullscreen'}
+                </span>
               </button>
 
               <div className="relative">
@@ -281,7 +314,7 @@ export function Header({
                                           </span>
                                         </div>
                                         <span className={`text-sm font-bold ${item.operacao === 'receita' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                          {item.operacao === 'despesa' ? '-' : '+'} {formatCurrency(item.valor)}
+                                          {store.showValues ? `${item.operacao === 'despesa' ? '-' : '+'} ${formatCurrency(item.valor)}` : '*****'}
                                         </span>
                                       </div>
 
@@ -315,51 +348,6 @@ export function Header({
 
             {/* 4. Org & User (Org first) */}
             <div className="hidden md:flex items-center gap-4 mx-1 relative">
-
-              {/* Org Switcher */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowOrgMenu(!showOrgMenu)}
-                  className="flex items-center gap-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-text-main-light dark:text-text-main-dark"
-                >
-                  <span className={`w-2 h-2 rounded-full ${store.activeOrganization ? 'bg-green-500' : 'bg-blue-500'}`}></span>
-                  {currentOrgName}
-                  <span className="material-icons-outlined text-[10px]">expand_more</span>
-                </button>
-
-                {showOrgMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowOrgMenu(false)}></div>
-                    <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded shadow-lg border dark:border-gray-700 z-20 py-1">
-                      {store.organizations.map(org => (
-                        <button
-                          key={org.id}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${store.activeOrganization === org.id ? 'font-bold text-primary dark:text-primary-light' : 'text-gray-700 dark:text-gray-200'}`}
-                          onClick={() => {
-                            store.setActiveOrganization(org.id)
-                            setShowOrgMenu(false)
-                          }}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${org.name === 'Pessoal' ? 'bg-blue-500' : 'bg-green-500'}`}></span>
-                          {org.name}
-                        </button>
-                      ))}
-
-                      <div className="border-t dark:border-gray-700 my-1"></div>
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-primary"
-                        onClick={() => {
-                          handleCreateOrg()
-                          setShowOrgMenu(false)
-                        }}
-                      >
-                        <span className="material-icons-outlined text-sm">add</span>
-                        Nova Empresa
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
 
               {/* User Menu */}
               <div className="relative">
@@ -416,6 +404,51 @@ export function Header({
                       >
                         <span className="material-icons-outlined text-base">logout</span>
                         Sair
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Org Switcher */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowOrgMenu(!showOrgMenu)}
+                  className="flex items-center gap-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-text-main-light dark:text-text-main-dark"
+                >
+                  <span className={`w-2 h-2 rounded-full ${store.activeOrganization ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                  {currentOrgName}
+                  <span className="material-icons-outlined text-[10px]">expand_more</span>
+                </button>
+
+                {showOrgMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowOrgMenu(false)}></div>
+                    <div className="absolute top-full right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded shadow-lg border dark:border-gray-700 z-20 py-1">
+                      {store.organizations.map(org => (
+                        <button
+                          key={org.id}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 ${store.activeOrganization === org.id ? 'font-bold text-primary dark:text-primary-light' : 'text-gray-700 dark:text-gray-200'}`}
+                          onClick={() => {
+                            store.setActiveOrganization(org.id)
+                            setShowOrgMenu(false)
+                          }}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${org.name === 'Pessoal' ? 'bg-blue-500' : 'bg-green-500'}`}></span>
+                          {org.name}
+                        </button>
+                      ))}
+
+                      <div className="border-t dark:border-gray-700 my-1"></div>
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-primary"
+                        onClick={() => {
+                          handleCreateOrg()
+                          setShowOrgMenu(false)
+                        }}
+                      >
+                        <span className="material-icons-outlined text-sm">add</span>
+                        Nova Empresa
                       </button>
                     </div>
                   </>

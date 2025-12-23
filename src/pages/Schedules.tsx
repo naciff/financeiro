@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
-import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters } from '../services/db'
+import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters, saveScheduleCostCenters, getScheduleCostCenters } from '../services/db'
 import { supabase } from '../lib/supabase'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
@@ -44,7 +44,7 @@ export default function Schedules() {
 
   const [operacao, setOperacao] = useState('despesa')
   const [tipo, setTipo] = useState('fixo')
-  const [especie, setEspecie] = useState('dinheiro')
+  const [especie, setEspecie] = useState('pix')
   const [anoMesInicial, setAnoMesInicial] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [clienteBusca, setClienteBusca] = useState('')
@@ -90,7 +90,8 @@ export default function Schedules() {
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const [costCenterId, setCostCenterId] = useState('')
-  const [costCenters, setCostCenters] = useState<{ id: string; descricao: string; principal?: boolean }[]>([])
+  const [costCenters, setCostCenters] = useState<{ id: string; descricao: string; principal?: boolean; compartilhado?: boolean }[]>([])
+  const [selectedSharedCCs, setSelectedSharedCCs] = useState<string[]>([])
 
   // Auto-select Principal Account
   useEffect(() => {
@@ -375,12 +376,13 @@ export default function Schedules() {
 
   function resetForm() {
     const map: any = { despesa: 'despesa', receita: 'receita', retirada: 'retirada', aporte: 'aporte' }
-    setOperacao(map[activeTab] || 'despesa'); setTipo('fixo'); setEspecie('dinheiro'); setAnoMesInicial(''); setClienteId(''); setClienteNome(''); setClienteBusca(''); setHistorico(''); setValor(0); setProxima(''); setDateDisplay(''); setPeriodoFix('mensal'); setParcelas(1); setGrupoId(''); setCompromissoId('');
+    setOperacao(map[activeTab] || 'despesa'); setTipo('fixo'); setEspecie('pix'); setAnoMesInicial(''); setClienteId(''); setClienteNome(''); setClienteBusca(''); setHistorico(''); setValor(0); setProxima(''); setDateDisplay(''); setPeriodoFix('mensal'); setParcelas(1); setGrupoId(''); setCompromissoId('');
     // Auto-select principal account
     const principalAccount = contas.find(c => c.principal === true)
     setCaixaId(principalAccount?.id || '')
     const principalCostCenter = costCenters.find(c => c.principal === true)
     setCostCenterId(principalCostCenter?.id || '')
+    setSelectedSharedCCs([])
     setDetalhes(''); setErrors({}); setRefChoice('vencimento'); setParcial(false)
   }
 
@@ -589,7 +591,13 @@ export default function Schedules() {
         parcial, cost_center_id: costCenterId || null
       }, store.activeOrganization)
       if (r.error) { setMsg(r.error.message); setMsgType('error') }
-      else { setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); await fetchRemoteSchedules(); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus() }
+      else {
+        // Save Shared Cost Centers if any
+        if (selectedSharedCCs.length > 0 && r.data?.id) {
+          await saveScheduleCostCenters(r.data.id, selectedSharedCCs, store.activeOrganization)
+        }
+        setMsg('Registro salvo com sucesso'); setMsgType('success'); resetForm(); setNotaFiscal(''); await fetchRemoteSchedules(); setShowForm('none'); setTimeout(() => setMsg(''), 2500); operacaoRef.current?.focus()
+      }
     } else {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
@@ -623,6 +631,21 @@ export default function Schedules() {
     setCaixaId(cId);
 
     setDetalhes(s.detalhes || ''); setParcial(s.parcial || false); setCostCenterId(s.cost_center_id || '')
+
+    // Load Shared Cost Centers
+    if (hasBackend && s.cost_center_id) {
+      const cc = costCenters.find(c => c.id === s.cost_center_id)
+      if (cc?.compartilhado) {
+        getScheduleCostCenters(s.id).then(r => {
+          if (r.data) setSelectedSharedCCs(r.data.map((x: any) => x.cost_center_id))
+        })
+      } else {
+        setSelectedSharedCCs([])
+      }
+    } else {
+      setSelectedSharedCCs([])
+    }
+
     setShowForm('edit')
   }
 
@@ -794,7 +817,12 @@ export default function Schedules() {
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, parcial, cost_center_id: costCenterId || null }).then(() => fetchRemoteSchedules())
+      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, parcial, cost_center_id: costCenterId || null }).then(() => {
+        if (store.activeOrganization) {
+          saveScheduleCostCenters(selectedId, selectedSharedCCs, store.activeOrganization)
+        }
+        fetchRemoteSchedules()
+      })
     } else {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
@@ -1275,7 +1303,22 @@ export default function Schedules() {
                       label="Centro de Custo"
                       id="costCenterId"
                       value={costCenterId}
-                      onChange={e => setCostCenterId(e.target.value)}
+                      onChange={e => {
+                        const id = e.target.value
+                        setCostCenterId(id)
+                        const cc = costCenters.find(c => c.id === id)
+                        if (cc?.compartilhado) {
+                          setSharedCostCenterModal({
+                            open: true,
+                            value: valor,
+                            onConfirm: async (ids) => {
+                              setSelectedSharedCCs(ids)
+                            }
+                          })
+                        } else {
+                          setSelectedSharedCCs([])
+                        }
+                      }}
                     >
                       <option value="">Selecione</option>
                       {costCenters.map(c => <option key={c.id} value={c.id}>{c.descricao}</option>)}
@@ -1452,6 +1495,42 @@ export default function Schedules() {
                           </tr>
                         </tfoot>
                       </table>
+                    </div>
+                  </div>
+                )}
+
+                {selectedSharedCCs.length > 0 && (
+                  <div className="mt-4 bg-gray-50 dark:bg-gray-800/50 border dark:border-gray-700 rounded-lg p-4">
+                    <div className="font-semibold text-gray-700 dark:text-gray-200 mb-3 border-b dark:border-gray-700 pb-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Icon name="database" className="w-4 h-4 text-blue-500" />
+                        Divisão por Centro de Custo
+                      </div>
+                      <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium" type="button" onClick={() => {
+                        setSharedCostCenterModal({
+                          open: true,
+                          value: valor,
+                          onConfirm: async (ids) => {
+                            setSelectedSharedCCs(ids)
+                          }
+                        })
+                      }}>Editar Divisão</button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {selectedSharedCCs.map(ccId => {
+                        const cc = costCenters.find(c => c.id === ccId)
+                        const share = valor / selectedSharedCCs.length
+                        return (
+                          <div key={ccId} className="flex items-center justify-between p-2 rounded bg-white dark:bg-gray-800 border dark:border-gray-700 text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">{cc?.descricao || 'Desconhecido'}</span>
+                            <span className="font-bold text-gray-900 dark:text-gray-100">R$ {formatMoneyBr(share)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="mt-3 pt-2 border-t dark:border-gray-700 flex justify-between text-xs font-medium text-gray-500">
+                      <span>Total da Divisão:</span>
+                      <span>R$ {formatMoneyBr(valor)}</span>
                     </div>
                   </div>
                 )}

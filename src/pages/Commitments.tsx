@@ -218,7 +218,6 @@ export default function Commitments() {
 
           const isExpanded = expanded[g.id]
           const tipo = (g as any).operacao || (g as any).tipo
-          const icon = tipo === 'despesa' ? 'out' : tipo === 'receita' ? 'in' : tipo === 'aporte' ? 'deposit' : 'withdraw'
           const cor = tipo === 'despesa' ? 'text-red-600 dark:text-red-400' : tipo === 'receita' ? 'text-green-600 dark:text-green-400' : tipo === 'aporte' ? 'text-blue-600 dark:text-blue-400' : 'text-yellow-600 dark:text-yellow-400'
 
           return (
@@ -228,7 +227,9 @@ export default function Commitments() {
                 onClick={() => setExpanded(s => ({ ...s, [g.id]: !s[g.id] }))}
               >
                 <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                <Icon name={icon} className={`w-5 h-5 ${cor}`} />
+                <span className={`material-icons-outlined text-lg ${cor}`}>
+                  {tipo === 'receita' ? 'arrow_upward' : tipo === 'despesa' ? 'arrow_downward' : tipo === 'aporte' ? 'add_circle' : 'remove_circle'}
+                </span>
                 <div className="font-medium text-gray-900 dark:text-gray-100">{g.nome}</div>
                 <div className="ml-auto text-sm text-gray-600 dark:text-gray-400">{groupItems.length} itens</div>
                 <button className="px-2 py-1 rounded border dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600" onClick={e => { e.stopPropagation(); setExpanded(s => ({ ...s, [g.id]: !s[g.id] })) }} aria-label="Expandir/Colapsar">

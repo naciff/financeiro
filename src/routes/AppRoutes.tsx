@@ -21,6 +21,7 @@ import AdminUsers from '../pages/AdminUsers'
 import { CostCenters } from '../pages/CostCenters'
 import DbManager from '../pages/DbManager'
 import { Help } from '../pages/Help'
+import SaldoDetalhado from '../pages/SaldoDetalhado'
 
 export function AppRoutes() {
   return (
@@ -40,6 +41,7 @@ export function AppRoutes() {
         <Route path="/ledger" element={<Ledger />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/transfers" element={<Transfers />} />
+        <Route path="/saldo-detalhado" element={<SaldoDetalhado />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/profile" element={<Profile />} />

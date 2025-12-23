@@ -157,14 +157,13 @@ export default function Permissions() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                    <Icon name="lock_person" className="w-8 h-8 text-primary" />
-                    <h1 className="text-2xl font-bold dark:text-gray-100">Usuário e Permissões</h1>
-                </div>
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <h2 className="text-lg font-medium flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                    <Icon name="users" className="w-5 h-5 text-blue-500" />
+                    Usuário e Permissões
+                </h2>
 
-                {/* Organization Selector */}
                 <div className="flex items-center gap-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Gerenciar:</label>
                     <select
@@ -182,119 +181,109 @@ export default function Permissions() {
                 </div>
             </div>
 
-            {/* Invite Section */}
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-6 shadow-sm">
-                <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
-                    <Icon name="user" className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                    Convidar Membro
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                    Convide usuários para a organização <strong>{availableOrgs.find(o => o.id === selectedOrgId)?.name || 'selecionada'}</strong>.
-                </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Adicione membros à sua organização e configure permissões de acesso para cada tela.
+            </p>
 
-                <form onSubmit={handleInvite} className="flex gap-3 items-end bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
-                    <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">E-mail do Usuário</label>
-                        <input
-                            type="email"
-                            required
-                            placeholder="exemplo@email.com"
-                            className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                            value={inviteEmail}
-                            onChange={e => setInviteEmail(e.target.value)}
-                            disabled={inviteLoading || !selectedOrgId}
-                        />
-                    </div>
-                    <button
-                        type="submit"
+            {/* Invite Form */}
+            <div className="flex gap-2 items-end mb-8 max-w-xl">
+                <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Convidar por E-mail</label>
+                    <input
+                        type="email"
+                        required
+                        placeholder="usuario@email.com"
+                        className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        value={inviteEmail}
+                        onChange={e => setInviteEmail(e.target.value)}
                         disabled={inviteLoading || !selectedOrgId}
-                        className={`px-4 py-2 rounded text-sm font-medium transition ${inviteLoading || !selectedOrgId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                    >
-                        {inviteLoading ? 'Convidando...' : 'Convidar'}
-                    </button>
-                </form>
-
-                {msg && (
-                    <div className={`mt-4 p-4 rounded text-sm ${msg.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
-                        {msg.text}
-                    </div>
-                )}
+                    />
+                </div>
+                <button
+                    onClick={handleInvite}
+                    disabled={inviteLoading || !selectedOrgId}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {inviteLoading ? 'Convidando...' : 'Convidar'}
+                </button>
             </div>
 
-            <div className="grid gap-6">
-                {loading && <div className="text-center py-4">Carregando membros...</div>}
+            {msg && (
+                <div className={`mb-6 p-4 rounded text-sm ${msg.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'}`}>
+                    {msg.text}
+                </div>
+            )}
+
+            <div className="space-y-8 mt-4">
+                {loading && <div className="text-center py-8 text-gray-500">Carregando membros...</div>}
 
                 {!loading && selectedOrgId && members.length === 0 && (
-                    <div className="text-center py-10 text-gray-500 bg-surface-light dark:bg-surface-dark rounded-lg shadow">
+                    <div className="text-center py-10 text-gray-500 border rounded-lg border-dashed">
                         Nenhum membro encontrado nesta organização.
                     </div>
                 )}
 
                 {!selectedOrgId && (
-                    <div className="text-center py-10 text-gray-500 bg-surface-light dark:bg-surface-dark rounded-lg shadow">
+                    <div className="text-center py-10 text-gray-500 border rounded-lg border-dashed">
                         Selecione uma organização acima para gerenciar permissões.
                     </div>
                 )}
 
-                {members.map(member => (
-                    <div key={member.id} className="bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 overflow-hidden">
-                        <div className="p-4 bg-gray-50 dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between">
+                {members.map((member, idx) => (
+                    <div key={member.id} className={idx > 0 ? "pt-8 border-t dark:border-gray-700" : ""}>
+                        <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 font-bold">
-                                    {member.profile?.name?.charAt(0) || '?'}
+                                    {member.profile?.name?.charAt(0).toUpperCase() || '?'}
                                 </div>
                                 <div>
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">{member.profile?.name || 'Desconhecido'}</div>
+                                    <div className="font-semibold text-gray-900 dark:text-gray-100">{member.profile?.name || 'Desconhecido'}</div>
                                     <div className="text-sm text-gray-500 dark:text-gray-400">{member.profile?.email}</div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
                                 {member.role !== 'owner' && (
                                     <button
                                         onClick={() => handleRemove(member.user_id)}
-                                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 text-xs font-medium flex items-center gap-1"
+                                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                                         title="Remover Usuário"
                                     >
-                                        <Icon name="trash" className="w-4 h-4" />
-                                        Remover
+                                        <span className="material-icons-outlined text-xl">delete</span>
                                     </button>
                                 )}
                             </div>
                         </div>
 
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                                {screens.map(screen => {
-                                    const hasAccess = member.permissions?.[screen.id] !== false // Default to true if undefined
-                                    return (
-                                        <label key={screen.id} className="flex items-center gap-3 p-3 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                checked={hasAccess}
-                                                onChange={() => handleToggle(member.id, screen.id, member.permissions || {})}
-                                                disabled={isMaster ? false : (member.role === 'owner')}
-                                                className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{screen.label}</span>
-                                        </label>
-                                    )
-                                })}
-                            </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                            {screens.map(screen => {
+                                const hasAccess = member.permissions?.[screen.id] !== false
+                                return (
+                                    <label key={screen.id} className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors border border-transparent">
+                                        <input
+                                            type="checkbox"
+                                            checked={hasAccess}
+                                            onChange={() => handleToggle(member.id, screen.id, member.permissions || {})}
+                                            disabled={isMaster ? false : (member.role === 'owner')}
+                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">{screen.label}</span>
+                                    </label>
+                                )
+                            })}
+                        </div>
 
-                            {/* Save Button for this member */}
-                            <div className="flex justify-end pt-4 border-t dark:border-gray-700">
-                                <button
-                                    onClick={() => handleSave(member)}
-                                    disabled={saving || (member.role === 'owner' && !isMaster)} // Disable for owners unless master
-                                    className={`px-4 py-2 rounded text-sm font-medium flex items-center gap-2 ${member._hasChanges
-                                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                        }`}
-                                >
-                                    <Icon name="check" className="w-4 h-4" />
-                                    {saving ? 'Salvando...' : 'Salvar Alterações'}
-                                </button>
-                            </div>
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => handleSave(member)}
+                                disabled={saving || (member.role === 'owner' && !isMaster)}
+                                className={`px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${member._hasChanges
+                                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 opacity-60'
+                                    }`}
+                            >
+                                <span className="material-icons-outlined text-sm">save</span>
+                                {saving ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
                         </div>
                     </div>
                 ))}

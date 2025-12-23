@@ -11,8 +11,8 @@ import { LayoutProvider } from './context/LayoutContext'
 export default function App() {
   const { session, loading } = useAuth()
 
-  // Enable auto-logout with 5 minutes timeout
-  useAutoLogout(5 * 60 * 1000)
+  // Enable auto-logout with 4 hours timeout
+  useAutoLogout(4 * 60 * 60 * 1000)
   useDailyAutomation()
 
   if (loading) return <div className="h-full flex items-center justify-center">Carregando...</div>

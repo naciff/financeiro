@@ -170,7 +170,6 @@ export default function CommitmentGroups() {
 
         {/* Inner header removed, loop types */}
         {(['despesa', 'receita', 'aporte', 'retirada'] as const).map(tipoKey => {
-          const grupoIcon = tipoKey === 'despesa' ? 'out' : tipoKey === 'receita' ? 'in' : tipoKey === 'aporte' ? 'deposit' : 'withdraw'
           const cor = tipoKey === 'despesa' ? 'text-red-600 dark:text-red-400' : tipoKey === 'receita' ? 'text-green-600 dark:text-green-400' : tipoKey === 'aporte' ? 'text-blue-600 dark:text-blue-400' : 'text-yellow-600 dark:text-yellow-400'
           const groupItems = items.filter(g => (g.operacao || 'despesa') === tipoKey).filter(g => g.nome.toLowerCase().includes(search.toLowerCase()))
 
@@ -183,7 +182,9 @@ export default function CommitmentGroups() {
             <div key={tipoKey} className="mb-4 border dark:border-gray-700 rounded bg-white dark:bg-gray-800">
               <div className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => setExpanded(s => ({ ...s, [tipoKey]: !s[tipoKey] }))}>
                 <Icon name={expanded[tipoKey] ? 'chevron-down' : 'chevron-right'} className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                <Icon name={grupoIcon} className={`w-5 h-5 ${cor}`} />
+                <span className={`material-icons-outlined text-lg ${cor}`}>
+                  {tipoKey === 'receita' ? 'arrow_upward' : tipoKey === 'despesa' ? 'arrow_downward' : tipoKey === 'aporte' ? 'add_circle' : 'remove_circle'}
+                </span>
                 <div className="font-medium capitalize text-gray-900 dark:text-gray-100">{tipoKey}</div>
                 <div className="ml-auto text-sm text-gray-600 dark:text-gray-400">{groupItems.length} itens</div>
                 <button className="px-2 py-1 rounded border dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600" onClick={e => { e.stopPropagation(); setExpanded(s => ({ ...s, [tipoKey]: !s[tipoKey] })) }} aria-label="Expandir/Colapsar">

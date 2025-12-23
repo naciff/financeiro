@@ -2,8 +2,8 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
-// Default timeout: 5 minutes (300000 ms)
-const DEFAULT_TIMEOUT = 5 * 60 * 1000
+// Default timeout: 4 hours (14400000 ms)
+const DEFAULT_TIMEOUT = 4 * 60 * 60 * 1000
 
 export function useAutoLogout(timeoutMs = DEFAULT_TIMEOUT) {
     const { signOut, session } = useAuth()
@@ -11,6 +11,7 @@ export function useAutoLogout(timeoutMs = DEFAULT_TIMEOUT) {
 
     const handleLogout = useCallback(() => {
         if (session) {
+            console.log('Sessão expirada por inatividade.')
             signOut()
         }
     }, [session, signOut])
@@ -33,7 +34,9 @@ export function useAutoLogout(timeoutMs = DEFAULT_TIMEOUT) {
             'keypress',
             'scroll',
             'touchstart',
-            'click'
+            'click',
+            'keyup',
+            'wheel'
         ]
 
         // Set initial timer

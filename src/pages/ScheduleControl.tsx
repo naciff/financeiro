@@ -104,7 +104,10 @@ export default function ScheduleControl() {
       const res = await confirmProvision(item.id, {
         valor: item.despesa || item.receita,
         data: todayIso,
-        cuentaId: item.caixaId || (caixas.find(c => c.principal)?.id)
+        cuentaId: item.caixaId || (caixas.find(c => c.principal)?.id),
+        compromisso_id: item.compromisso_id,
+        grupo_compromisso_id: item.grupo_compromisso_id,
+        cost_center_id: item.cost_center_id
       })
 
       if (res.error) throw res.error
@@ -445,7 +448,10 @@ export default function ScheduleControl() {
         const res = await confirmProvision(item.id, {
           valor: item.despesa || item.receita,
           data: data.date,
-          cuentaId: data.accountId
+          cuentaId: data.accountId,
+          compromisso_id: item.compromisso_id,
+          grupo_compromisso_id: item.grupo_compromisso_id,
+          cost_center_id: item.cost_center_id
         })
 
         if (res.error) {

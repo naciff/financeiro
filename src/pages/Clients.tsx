@@ -184,7 +184,7 @@ export default function Clients() {
         <form onSubmit={onSave} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
           <div className="font-medium text-gray-900 dark:text-gray-100">{editId ? 'Editar cliente' : 'Novo cliente'}</div>
           <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => setNome(e.target.value)} />
+          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => setNome(e.target.value.toUpperCase())} />
           <label className="text-sm text-gray-700 dark:text-gray-300">CPF/CNPJ (opcional)</label>
           <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={cpfCnpj} onChange={e => setCpfCnpj(e.target.value)} />
           <label className="text-sm text-gray-700 dark:text-gray-300">Telefone (opcional)</label>

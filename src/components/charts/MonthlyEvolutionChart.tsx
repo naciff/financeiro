@@ -2,11 +2,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { MonthlyData } from '../../hooks/useChartData'
 import { formatCurrency } from '../../utils/formatCurrency'
 
+import { useAppStore } from '../../store/AppStore'
+
 interface MonthlyEvolutionChartProps {
     data: MonthlyData[]
 }
 
 export function MonthlyEvolutionChart({ data }: MonthlyEvolutionChartProps) {
+    const { showValues } = useAppStore()
     // Custom tooltip component
     const CustomTooltip = ({ active, payload }: any) => {
         if (active && payload && payload.length) {
@@ -15,13 +18,13 @@ export function MonthlyEvolutionChart({ data }: MonthlyEvolutionChartProps) {
                     <p className="font-semibold text-gray-800 dark:text-gray-100 mb-2">{payload[0].payload.mes}</p>
                     <div className="space-y-1">
                         <p className="text-sm text-green-600 dark:text-green-400">
-                            Receitas: <span className="font-bold">R$ {formatCurrency(payload[0].value)}</span>
+                            Receitas: <span className="font-bold">{showValues ? `R$ ${formatCurrency(payload[0].value)}` : '*****'}</span>
                         </p>
                         <p className="text-sm text-red-600 dark:text-red-400">
-                            Despesas: <span className="font-bold">R$ {formatCurrency(payload[1].value)}</span>
+                            Despesas: <span className="font-bold">{showValues ? `R$ ${formatCurrency(payload[1].value)}` : '*****'}</span>
                         </p>
                         <p className="text-sm text-blue-600 dark:text-blue-400">
-                            Lucro: <span className="font-bold">R$ {formatCurrency(payload[2].value)}</span>
+                            Lucro: <span className="font-bold">{showValues ? `R$ ${formatCurrency(payload[2].value)}` : '*****'}</span>
                         </p>
                     </div>
                 </div>
@@ -47,9 +50,10 @@ export function MonthlyEvolutionChart({ data }: MonthlyEvolutionChartProps) {
                     <YAxis
                         stroke="#6B7280"
                         style={{ fontSize: '12px' }}
-                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={(value) => showValues ? `R$ ${(value / 1000).toFixed(0)}k` : '***'}
                         axisLine={false}
                         tickLine={false}
+                        width={showValues ? 60 : 30}
                     />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend

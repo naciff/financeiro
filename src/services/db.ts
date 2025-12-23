@@ -162,7 +162,7 @@ export async function deactivateSchedule(id: string) {
 export async function listTransactions(limit = 1000, orgId: string) {
   if (!supabase) return { data: [], error: null }
   return supabase.from('transactions')
-    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome)')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome), cost_center:cost_center_id(id, descricao)')
     .eq('organization_id', orgId)
     .order('data_lancamento', { ascending: false })
     .limit(limit)
@@ -171,7 +171,7 @@ export async function listTransactions(limit = 1000, orgId: string) {
 export async function searchTransactions(startDate: string, endDate: string, field: 'data_vencimento' | 'data_lancamento', orgId: string) {
   if (!supabase) return { data: [], error: null }
   return supabase.from('transactions')
-    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome)')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome), cost_center:cost_center_id(id, descricao)')
     .eq('organization_id', orgId)
     .gte(field, startDate)
     .lte(field, endDate)
@@ -187,6 +187,7 @@ export async function listFinancials(options: { status?: number, orgId: string }
     *,
     caixa: caixa_id(id, nome, cor),
     cliente: favorecido_id(id, nome),
+    cost_center: cost_center_id(id, descricao),
     agendamento: id_agendamento(
       id,
       tipo,
@@ -232,14 +233,21 @@ export async function updateFinancial(id: string, payload: any, orgId?: string) 
   return supabase.from('financials').update(payload).eq('id', id).select('id').maybeSingle()
 }
 
-export async function confirmProvision(itemId: string, info: { valor: number, data: string, cuentaId: string }, orgId?: string) {
+export async function confirmProvision(itemId: string, info: {
+  valor: number,
+  data: string,
+  cuentaId: string,
+  compromisso_id?: string,
+  grupo_compromisso_id?: string,
+  cost_center_id?: string
+}, orgId?: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
 
   // 1. Get the financial item to copy data from
   const { data: item, error: fetchError } = await supabase
     .from('financials')
-    .select('*')
+    .select('*, agendamento:id_agendamento(compromisso_id, grupo_compromisso_id, cost_center_id)')
     .eq('id', itemId)
     .single()
 
@@ -258,10 +266,10 @@ export async function confirmProvision(itemId: string, info: { valor: number, da
       especie: item.especie,
       historico: item.historico || 'Lançamento Confirmado',
       conta_id: info.cuentaId,
-      compromisso_id: item.compromisso_id,
-      grupo_compromisso_id: item.grupo_compromisso_id, // Copy group
+      compromisso_id: info.compromisso_id || item.compromisso_id || item.agendamento?.compromisso_id,
+      grupo_compromisso_id: info.grupo_compromisso_id || item.grupo_compromisso_id || item.agendamento?.grupo_compromisso_id, // Copy group
       cliente_id: item.cliente_id || item.favorecido_id, // Handle aliasing if needed, schema usually uses cliente_id in transactions
-      cost_center_id: item.cost_center_id, // Copy cost center
+      cost_center_id: info.cost_center_id || item.cost_center_id || item.agendamento?.cost_center_id, // Copy cost center
       financial_id: itemId, // Link back
       data_vencimento: item.vencimento || item.data_vencimento, // Preserve original due date
       data_lancamento: info.data, // The actual payment date
@@ -439,6 +447,34 @@ export async function deleteCostCenter(id: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('cost_centers').delete().eq('id', id).eq('user_id', userId as any)
+}
+
+export async function saveScheduleCostCenters(scheduleId: string, costCenterIds: string[], organizationId: string) {
+  if (!supabase) return { error: { message: 'No connection' } }
+
+  // 1. Delete existing links
+  await supabase.from('schedule_cost_centers').delete().eq('schedule_id', scheduleId)
+
+  if (costCenterIds.length === 0) return { error: null }
+
+  // 2. Insert new links
+  const inserts = costCenterIds.map(ccId => ({
+    schedule_id: scheduleId,
+    cost_center_id: ccId,
+    organization_id: organizationId
+  }))
+
+  return supabase.from('schedule_cost_centers').insert(inserts)
+}
+
+export async function getScheduleCostCenters(scheduleId: string) {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('schedule_cost_centers').select('cost_center_id').eq('schedule_id', scheduleId)
+}
+
+export async function listScheduleCostCenters(orgId: string) {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('schedule_cost_centers').select('schedule_id, cost_center_id').eq('organization_id', orgId)
 }
 
 export async function createCommitment(payload: { grupo_id: string; nome: string; ir?: boolean; organization_id: string }) {

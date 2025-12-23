@@ -65,7 +65,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-green-600 mr-4">
-            <span className="material-icons-outlined text-4xl">arrow_downward</span>
+            <span className="material-icons-outlined text-4xl">arrow_upward</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total entrada (Fixa/Mês)</p>
@@ -74,7 +74,7 @@ export default function Dashboard() {
         </div>
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-red-600 mr-4">
-            <span className="material-icons-outlined text-4xl">arrow_upward</span>
+            <span className="material-icons-outlined text-4xl">arrow_downward</span>
           </div>
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total despesas (Fixa/Mês)</p>

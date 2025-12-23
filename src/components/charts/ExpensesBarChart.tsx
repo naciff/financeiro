@@ -2,11 +2,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { ExpenseByGroup } from '../../hooks/useChartData'
 import { formatCurrency } from '../../utils/formatCurrency'
 
+import { useAppStore } from '../../store/AppStore'
+
 interface ExpensesBarChartProps {
     data: ExpenseByGroup[]
 }
 
 export function ExpensesBarChart({ data }: ExpensesBarChartProps) {
+    const { showValues } = useAppStore()
     // Custom tooltip
     const CustomTooltip = ({ active, payload }: any) => {
         if (active && payload && payload.length) {
@@ -15,10 +18,10 @@ export function ExpensesBarChart({ data }: ExpensesBarChartProps) {
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3">
                     <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">{data.grupo}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                        Valor: <span className="font-bold">R$ {formatCurrency(data.valor)}</span>
+                        Valor: <span className="font-bold">{showValues ? `R$ ${formatCurrency(data.valor)}` : '*****'}</span>
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                        Percentual: <span className="font-bold">{data.percentual}%</span>
+                        Percentual: <span className="font-bold">{showValues ? `${data.percentual}%` : '*****'}</span>
                     </p>
                 </div>
             )

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction, createTransaction, listAttachments, addAttachment, deleteAttachment, updateFinancial, listCostCenters } from '../../services/db'
+import { listAccounts, listClients, listCommitmentGroups, listCommitmentsByGroup, updateTransaction, createTransaction, listAttachments, addAttachment, deleteAttachment, updateFinancial, listCostCenters, searchClients, getClientDefault } from '../../services/db'
 import { hasBackend } from '../../lib/runtime'
 import { useAppStore } from '../../store/AppStore'
 import { supabase } from '../../lib/supabase'
@@ -63,7 +63,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     // Form
     const [formContaId, setFormContaId] = useState('')
     const [formOperacao, setFormOperacao] = useState<'despesa' | 'receita' | 'aporte' | 'retirada'>('despesa')
-    const [formEspecie, setFormEspecie] = useState('dinheiro')
+    const [formEspecie, setFormEspecie] = useState('pix')
     const [formHistorico, setFormHistorico] = useState('')
     const [formValor, setFormValor] = useState(0)
     const [formDataVencimento, setFormDataVencimento] = useState('')
@@ -76,6 +76,9 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     const [formDetalhes, setFormDetalhes] = useState('')
     const [formCostCenter, setFormCostCenter] = useState('')
     const [formParcial, setFormParcial] = useState(false)
+    const [clienteBusca, setClienteBusca] = useState('')
+    const [clientIndex, setClientIndex] = useState(-1)
+    const [filteredClients, setFilteredClients] = useState<any[]>([])
 
     useEffect(() => {
         async function loadData() {
@@ -137,6 +140,8 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             setFormDataLancamento(initialData.data_lancamento ? initialData.data_lancamento.split('T')[0] : today)
             setFormStatus(initialData.status || 'pendente')
             setFormCliente(initialData.cliente_id || initialData.cliente?.id || (typeof initialData.cliente === 'string' ? initialData.cliente : '') || '')
+            const initialCliName = initialData.cliente?.nome || (typeof initialData.cliente === 'string' ? initialData.cliente : '')
+            setClienteBusca(initialCliName)
             // Check 'grupo' alias from db.ts as well as 'grupo_compromisso' if different
             setFormGrupoCompromisso(initialData.grupo_compromisso_id || initialData.grupo?.id || initialData.grupo_id || (typeof initialData.grupo_compromisso === 'string' ? initialData.grupo_compromisso : initialData.grupo_compromisso?.id) || '')
             setFormCompromisso(initialData.compromisso_id || initialData.compromisso?.id || (typeof initialData.compromisso === 'string' ? initialData.compromisso : '') || '')
@@ -166,13 +171,37 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
 
     // Auto-select principal account for new transactions
     useEffect(() => {
-        if (!initialData && accounts.length > 0 && !formContaId) {
-            const principal = accounts.find(a => a.principal)
-            if (principal) {
-                setFormContaId(principal.id)
+        if (!initialData && accounts.length > 0) {
+            // Only auto-select if empty or if current account is invalid for selected kind
+            // (Similar to Schedules logic)
+            const isValid = accounts.some(a => {
+                if (a.id !== formContaId) return false
+                if (a.ativo === false) return false
+                if (formEspecie === 'cartao') return a.tipo === 'cartao'
+                if (formEspecie === 'dinheiro') return a.tipo === 'carteira'
+                if (['boleto', 'pix', 'transferencia', 'debito_automatico'].includes(formEspecie)) return a.tipo === 'banco'
+                return true
+            })
+
+            if (!isValid) {
+                const filteredAccounts = accounts.filter(a => {
+                    if (a.ativo === false) return false
+                    if (formEspecie === 'cartao') return a.tipo === 'cartao'
+                    if (formEspecie === 'dinheiro') return a.tipo === 'carteira'
+                    if (['boleto', 'pix', 'transferencia', 'debito_automatico'].includes(formEspecie)) return a.tipo === 'banco'
+                    return true
+                })
+                const principal = filteredAccounts.find(a => a.principal)
+                if (principal) {
+                    setFormContaId(principal.id)
+                } else if (filteredAccounts.length > 0 && !formContaId) {
+                    // or just set empty? user said "follow schedules", schedules just waits for principal
+                    // but if it's empty, maybe we pick first? 
+                    // Let's stick to principal for now to be safe.
+                }
             }
         }
-    }, [accounts, initialData])
+    }, [accounts, initialData, formEspecie])
 
     // Auto-select principal cost center for new transactions
     useEffect(() => {
@@ -387,22 +416,60 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                 </div>
 
                                 {/* Cliente */}
-                                <div className="md:col-span-2">
+                                <div className="md:col-span-2 relative">
                                     <div className="flex gap-2 items-start">
                                         <div className="flex-1">
-                                            <FloatingLabelSelect
+                                            <FloatingLabelInput
                                                 label="Cliente *"
                                                 id="cliente"
-                                                value={formCliente}
-                                                onChange={e => setFormCliente(e.target.value)}
-                                            >
-                                                <option value="">Selecione...</option>
-                                                {clients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                            </FloatingLabelSelect>
+                                                placeholder="Digite pelo menos 3 letras para buscar"
+                                                value={clienteBusca}
+                                                onKeyDown={async (e) => {
+                                                    if (e.key === 'ArrowDown') {
+                                                        e.preventDefault()
+                                                        setClientIndex(prev => (prev < filteredClients.length - 1 ? prev + 1 : prev))
+                                                    } else if (e.key === 'ArrowUp') {
+                                                        e.preventDefault()
+                                                        setClientIndex(prev => (prev > 0 ? prev - 1 : prev))
+                                                    } else if (e.key === 'Enter') {
+                                                        e.preventDefault()
+                                                        if (clientIndex >= 0 && clientIndex < filteredClients.length) {
+                                                            const c = filteredClients[clientIndex]
+                                                            setFormCliente(c.id); setClienteBusca(c.nome); setFilteredClients([]);
+                                                            setClientIndex(-1)
+                                                            if (hasBackend && store.activeOrganization) {
+                                                                const { data: def } = await getClientDefault(c.id, store.activeOrganization)
+                                                                if (def) {
+                                                                    if (def.grupo_compromisso_id) setFormGrupoCompromisso(def.grupo_compromisso_id)
+                                                                    if (def.compromisso_id) setFormCompromisso(def.compromisso_id)
+                                                                    if (def.historico) setFormHistorico(def.historico)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                }
+                                                onChange={async e => {
+                                                    const v = e.target.value
+                                                    setClienteBusca(v)
+                                                    setFormCliente('')
+                                                    setClientIndex(-1)
+                                                    if (v.length >= 3) {
+                                                        if (hasBackend && store.activeOrganization) {
+                                                            const r = await searchClients(v, store.activeOrganization)
+                                                            if (!r.error && r.data) setFilteredClients(r.data as any)
+                                                        } else {
+                                                            setFilteredClients(clients.filter(c => c.nome.toLowerCase().includes(v.toLowerCase())).map(c => ({ id: c.id, nome: c.nome })))
+                                                        }
+                                                    } else {
+                                                        setFilteredClients([])
+                                                    }
+                                                }}
+                                            />
                                         </div>
                                         <button
                                             type="button"
-                                            className="bg-black text-white dark:bg-gray-600 rounded px-3 h-[48px] hover:bg-gray-800 transition-colors flex items-center justify-center custom-height-btn"
+                                            className="bg-black text-white dark:bg-gray-600 rounded px-3 h-[48px] hover:bg-gray-800 transition-colors flex items-center justify-center custom-height-btn shrink-0"
                                             title="Novo Cliente"
                                             onClick={() => setShowClientModal(true)}
                                             style={{ marginTop: '0px' }}
@@ -410,6 +477,30 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             <Icon name="add" className="w-4 h-4" />
                                         </button>
                                     </div>
+                                    {clienteBusca.length >= 3 && filteredClients.length > 0 && (
+                                        <ul className="absolute z-20 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded mt-1 w-full max-h-48 overflow-auto shadow-lg text-gray-900 dark:text-gray-100">
+                                            {filteredClients.map((c, i) => (
+                                                <li
+                                                    key={c.id}
+                                                    className={`px-3 py-2 cursor-pointer ${i === clientIndex ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                                    onClick={async () => {
+                                                        setFormCliente(c.id); setClienteBusca(c.nome); setFilteredClients([]);
+                                                        setClientIndex(-1)
+                                                        if (hasBackend && store.activeOrganization) {
+                                                            const { data: def } = await getClientDefault(c.id, store.activeOrganization)
+                                                            if (def) {
+                                                                if (def.grupo_compromisso_id) setFormGrupoCompromisso(def.grupo_compromisso_id)
+                                                                if (def.compromisso_id) setFormCompromisso(def.compromisso_id)
+                                                                if (def.historico) setFormHistorico(def.historico)
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    {c.nome}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
 
                                 {showClientModal && (
@@ -419,6 +510,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                         onSuccess={(newClient) => {
                                             setClients(prev => [...prev, newClient])
                                             setFormCliente(newClient.id!)
+                                            setClienteBusca(newClient.nome)
                                             setShowClientModal(false)
                                         }}
                                     />

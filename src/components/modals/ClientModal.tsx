@@ -77,7 +77,7 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
 
             const j = await res.json()
 
-            setRazaoSocial(j.razao_social || j.nome_fantasia || '')
+            setRazaoSocial((j.razao_social || j.nome_fantasia || '').toUpperCase())
 
             const addressParts = [
                 j.logradouro,
@@ -91,7 +91,7 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
             setAtividadePrincipal(j.cnae_fiscal_descricao || '')
 
             // Always update if we got data
-            setNovoClienteNome(j.nome_fantasia || j.razao_social || '')
+            setNovoClienteNome((j.nome_fantasia || j.razao_social || '').toUpperCase())
             if (j.email) setNovoClienteEmail(j.email)
             if (j.ddd_telefone_1) setNovoClienteTelefone(j.ddd_telefone_1)
 
@@ -193,7 +193,7 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                                 label="Nome *"
                                 id="nome"
                                 value={novoClienteNome}
-                                onChange={e => setNovoClienteNome(e.target.value)}
+                                onChange={e => setNovoClienteNome(e.target.value.toUpperCase())}
                             />
                         </div>
                     )}
@@ -204,7 +204,7 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                                 label="Razão Social *"
                                 id="razaoSocial"
                                 value={razaoSocial}
-                                onChange={e => setRazaoSocial(e.target.value)}
+                                onChange={e => setRazaoSocial(e.target.value.toUpperCase())}
                             />
                         </div>
                     )}

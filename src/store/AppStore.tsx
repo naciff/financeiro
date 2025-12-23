@@ -84,6 +84,8 @@ type AppStoreState = {
   activeOrganization: string | null
   setActiveOrganization: (orgId: string | null) => void
   refreshOrganizations: () => Promise<void>
+  showValues: boolean
+  setShowValues: (v: boolean) => void
 }
 
 const AppStoreCtx = createContext<AppStoreState | null>(null)
@@ -101,6 +103,15 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [cashboxes, setCashboxes] = useState<Cashbox[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [activeOrganization, setActiveOrganizationState] = useState<string | null>(localStorage.getItem('activeOrg'))
+  const [showValues, setShowValuesState] = useState<boolean>(() => {
+    const stored = localStorage.getItem('showValues')
+    return stored === null ? true : stored === 'true'
+  })
+
+  const setShowValues = (v: boolean) => {
+    setShowValuesState(v)
+    localStorage.setItem('showValues', String(v))
+  }
 
   // Import supabase lazily or inside effect if strictly needed, but better top level. 
   // Wait, db.ts imports it. We can use it from lib.
@@ -272,8 +283,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     activeOrganization,
     setActiveOrganization,
     organizations,
-    refreshOrganizations
-  }), [accounts, transactions, schedules, clients, commitmentGroups, commitments, cashboxes, organizations, activeOrganization])
+    refreshOrganizations,
+    showValues,
+    setShowValues
+  }), [accounts, transactions, schedules, clients, commitmentGroups, commitments, cashboxes, organizations, activeOrganization, showValues])
 
   return <AppStoreCtx.Provider value={api}>{children}</AppStoreCtx.Provider>
 }

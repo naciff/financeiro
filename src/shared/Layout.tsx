@@ -150,6 +150,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { id: 'ledger', to: '/ledger', label: 'Livro Caixa', icon: 'book' },
     { id: 'schedules', to: '/schedules', label: 'Agendamentos', icon: 'schedule' },
     { id: 'transfers', to: '/transfers', label: 'Transferências', icon: 'swap_horiz' },
+    { id: 'saldo_detalhado', to: '/saldo-detalhado', label: 'Saldo Detalhado', icon: 'payments' },
     { id: 'reports', to: '/reports', label: 'Relatórios', icon: 'description' },
     { id: 'notes', to: '/notes', label: 'Notas', icon: 'notes' },
     {
