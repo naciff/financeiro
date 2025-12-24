@@ -91,8 +91,9 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         const currentMonthSchedules = schedules.filter((s: any) => {
                             const dateStr = s.proxima_vencimento || s.ano_mes_inicial
                             if (!dateStr) return false
-                            const d = new Date(dateStr)
-                            return d.getMonth() === month && d.getFullYear() === year
+                            // Fix: Parse manually to avoid timezone issues (e.g. 2026-01-01 becomes Dec 31 2025 in GMT-3)
+                            const [y, m] = dateStr.split('T')[0].split('-').map(Number)
+                            return (m - 1) === month && y === year
                         })
 
                         // Calculate total despesas
