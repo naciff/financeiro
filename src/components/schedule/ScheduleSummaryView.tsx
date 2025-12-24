@@ -79,15 +79,39 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
             }
         })
 
-        // Convert to array and sort DESCENDING to match user image (Newest First)
-        const sorted = Object.values(groups).sort((a: any, b: any) => {
+        // 1. Convert to array and sort ASCENDING by date for cumulative calculation
+        const chronologicallySorted = Object.values(groups).sort((a: any, b: any) => {
+            return (a.year * 12 + a.month) - (b.year * 12 + b.month)
+        })
+
+        // 2. Calculate Cumulative Predicted Balance
+        // Start from Current Balance
+        let runningBalance = totalBalance
+
+        // We need to determine if we should start adding/subtracting from the FIRST visible month or if we have past data hidden?
+        // The 'summary' data usually contains strictly what is filtered. 
+        // If we want "Future Prediction", we assume 'totalBalance' is the state at "Now" (or rather, the sum of all active accounts right now).
+        // Any 'Pending' (Previsão) item in the list represents a future change to that balance (or past pending that hasn't happened yet).
+        // So simply adding (Receita - Despesa) of Pending items to the totalBalance should work, provided we iterate correctly.
+
+        const withBalance = chronologicallySorted.map((row: any) => {
+            // Pending Net Change
+            const pendingNet = (row.prev_receitas + row.prev_aportes) - (row.prev_despesas + row.prev_retiradas)
+
+            // Update running balance
+            runningBalance += pendingNet
+
+            return { ...row, saldoPrevisto: runningBalance }
+        })
+
+        // 3. Sort DESCENDING for Display (Newest First)
+        const sorted = withBalance.sort((a: any, b: any) => {
             return (b.year * 12 + b.month) - (a.year * 12 + a.month)
         })
 
         // Calculate Statistics & Balances
         return sorted.map((row: any) => {
-            // Diferença Mês = (Prev Receitas + Real Receitas) - (Prev Despesas + Real Despesas) ??
-            // Actually "Diferença Mês" usually means "Saldo do Mês (Entradas - Saídas)".
+            // Diferença Mês = (Prev Receitas + Real Receitas) - (Prev Despesas + Real Despesas)
             // (Receita Prev + Receita Real + Aporte Prev + Aporte Real) - (Desp Prev + Desp Real + Ret Prev + Ret Real)
             const totalIn = row.prev_receitas + row.real_recebimentos + row.prev_aportes + row.real_aportes
             const totalOut = row.prev_despesas + row.real_pagamentos + row.prev_retiradas + row.real_retiradas
@@ -109,9 +133,6 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
             const isCurrent = now.getMonth() === row.month && now.getFullYear() === row.year
             const isPast = rowDate < new Date(now.getFullYear(), now.getMonth(), 1)
             const situacao = isCurrent ? 'MÊS ATUAL' : (isPast ? 'REALIZADO' : 'FUTURO')
-            // User image shows "REALIZADO" for past months, and "EM ATRASO" as sub-item? 
-            // Actually user image shows "REALIZADO" top level for Past months.
-            // Let's use REALIZADO for past.
 
             return {
                 ...row,
@@ -119,11 +140,10 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
                 situacao,
                 diff,
                 pctDesp,
-                pctRet,
-                saldoPrevisto: 0 // Need running total logic potentially, but for now 0
+                pctRet
             }
         })
-    }, [data, history, showLast12Months, accounts])
+    }, [data, history, showLast12Months, accounts, totalBalance])
 
     return (
         <div className="flex flex-col gap-4">
@@ -152,13 +172,13 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
                             <th className="p-0 bg-white dark:bg-gray-800 border-r dark:border-gray-500 align-bottom min-w-[120px]">
                                 <div className="flex flex-col w-full">
                                     <div className="bg-blue-700 text-white p-1 font-bold text-xs uppercase">Saldo Atual</div>
-                                    <div className={`p-2 text-center font-bold text-base ${totalBalance >= 0 ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100' : 'bg-gray-200 dark:bg-gray-600 text-red-600 dark:text-red-400'}`}>
+                                    <div className={`p-2 text-center font-bold text-xs ${totalBalance >= 0 ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100' : 'bg-gray-200 dark:bg-gray-600 text-red-600 dark:text-red-400'}`}>
                                         {formatMoneyBr(totalBalance)}
                                     </div>
                                 </div>
                             </th>
                         </tr>
-                        <tr className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-b dark:border-gray-600 font-medium">
+                        <tr className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-b dark:border-gray-600 font-medium text-xs">
                             <th className="p-1 border-r dark:border-gray-600">Situação</th>
                             <th className="p-1 border-r dark:border-gray-600">Ano</th>
                             <th className="p-1 border-r dark:border-gray-600">Mês Referência</th>
@@ -185,13 +205,13 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
                             <th className="p-1 bg-blue-100 dark:bg-blue-900/40 font-bold">Saldo Previsto</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="text-xs">
                         {summary.length === 0 && (
                             <tr><td colSpan={16} className="p-4 text-center text-gray-500">Nenhum dado encontrado</td></tr>
                         )}
                         {summary.map((row, idx) => (
                             <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700 border-b dark:border-gray-700 last:border-0">
-                                <td className={`p-1 border-r dark:border-gray-600 text-[10px] ${row.situacao === 'MÊS ATUAL' ? 'bg-blue-100 dark:bg-blue-900/50 font-bold' : (row.situacao === 'EM ATRASO' ? 'text-red-500' : '')}`}>{row.situacao}</td>
+                                <td className={`p-1 border-r dark:border-gray-600 ${row.situacao === 'MÊS ATUAL' ? 'bg-blue-100 dark:bg-blue-900/50 font-bold' : (row.situacao === 'EM ATRASO' ? 'text-red-500' : '')}`}>{row.situacao}</td>
                                 <td className="p-1 border-r dark:border-gray-600 text-red-500">{row.year}</td>
                                 <td className="p-1 border-r dark:border-gray-600 text-red-500">{row.monthName}</td>
 
@@ -211,10 +231,12 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
 
                                 {/* Estatística */}
                                 <td className={`p-1 border-r dark:border-gray-600 text-right font-medium ${row.diff >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatMoneyBr(row.diff)}</td>
-                                <td className="p-1 border-r dark:border-gray-600 text-right text-[10px]">%{row.pctDesp.toFixed(2)}</td>
-                                <td className="p-1 border-r dark:border-gray-600 text-right text-[10px]">%{row.pctRet.toFixed(2)}</td>
+                                <td className="p-1 border-r dark:border-gray-600 text-right">%{row.pctDesp.toFixed(2)}</td>
+                                <td className="p-1 border-r dark:border-gray-600 text-right">%{row.pctRet.toFixed(2)}</td>
 
-                                <td className="p-1 text-right text-[10px] text-gray-500">R$ 0,00</td>
+                                <td className={`p-1 bg-blue-50 dark:bg-blue-900/20 text-right font-bold ${row.saldoPrevisto >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                    {formatMoneyBr(row.saldoPrevisto)}
+                                </td>
                             </tr>
                         ))}
                     </tbody>

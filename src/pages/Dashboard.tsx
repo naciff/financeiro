@@ -68,8 +68,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top Metrics - 4 columns with Icons */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Row 1: Fixed/Monthly & Overdue - 5 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-green-600 mr-4">
             <span className="material-icons-outlined text-4xl">arrow_upward</span>
@@ -79,6 +79,7 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasFixasMes || 0} /></h3>
           </div>
         </div>
+
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-red-600 mr-4">
             <span className="material-icons-outlined text-4xl">arrow_downward</span>
@@ -88,6 +89,27 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-loss"><CountUp end={totalRetiradaFixaMes || 0} /></h3>
           </div>
         </div>
+
+        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
+          <div className="text-red-500 mr-4">
+            <span className="material-icons-outlined text-4xl">receipt_long</span>
+          </div>
+          <div>
+            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total despesas</p>
+            <h3 className="text-xl font-bold text-loss"><CountUp end={totalDespesas || 0} /></h3>
+          </div>
+        </div>
+
+        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
+          <div className="text-red-600 mr-4">
+            <span className="material-icons-outlined text-4xl">warning</span>
+          </div>
+          <div>
+            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Valores em Aberto</p>
+            <h3 className={`text-xl font-bold ${Number(totais?.total_atrasado || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.total_atrasado || 0)} /></h3>
+          </div>
+        </div>
+
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-blue-600 mr-4">
             <span className="material-icons-outlined text-4xl">receipt_long</span>
@@ -97,19 +119,10 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-text-main-light dark:text-text-main-dark"><CountUp end={totalDespesasGeral || 0} /></h3>
           </div>
         </div>
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-green-600 mr-4">
-            <span className="material-icons-outlined text-4xl">savings</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão divisão de lucro Anual</p>
-            <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasDivisaoLucro || 0} /></h3>
-          </div>
-        </div>
       </div>
 
-      {/* Totais do Livro Caixa + Previsão - 4 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Row 2: Totais do Livro Caixa + Previsão - 5 columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-blue-600 mr-4">
             <span className="material-icons-outlined text-4xl">attach_money</span>
@@ -119,6 +132,7 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-neutral"><CountUp end={Number(totais?.real_total_recebido || 0)} /></h3>
           </div>
         </div>
+
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-red-600 mr-4">
             <span className="material-icons-outlined text-4xl">money_off</span>
@@ -128,6 +142,7 @@ export default function Dashboard() {
             <h3 className="text-xl font-bold text-loss"><CountUp end={Number(totais?.real_total_pago || 0)} /></h3>
           </div>
         </div>
+
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-gray-600 mr-4">
             <span className="material-icons-outlined text-4xl">account_balance_wallet</span>
@@ -137,6 +152,7 @@ export default function Dashboard() {
             <h3 className={`text-xl font-bold ${Number(totais?.saldo_atual || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.saldo_atual || 0)} /></h3>
           </div>
         </div>
+
         <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
           <div className="text-gray-600 mr-4">
             <span className="material-icons-outlined text-4xl">trending_up</span>
@@ -144,6 +160,16 @@ export default function Dashboard() {
           <div>
             <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão Saldo Mês Atual</p>
             <h3 className={`text-xl font-bold ${Number(totais?.previsao_saldo || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.previsao_saldo || 0)} /></h3>
+          </div>
+        </div>
+
+        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
+          <div className="text-green-600 mr-4">
+            <span className="material-icons-outlined text-4xl">savings</span>
+          </div>
+          <div>
+            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão divisão de lucro (Anual)</p>
+            <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasDivisaoLucro || 0} /></h3>
           </div>
         </div>
       </div>

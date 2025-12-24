@@ -106,6 +106,8 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
         }
         loadData()
 
+
+
         const today = new Date().toISOString().split('T')[0]
         if (initialData) {
             setFormOperacao(initialData.operacao)
@@ -154,6 +156,17 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
             setFormDataVencimento(today)
         }
     }, [initialData?.id])
+
+    // Fix: If formCliente is set (ID) but we don't have the name (clienteBusca is empty or is the ID itself),
+    // try to find it in the loaded clients list.
+    useEffect(() => {
+        if (clients.length > 0 && formCliente) {
+            const client = clients.find(c => c.id === formCliente)
+            if (client && (clienteBusca === client.id || !clienteBusca)) {
+                setClienteBusca(client.nome)
+            }
+        }
+    }, [clients, formCliente, clienteBusca])
 
 
 
