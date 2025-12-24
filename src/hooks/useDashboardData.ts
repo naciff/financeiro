@@ -51,9 +51,15 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         }))
                     }
 
-                    // Calculate Saldo Atual from account_balances_view
-                    const { data: accountsData } = await client.from('account_balances_view').select('saldo_atual').eq('organization_id', orgId)
-                    const saldoGeral = accountsData?.reduce((sum, acc) => sum + Number(acc.saldo_atual || 0), 0) || 0
+                    // Calculate Saldo Atual from account_balances_view, filtering ACTIVE accounts
+                    const { data: accountsData } = await client.from('account_balances_view').select('account_id, saldo_atual').eq('organization_id', orgId)
+                    const { data: activeAccounts } = await client.from('accounts').select('id, ativo').eq('organization_id', orgId)
+
+                    const saldoGeral = accountsData?.reduce((sum, bal) => {
+                        const account = activeAccounts?.find(a => a.id === bal.account_id)
+                        if (account && account.ativo === false) return sum
+                        return sum + Number(bal.saldo_atual || 0)
+                    }, 0) || 0
                     setSaldoAtualGeral(saldoGeral)
                 }
 

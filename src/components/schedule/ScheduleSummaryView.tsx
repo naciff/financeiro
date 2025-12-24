@@ -8,7 +8,7 @@ type Props = {
     accounts: any[]
 }
 
-export function ScheduleSummaryView({ data, history, showHistoryOption, accounts }: Props) {
+export function ScheduleSummaryView({ data, history, showHistoryOption, accounts, totalBalance = 0 }: Props & { totalBalance?: number }) {
     const [showLast12Months, setShowLast12Months] = useState(false)
 
     const summary = useMemo(() => {
@@ -60,7 +60,7 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
             const g = groups[key]
             const val = Number(item.valor || (item.receita + item.despesa))
 
-            const isPaid = item.conferido // or logic for 'realizada'
+            const isPaid = item.situacao === 2
             const op = (item.operacao || '').toLowerCase()
 
             if (isPaid) {
@@ -149,7 +149,14 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
                             <th colSpan={4} className="p-1 bg-gray-200 dark:bg-gray-600 border-r dark:border-gray-500 text-yellow-700 dark:text-yellow-400 font-bold">Previsão e Realizar</th>
                             <th colSpan={4} className="p-1 bg-teal-600 text-white border-r dark:border-gray-500">Realizadas</th>
                             <th colSpan={3} className="p-1 bg-yellow-50 dark:bg-yellow-900/30 border-r dark:border-gray-500">Estatística</th>
-                            <th className="p-1 bg-blue-700 text-white">Saldo Atual</th>
+                            <th className="p-0 bg-white dark:bg-gray-800 border-r dark:border-gray-500 align-bottom min-w-[120px]">
+                                <div className="flex flex-col w-full">
+                                    <div className="bg-blue-700 text-white p-1 font-bold text-xs uppercase">Saldo Atual</div>
+                                    <div className={`p-2 text-center font-bold text-base ${totalBalance >= 0 ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100' : 'bg-gray-200 dark:bg-gray-600 text-red-600 dark:text-red-400'}`}>
+                                        {formatMoneyBr(totalBalance)}
+                                    </div>
+                                </div>
+                            </th>
                         </tr>
                         <tr className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-b dark:border-gray-600 font-medium">
                             <th className="p-1 border-r dark:border-gray-600">Situação</th>

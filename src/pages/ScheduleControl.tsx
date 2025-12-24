@@ -250,7 +250,7 @@ export default function ScheduleControl() {
     // User pediu para usar a tabela nova. Vamos assumir backend apenas para essa feature ou adaptar.
     // Como a migration é backend only, store.schedules não vai funcionar aqui.
     // Vamos usar 'remote' apenas.
-    const src = remote.filter((r: any) => r.situacao === 1)
+    const src = remote.filter((r: any) => r.situacao === 1 || r.situacao === 2)
     const now = new Date()
     const startMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
@@ -881,9 +881,11 @@ export default function ScheduleControl() {
         activeMainTab === 'resumida' ? (
           <ScheduleSummaryView
             data={rows.summaryData}
-            history={rows.summaryHistory}
-            showHistoryOption={true}
             accounts={caixas}
+            totalBalance={balances
+              .map(b => ({ ...b, ativo: caixas.find(a => a.id === b.account_id)?.ativo }))
+              .filter(b => b.ativo !== false)
+              .reduce((acc, b) => acc + Number(b.saldo_atual), 0)}
           />
         ) : activeMainTab === 'saldos' ? (
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -891,7 +893,7 @@ export default function ScheduleControl() {
               <Icon name="account_balance" className="w-5 h-5 text-blue-600" />
               Saldos das Contas
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="flex flex-col gap-3 max-w-lg">
               {balances
                 .map(b => {
                   const acct = caixas.find(a => a.id === b.account_id)
@@ -900,9 +902,16 @@ export default function ScheduleControl() {
                 .filter(b => b.ativo !== false)
                 .sort((a, b) => a.nome.localeCompare(b.nome))
                 .map(b => (
-                  <div key={b.account_id} className="bg-gray-50/50 dark:bg-gray-700/20 border dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all border-l-4" style={{ borderLeftColor: b.cor || '#e5e7eb' }}>
-                    <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-bold mb-1 line-clamp-1">{b.nome}</div>
-                    <div className={`text-base font-bold ${Number(b.saldo_atual) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  <div key={b.account_id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all border-l-4 flex justify-between items-center" style={{ borderLeftColor: b.cor || '#e5e7eb' }}>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{b.nome}</span>
+                      {Number(b.saldo_atual) !== 0 && (
+                        <span className={`text-[10px] uppercase font-bold ${Number(b.saldo_atual) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {Number(b.saldo_atual) > 0 ? 'Saldo Positivo' : 'Saldo Negativo'}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`text-lg font-bold ${Number(b.saldo_atual) > 0 ? 'text-green-600 dark:text-green-400' : Number(b.saldo_atual) < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}`}>
                       R$ {Number(b.saldo_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
