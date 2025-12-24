@@ -14,6 +14,7 @@ export interface ExpenseByGroup {
     valor: number
     percentual: number
     cor: string
+    items: any[]
 }
 
 // Cores predefinidas para os grupos
@@ -35,7 +36,7 @@ export function useChartData(orgId?: string | null) {
 
     useEffect(() => {
         async function loadChartData() {
-            if (!orgId || !hasBackend) {
+            if (!orgId || !hasBackend || !supabase) {
                 setLoading(false)
                 return
             }
@@ -115,7 +116,7 @@ export function useChartData(orgId?: string | null) {
 
                     if (schedules) {
                         // Group expenses by commitment group
-                        const groupMap = new Map<string, number>()
+                        const groupMap = new Map<string, { total: number, items: any[] }>()
 
                         schedules.forEach((item: any) => {
                             // Extract group name from the nested relationship
@@ -126,20 +127,30 @@ export function useChartData(orgId?: string | null) {
                             const qtd = Number(item.parcelas || 1)
                             const valor = qtd > 1 ? rawVal / qtd : rawVal
 
-                            const current = groupMap.get(groupName) || 0
-                            groupMap.set(groupName, current + valor)
+                            const current = groupMap.get(groupName) || { total: 0, items: [] }
+                            current.total += valor
+                            current.items.push({
+                                ...item,
+                                valor_calculado: valor // Store calculated monthly value
+                            })
+                            groupMap.set(groupName, current)
                         })
 
                         // Calculate total to get percentages
-                        const total = Array.from(groupMap.values()).reduce((sum, val) => sum + val, 0)
+                        const total = Array.from(groupMap.values()).reduce((sum, val) => sum + val.total, 0)
 
                         // Convert to array and add percentages
                         const expensesData: ExpenseByGroup[] = Array.from(groupMap.entries())
-                            .map(([grupo, valor], index) => ({
+                            .map(([grupo, data], index) => ({
                                 grupo,
-                                valor,
-                                percentual: total > 0 ? Math.round((valor / total) * 100) : 0,
-                                cor: COLORS[index % COLORS.length]
+                                valor: data.total,
+                                percentual: total > 0 ? Math.round((data.total / total) * 100) : 0,
+                                cor: COLORS[index % COLORS.length],
+                                items: data.items.sort((a, b) => {
+                                    const dateA = new Date(a.proxima_vencimento || a.ano_mes_inicial).getTime()
+                                    const dateB = new Date(b.proxima_vencimento || b.ano_mes_inicial).getTime()
+                                    return dateA - dateB
+                                })
                             }))
                             .sort((a, b) => b.valor - a.valor) // Sort by value descending
 

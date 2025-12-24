@@ -124,13 +124,6 @@ export default function Calendar() {
     return list.sort((a, b) => a.date.getTime() - b.date.getTime())
   }, [store.schedules, store.transactions, remoteSchedules, remoteTransactions, from, to])
 
-  const totals = useMemo(() => {
-    const totalAPagar = items.filter(i => i.operacao === 'despesa' || i.operacao === 'retirada').reduce((acc, i) => acc + i.saida, 0)
-    const totalAReceber = items.filter(i => i.operacao === 'receita' || i.operacao === 'aporte').reduce((acc, i) => acc + i.entrada, 0)
-    const totalPago = items.filter(i => (i.operacao === 'despesa' || i.operacao === 'retirada') && (i.status === 'pago' || i.status === 'realizado')).reduce((acc, i) => acc + i.saida, 0)
-    const totalRecebido = items.filter(i => (i.operacao === 'receita' || i.operacao === 'aporte') && (i.status === 'recebido' || i.status === 'realizado')).reduce((acc, i) => acc + i.entrada, 0)
-    return { totalAPagar, totalAReceber, totalPago, totalRecebido }
-  }, [items])
 
   const days = Array.from({ length: to.getDate() }, (_, i) => i + 1)
   const startDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay() // 0 = Sunday
@@ -180,24 +173,7 @@ export default function Calendar() {
           </ul>
         </PageInfo>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total a pagar:</div>
-          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAPagar)}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total a receber:</div>
-          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalAReceber)}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total já pago:</div>
-          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalPago)}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-3">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Total já recebido:</div>
-          <div className="text-base font-bold text-gray-800 dark:text-gray-100">R$ {formatMoneyBr(totals.totalRecebido)}</div>
-        </div>
-      </div>
+
       {loading && <div role="status" aria-live="polite" className="text-sm text-gray-600 dark:text-gray-400">Carregando…</div>}
       <div className="grid grid-cols-7 gap-2">
         {weekDays.map(d => (

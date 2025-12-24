@@ -6,9 +6,10 @@ import { useAppStore } from '../../store/AppStore'
 
 interface ExpensesBarChartProps {
     data: ExpenseByGroup[]
+    onGroupClick?: (group: ExpenseByGroup) => void
 }
 
-export function ExpensesBarChart({ data }: ExpensesBarChartProps) {
+export function ExpensesBarChart({ data, onGroupClick }: ExpensesBarChartProps) {
     const { showValues } = useAppStore()
     // Custom tooltip
     const CustomTooltip = ({ active, payload }: any) => {
@@ -58,9 +59,13 @@ export function ExpensesBarChart({ data }: ExpensesBarChartProps) {
                         tick={{ fontSize: 12 }}
                     />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="valor" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="valor" radius={[0, 4, 4, 0]} onClick={(data) => {
+                        if (onGroupClick && data && data.payload) {
+                            onGroupClick(data.payload)
+                        }
+                    }} style={{ cursor: onGroupClick ? 'pointer' : 'default' }}>
                         {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.cor} />
+                            <Cell key={`cell-${index}`} fill={entry.cor} cursor={onGroupClick ? "pointer" : "default"} />
                         ))}
                     </Bar>
                 </BarChart>
