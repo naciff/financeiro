@@ -1337,7 +1337,11 @@ export default function Schedules() {
                         value={valorFocused ? valor : valor.toFixed(2)}
                         onFocus={() => setValorFocused(true)}
                         onBlur={() => setValorFocused(false)}
-                        onChange={e => { setValor(parseFloat(e.target.value) || 0) }}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                          setValor(parseFloat(truncated) || 0);
+                        }}
                         className={(!valor || valor <= 0) ? 'border-red-500' : ''}
                       />
                       {(!valor || valor <= 0) && <div className="text-xs text-red-600 dark:text-red-400 mt-1">Valor deve ser maior que 0</div>}
@@ -1457,7 +1461,7 @@ export default function Schedules() {
 
                 {msg && <div className={`mt-4 p-3 rounded ${msgType === 'error' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800' : 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'}`}>{msg}</div>}
 
-                {preview.length > 0 && (
+                {preview.length > 1 && (
                   <div className="mt-6 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3 border-b dark:border-gray-700 pb-2">
                       <div className="font-semibold text-gray-700 dark:text-gray-200">Cronograma de Pagamentos</div>
@@ -1711,8 +1715,10 @@ export default function Schedules() {
           onClose={() => setClientModal(false)
           }
           onSuccess={(client) => {
-            setClientes(prev => [client, ...prev])
+            setClientes([])
             setClienteId(client.id)
+            setClienteNome(client.nome)
+            setClienteBusca(client.nome)
           }}
         />
       }
@@ -1721,8 +1727,10 @@ export default function Schedules() {
           isOpen={groupModal}
           onClose={() => setGroupModal(false)}
           onSuccess={(group) => {
-            setGrupos(prev => [...prev, group])
-            setGrupoId(group.id)
+            const enrichedGroup = { ...group, operacao: group.operacao || operacao }
+            setGrupos(prev => [...prev, enrichedGroup])
+            setAllCommitmentGroups(prev => [...prev, { id: enrichedGroup.id, nome: enrichedGroup.nome }])
+            setGrupoId(enrichedGroup.id)
           }}
           initialOperation={operacao}
         />
@@ -1733,6 +1741,7 @@ export default function Schedules() {
           onClose={() => setCommitmentModal(false)}
           onSuccess={(comp) => {
             setCompromissos(prev => [...prev, comp])
+            setAllCommitments(prev => [...prev, { id: comp.id, nome: comp.nome }])
             setCompromissoId(comp.id)
             if (showForm === 'create') setHistorico(comp.nome)
           }}

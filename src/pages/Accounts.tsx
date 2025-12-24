@@ -28,6 +28,8 @@ export default function Accounts() {
   const [notice, setNotice] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' })
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [saldosCollapsed, setSaldosCollapsed] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   async function load() {
     if (hasBackend) {
@@ -195,32 +197,51 @@ export default function Accounts() {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 w-full">
-        {!showForm && (
+      <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+        <div className="flex flex-wrap items-center gap-2">
+          {!showForm && (
+            <button
+              className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
+              onClick={() => setShowForm(true)}
+              aria-label="Inserir"
+            >
+              <Icon name="add" className="w-4 h-4" /> Incluir
+            </button>
+          )}
+
           <button
-            className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
-            onClick={() => setShowForm(true)}
-            aria-label="Inserir"
+            className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+            disabled={!selectedId}
+            onClick={handleToolbarEdit}
           >
-            <Icon name="add" className="w-4 h-4" /> Incluir
+            <Icon name="edit" className="w-4 h-4" /> Alterar
           </button>
-        )}
 
-        <button
-          className="flex items-center gap-2 bg-blue-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
-          disabled={!selectedId}
-          onClick={handleToolbarEdit}
-        >
-          <Icon name="edit" className="w-4 h-4" /> Alterar
-        </button>
+          <button
+            className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
+            disabled={!selectedId}
+            onClick={handleToolbarDelete}
+          >
+            <Icon name="trash" className="w-4 h-4" /> Excluir
+          </button>
+        </div>
 
-        <button
-          className="flex items-center gap-2 bg-red-600 text-white rounded px-3 py-2 disabled:opacity-50 transition-colors"
-          disabled={!selectedId}
-          onClick={handleToolbarDelete}
-        >
-          <Icon name="trash" className="w-4 h-4" /> Excluir
-        </button>
+        <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border dark:border-gray-700 shadow-sm">
+          <button
+            className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
+            onClick={() => setViewMode('grid')}
+            title="Visualização em Grade"
+          >
+            <Icon name="grid_view" className="w-5 h-5" />
+          </button>
+          <button
+            className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
+            onClick={() => setViewMode('list')}
+            title="Visualização em Lista"
+          >
+            <Icon name="view_list" className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -289,7 +310,12 @@ export default function Accounts() {
                 </div>
               )}
               <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="saldo_inicial">Saldo inicial</label>
-              <input id="saldo_inicial" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" step="0.01" value={saldoInicial} onChange={e => { setSaldoInicial(parseFloat(e.target.value)); setDirty(true) }} />
+              <input id="saldo_inicial" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" type="number" step="0.01" value={saldoInicial} onChange={e => {
+                const val = e.target.value;
+                const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                setSaldoInicial(parseFloat(truncated) || 0);
+                setDirty(true);
+              }} />
               <label className="text-sm text-gray-700 dark:text-gray-300" htmlFor="observacoes">Observações</label>
               <input id="observacoes" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => { setObservacoes(e.target.value); setDirty(true) }} />
               <div className="flex justify-end gap-2">
@@ -318,23 +344,65 @@ export default function Accounts() {
             Since I moved Toolbar UP, I should remove the `{!showForm && button}` logic from the grid.
         */}
 
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 h-fit">
-          <div className="font-medium mb-2 text-gray-900 dark:text-gray-100">Saldos</div>
-          {!hasBackend && accounts.length === 0 && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">Nenhuma conta cadastrada (modo local). Use "Incluir" para adicionar.</div>
+        <div className={`bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 h-fit transition-all shadow-sm ${viewMode === 'grid' ? 'col-span-1 md:col-span-2' : ''}`}>
+          <div
+            className="flex items-center justify-between cursor-pointer group"
+            onClick={() => setSaldosCollapsed(!saldosCollapsed)}
+          >
+            <div className="text-xl font-normal text-gray-900 dark:text-gray-100">Saldos</div>
+            <div className="bg-gray-50 dark:bg-gray-700/50 p-1 rounded-md border border-gray-200 dark:border-gray-600 group-hover:bg-gray-100 dark:group-hover:bg-gray-600 transition-colors shadow-sm">
+              <Icon
+                name={saldosCollapsed ? 'chevron-right' : 'chevron-down'}
+                className="w-5 h-5 text-gray-800 dark:text-gray-200"
+              />
+            </div>
+          </div>
+
+          {!saldosCollapsed && (
+            <div className="mt-4">
+              {!hasBackend && accounts.length === 0 && (
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Nenhuma conta cadastrada (modo local). Use "Incluir" para adicionar.</div>
+              )}
+
+              {viewMode === 'list' ? (
+                <ul className="space-y-0 text-gray-900 dark:text-gray-100">
+                  {balances
+                    .map(b => {
+                      const acct = accounts.find(a => a.id === b.account_id)
+                      return { ...b, nome: acct?.nome || b.account_id, ativo: acct?.ativo }
+                    })
+                    .filter(b => b.ativo !== false)
+                    .sort((a, b) => a.nome.localeCompare(b.nome))
+                    .map(b => (
+                      <li key={b.account_id} className="flex justify-between items-center py-1 border-b border-gray-50 dark:border-gray-700/30 last:border-0 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 px-1 rounded transition-colors">
+                        <span className="text-xs md:text-sm font-medium">{b.nome}</span>
+                        <span className={`text-xs md:text-sm font-bold ${Number(b.saldo_atual) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          R$ {Number(b.saldo_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {balances
+                    .map(b => {
+                      const acct = accounts.find(a => a.id === b.account_id)
+                      return { ...b, nome: acct?.nome || b.account_id, ativo: acct?.ativo, cor: acct?.cor }
+                    })
+                    .filter(b => b.ativo !== false)
+                    .sort((a, b) => a.nome.localeCompare(b.nome))
+                    .map(b => (
+                      <div key={b.account_id} className="bg-gray-50/50 dark:bg-gray-700/20 border dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all border-l-4" style={{ borderLeftColor: b.cor || '#e5e7eb' }}>
+                        <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-bold mb-1 line-clamp-1">{b.nome}</div>
+                        <div className={`text-base font-bold ${Number(b.saldo_atual) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          R$ {Number(b.saldo_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           )}
-          <ul className="space-y-2 text-gray-900 dark:text-gray-100">
-            {balances
-              .map(b => {
-                const acct = accounts.find(a => a.id === b.account_id)
-                return { ...b, nome: acct?.nome || b.account_id, ativo: acct?.ativo }
-              })
-              .filter(b => b.ativo !== false)
-              .sort((a, b) => a.nome.localeCompare(b.nome))
-              .map(b => (
-                <li key={b.account_id} className="flex justify-between"><span>{b.nome}</span><span>R$ {Number(b.saldo_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></li>
-              ))}
-          </ul>
         </div>
       </div>
 

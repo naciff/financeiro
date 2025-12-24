@@ -12,6 +12,8 @@ import { TransactionAttachments } from '../components/TransactionAttachments'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { AlertModal } from '../components/ui/AlertModal'
 import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
+import { TransferModal } from '../components/modals/TransferModal'
+import { getTransfer } from '../services/db'
 
 export default function Ledger() {
   const store = useAppStore()
@@ -33,6 +35,8 @@ export default function Ledger() {
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const [editingTx, setEditingTx] = useState<any>(null)
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [editingTransfer, setEditingTransfer] = useState<any[] | null>(null)
 
   // Delete Confirmation State
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -235,6 +239,26 @@ export default function Ledger() {
   function openModal(tx?: any) {
     resetForm()
     if (tx) {
+      if (tx.operacao === 'transferencia' && (tx as any).transfer_id) {
+        setModalTitle('Carregando Transferência...')
+        if (hasBackend) {
+          getTransfer((tx as any).transfer_id).then(r => {
+            if (r.data && r.data.length >= 2) {
+              setEditingTransfer(r.data)
+              setShowTransferModal(true)
+            } else {
+              setAlertModal({ open: true, title: 'Erro', message: 'Dados da transferência não encontrados.' })
+            }
+          })
+        } else {
+          // Local/Fallback mode
+          const related = store.transactions.filter(t => (t as any).transfer_id === (tx as any).transfer_id)
+          setEditingTransfer(related)
+          setShowTransferModal(true)
+        }
+        return
+      }
+
       setEditingId(tx.id)
       setModalTitle('Carregando...') // Show loading state
       setShowModal(true)
@@ -879,6 +903,17 @@ export default function Ledger() {
         title="Salvar Favorito"
         message="Deseja salvar este lançamento como Favorito?"
       />
+
+      {showTransferModal && (
+        <TransferModal
+          onClose={() => {
+            setShowTransferModal(false)
+            setEditingTransfer(null)
+            load()
+          }}
+          initialData={editingTransfer || undefined}
+        />
+      )}
 
       <AlertModal
         isOpen={alertModal.open}

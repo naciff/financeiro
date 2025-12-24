@@ -41,6 +41,11 @@ export async function transfer(payload: { source: string; dest: string; amount: 
   return supabase.rpc('fn_transfer', { source: payload.source, dest: payload.dest, amount: payload.amount, d: payload.date ?? null, descricao: payload.descricao ?? null })
 }
 
+export async function getTransfer(transferId: string) {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('transactions').select('*').eq('transfer_id', transferId)
+}
+
 export async function createSchedule(payload: any, orgId: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id

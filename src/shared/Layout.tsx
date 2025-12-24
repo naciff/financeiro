@@ -155,7 +155,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { id: 'notes', to: '/notes', label: 'Notas', icon: 'notes' },
     {
       id: 'cadastro', to: '/cadastro', label: 'Cadastro', icon: 'app_registration', children: [
-        { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'home' },
+        { to: '/cadastro/caixa-financeiro', label: 'Caixa Financeiro', icon: 'account_balance' },
         { to: '/cadastro/grupo-compromisso', label: 'Grupo de Compromisso', icon: 'group' },
         { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'bookmark' },
         { to: '/cadastro/cost-centers', label: 'Centro de Custo', icon: 'account_balance_wallet' },

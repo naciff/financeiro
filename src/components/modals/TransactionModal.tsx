@@ -511,6 +511,7 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             setClients(prev => [...prev, newClient])
                                             setFormCliente(newClient.id!)
                                             setClienteBusca(newClient.nome)
+                                            setFilteredClients([])
                                             setShowClientModal(false)
                                         }}
                                     />
@@ -648,7 +649,11 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                             value={valorFocused ? formValor : formValor.toFixed(2)}
                                             onFocus={() => setValorFocused(true)}
                                             onBlur={() => setValorFocused(false)}
-                                            onChange={e => setFormValor(parseFloat(e.target.value))}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                                                setFormValor(parseFloat(truncated) || 0);
+                                            }}
                                         />
                                         <div className="flex items-center mt-1">
                                             <input
@@ -711,7 +716,11 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                                     value={descontoFocused ? formDesconto : formDesconto.toFixed(2)}
                                                     onFocus={() => setDescontoFocused(true)}
                                                     onBlur={() => setDescontoFocused(false)}
-                                                    onChange={e => setFormDesconto(parseFloat(e.target.value) || 0)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                                                        setFormDesconto(parseFloat(truncated) || 0);
+                                                    }}
                                                 />
                                             </div>
                                             <div>
@@ -723,7 +732,11 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                                     value={multaFocused ? formMulta : formMulta.toFixed(2)}
                                                     onFocus={() => setMultaFocused(true)}
                                                     onBlur={() => setMultaFocused(false)}
-                                                    onChange={e => setFormMulta(parseFloat(e.target.value) || 0)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                                                        setFormMulta(parseFloat(truncated) || 0);
+                                                    }}
                                                 />
                                             </div>
                                             <div>
@@ -735,7 +748,11 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
                                                     value={jurosFocused ? formJuros : formJuros.toFixed(2)}
                                                     onFocus={() => setJurosFocused(true)}
                                                     onBlur={() => setJurosFocused(false)}
-                                                    onChange={e => setFormJuros(parseFloat(e.target.value) || 0)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                                                        setFormJuros(parseFloat(truncated) || 0);
+                                                    }}
                                                 />
                                             </div>
                                             <div>

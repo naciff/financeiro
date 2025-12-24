@@ -3,7 +3,7 @@ import React, { createContext, useContext, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type Account = {
-  id: string; nome: string; tipo: string; saldo_inicial: number; observacoes?: string; banco_codigo?: string; agencia?: string; conta?: string; ativo?: boolean; principal?: boolean; dia_vencimento?: number
+  id: string; nome: string; tipo: string; saldo_inicial: number; observacoes?: string; banco_codigo?: string; agencia?: string; conta?: string; ativo?: boolean; principal?: boolean; dia_vencimento?: number; dia_bom?: number
   cor?: string
 }
 type Transaction = {

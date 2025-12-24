@@ -15,7 +15,7 @@ export default function Transfers() {
 
   useEffect(() => {
     if (hasBackend) {
-      const orgId = store.activeOrganization || undefined
+      const orgId = store.activeOrganization || ''
       listAccounts(orgId).then(r => setAccounts(r.data || []))
     }
     else setAccounts(store.accounts)
@@ -71,9 +71,12 @@ export default function Transfers() {
             className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             type="number"
             step="0.01"
-            placeholder="0,00"
             value={amount}
-            onChange={e => setAmount(parseFloat(e.target.value))}
+            onChange={e => {
+              const val = e.target.value;
+              const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+              setAmount(parseFloat(truncated) || 0);
+            }}
           />
         </div>
         <div>

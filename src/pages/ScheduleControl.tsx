@@ -11,7 +11,7 @@ import { AlertModal } from '../components/ui/AlertModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 
 import { BulkTransactionModal } from '../components/modals/BulkTransactionModal'
-import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction, skipFinancialItem } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction, skipFinancialItem, listAccountBalances } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { useDailyAutomation } from '../hooks/useDailyAutomation'
 import { LinkedItemsModal } from '../components/modals/LinkedItemsModal'
@@ -19,7 +19,7 @@ import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 
 type Filter = 'vencidos' | '7dias' | 'mesAtual' | 'proximoMes' | '2meses' | '6meses' | '12meses' | 'fimAno'
 
-const GROUP_TITLES = ['Meses Anteriores', 'Vencidos', 'PrÃ³ximos LanÃ§amentos']
+const GROUP_TITLES = ['Meses Anteriores', 'Vencidos', 'Próximos Lançamentos']
 
 function toBr(iso: string) {
   if (!iso) return ''
@@ -41,7 +41,8 @@ export default function ScheduleControl() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 12
-  const [activeMainTab, setActiveMainTab] = useState<'realizar' | 'resumida'>('realizar')
+  const [sort, setSort] = useState<{ key: string, dir: 'asc' | 'desc' }>({ key: 'vencimento', dir: 'asc' })
+  const [activeMainTab, setActiveMainTab] = useState<'realizar' | 'resumida' | 'saldos'>('realizar')
   const [msg, setMsg] = useState('')
   const [showTransactionModal, setShowTransactionModal] = useState(false)
 
@@ -53,6 +54,7 @@ export default function ScheduleControl() {
   const [grupos, setGrupos] = useState<any[]>([])
   const [costCenters, setCostCenters] = useState<any[]>([])
   const [filterCostCenter, setFilterCostCenter] = useState('')
+  const [balances, setBalances] = useState<any[]>([])
 
   // Estados do Modal
   const [modalContaId, setModalContaId] = useState('')
@@ -192,6 +194,7 @@ export default function ScheduleControl() {
   const [bulkAccount, setBulkAccount] = useState('')
 
   const [showLinkedItemsModal, setShowLinkedItemsModal] = useState(false)
+  const [showSelectAllConfirm, setShowSelectAllConfirm] = useState(false)
   const [linkedItems, setLinkedItems] = useState<any[]>([])
 
   const { runNow } = useDailyAutomation()
@@ -202,6 +205,7 @@ export default function ScheduleControl() {
       listAccounts(orgId).then(r => { if (!r.error && r.data) setCaixas(r.data as any) })
       listCommitmentGroups(orgId).then(r => { if (!r.error && r.data) setGrupos(r.data as any) })
       listCostCenters(orgId).then(r => { if (!r.error && r.data) setCostCenters(r.data as any) })
+      listAccountBalances(orgId).then(r => { if (!r.error && r.data) setBalances(r.data as any) })
     }
   }, [store.activeOrganization])
 
@@ -215,9 +219,13 @@ export default function ScheduleControl() {
     return () => { document.body.style.overflow = 'auto' }
   }, [modal])
 
+  function toggleSort(key: string) {
+    setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
+  }
+
   const [partialModal, setPartialModal] = useState<{ open: boolean, item: any } | null>(null)
 
-  // Carregar dados do Livro Financeiro (Todos para permitir histÃ³rico no resumo)
+  // Carregar dados do Livro Financeiro (Todos para permitir histórico no resumo)
   async function refresh() {
     if (hasBackend && store.activeOrganization) {
       const r = await listFinancials({ orgId: store.activeOrganization })
@@ -238,9 +246,9 @@ export default function ScheduleControl() {
 
 
   const rows = useMemo(() => {
-    // Se estiver usando store local, nÃ£o temos tabela livro_financeiro, entÃ£o fallback ou vazio?
+    // Se estiver usando store local, não temos tabela livro_financeiro, então fallback ou vazio?
     // User pediu para usar a tabela nova. Vamos assumir backend apenas para essa feature ou adaptar.
-    // Como a migration Ã© backend only, store.schedules nÃ£o vai funcionar aqui.
+    // Como a migration é backend only, store.schedules não vai funcionar aqui.
     // Vamos usar 'remote' apenas.
     const src = remote.filter((r: any) => r.situacao === 1)
     const now = new Date()
@@ -339,7 +347,7 @@ export default function ScheduleControl() {
         grupoCompromisso: s.agendamento?.grupo?.nome || '',
         grupoCompromissoId: s.agendamento?.grupo?.id || '',
         historico: s.historico || '',
-        notaFiscal: '', // NÃ£o temos NF no livro financeiro ainda? Podemos puxar do agendamento se quiser, mas usually Ã© na transaÃ§Ã£o
+        notaFiscal: '', // Não temos NF no livro financeiro ainda? Podemos puxar do agendamento se quiser, mas usually é na transação
         detalhes: '',
         especie: s.especie || '',
         receita: isReceita ? valor : 0,
@@ -380,13 +388,26 @@ export default function ScheduleControl() {
         if (filterOp === 'Receitas e Aportes') return ['receita', 'aporte'].includes(r.operacao || '')
         if (filterOp === 'Somente Aporte') return r.operacao === 'aporte'
         if (filterOp === 'Somente Retiradas') return r.operacao === 'retirada'
-        if (filterOp === 'Somente TransferÃªncias') return r.operacao === 'transferencia'
+        if (filterOp === 'Somente Transferências') return r.operacao === 'transferencia'
         return true
       })
       .filter(r => !filterGrupo || r.grupoCompromissoId === filterGrupo)
       .filter(r => !filterCostCenter || r.agendamento?.cost_center?.id === filterCostCenter)
       .filter(r => [r.cliente, r.historico, r.compromisso, String(r.receita), String(r.despesa)].some(f => (f || '').toLowerCase().includes(search.toLowerCase())))
-      .sort((a, b) => a.vencimentoDate.getTime() - b.vencimentoDate.getTime())
+      .sort((a, b) => {
+        const key = sort.key as keyof typeof a
+        let av = a[key]
+        let bv = b[key]
+
+        if (key === 'vencimento') {
+          av = a.vencimentoDate.getTime()
+          bv = b.vencimentoDate.getTime()
+        }
+
+        if (av === bv) return 0
+        const res = av > bv ? 1 : -1
+        return sort.dir === 'asc' ? res : -res
+      })
 
     // 1. Data for Summary (Includes Realized, respects Filters + Date)
     // When "12 Last Months" is checked in View, it will handle the date range itself using 'filteredCommon' if we pass it,
@@ -431,7 +452,55 @@ export default function ScheduleControl() {
       totalDespesas,
       totalRecords
     }
-  }, [remote, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter])
+  }, [remote, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter, sort])
+
+  async function handleSelectAll() {
+    const allOnScreen = rows.data
+    const isAllSelected = allOnScreen.every(r => r.conferido)
+
+    if (isAllSelected) {
+      executeBulkSelect(false)
+    } else {
+      setShowSelectAllConfirm(true)
+    }
+  }
+
+  async function executeBulkSelect(newVal: boolean) {
+    const allOnScreen = rows.data
+
+    // Optimize: Check if there are items from different accounts if we are selecting
+    if (newVal) {
+      const uniqueAccounts = new Set(allOnScreen.map(r => r.caixaId))
+      if (uniqueAccounts.size > 1) {
+        setTestResultModal({
+          open: true,
+          title: 'Atenção',
+          message: 'Para ações em massa, todos os itens selecionados devem pertencer ao mesmo "Caixa de Lançamento". Selecione manualmente ou filtre por Caixa.'
+        })
+        return
+      }
+    }
+
+    // Optimistic Update
+    setRemote(prev => {
+      const next = prev.map(p => {
+        const isOnScreen = allOnScreen.some(r => r.id === p.id)
+        return isOnScreen ? { ...p, conferido: newVal } : p
+      })
+      return next
+    })
+
+    // DB Update
+    if (hasBackend && store.activeOrganization) {
+      try {
+        await Promise.all(allOnScreen.map(item => updateFinancial(item.id, { conferido: newVal }, store.activeOrganization!)))
+      } catch (err) {
+        console.error('Failed to bulk toggle conferido', err)
+        // Refresh to sync state if failed
+        refresh()
+      }
+    }
+  }
 
   // Items checked in the interface - USE rows.allData to get enriched fields (tipo, totalParcelas)
   const itemsReadyToLaunch = useMemo(() => rows.allData.filter(i => i.conferido), [rows.allData])
@@ -512,7 +581,7 @@ export default function ScheduleControl() {
 
   const buttons: Array<{ id: Filter; label: string }> = [
     { id: 'vencidos', label: 'Vencidos/Dia Atual' },
-    { id: '7dias', label: 'atÃ© 7 Dias' },
+    { id: '7dias', label: 'até 7 Dias' },
     { id: 'mesAtual', label: 'Mês Atual' },
     { id: 'proximoMes', label: 'Próximo Mês' },
     { id: '2meses', label: 'Até 2 Meses' },
@@ -567,7 +636,7 @@ export default function ScheduleControl() {
       <ConfirmModal
         isOpen={showTestConfirm}
         title="Testar Relatório"
-        message="Deseja enviar o relatÃ³rio diÃ¡rio agora para o WhatsApp?"
+        message="Deseja enviar o relatório diário agora para o WhatsApp?"
         onClose={() => setShowTestConfirm(false)}
         onConfirm={async () => {
           setShowTestConfirm(false)
@@ -575,7 +644,7 @@ export default function ScheduleControl() {
           if (res && typeof res === 'object') {
             setTestResultModal({
               open: true,
-              title: res.success ? 'Sucesso' : 'AtenÃ§Ã£o',
+              title: res.success ? 'Sucesso' : 'Atenção',
               message: res.message
             })
           }
@@ -597,22 +666,32 @@ export default function ScheduleControl() {
 
 
           {rows.allData.some(r => r.conferido) && (
-            <button
-              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white border dark:border-gray-700 rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
-              onClick={() => {
-                setBulkDate(new Date().toISOString().split('T')[0])
-                const firstItem = rows.allData.find(r => r.conferido)
-                if (firstItem && firstItem.caixaId) {
-                  setBulkAccount(firstItem.caixaId)
-                } else {
-                  setBulkAccount('')
-                }
-                setShowBulkConfirm(true)
-              }}
-            >
-              <Icon name="check" className="w-4 h-4" />
-              Baixar ({rows.allData.filter(r => r.conferido).length})
-            </button>
+            <>
+              <button
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white border dark:border-gray-700 rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
+                onClick={() => {
+                  setBulkDate(new Date().toISOString().split('T')[0])
+                  const firstItem = rows.allData.find(r => r.conferido)
+                  if (firstItem && firstItem.caixaId) {
+                    setBulkAccount(firstItem.caixaId)
+                  } else {
+                    setBulkAccount('')
+                  }
+                  setShowBulkConfirm(true)
+                }}
+              >
+                <Icon name="check" className="w-4 h-4" />
+                Baixar ({rows.allData.filter(r => r.conferido).length})
+              </button>
+
+              <button
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white border dark:border-gray-700 rounded px-3 py-2 text-xs md:text-sm transition-colors whitespace-nowrap"
+                onClick={handleSelectAll}
+              >
+                <Icon name={rows.data.every(r => r.conferido) ? 'close' : 'done_all'} className="w-4 h-4" />
+                {rows.data.every(r => r.conferido) ? 'Desmarcar Todos' : 'Selecionar Todos'}
+              </button>
+            </>
           )}
 
           <button
@@ -621,7 +700,7 @@ export default function ScheduleControl() {
             title="Testar Relatório"
           >
             <Icon name="whatsapp" className="w-4 h-4" />
-            <span className="hidden sm:inline">Testar RelatÃ³rio</span>
+            <span className="hidden sm:inline">Testar Relatório</span>
           </button>
 
 
@@ -669,7 +748,7 @@ export default function ScheduleControl() {
                 <option value="Receitas e Aportes" className="dark:bg-gray-800">Rec. e Aportes</option>
                 <option value="Somente Aporte" className="dark:bg-gray-800">Aporte</option>
                 <option value="Somente Retiradas" className="dark:bg-gray-800">Retiradas</option>
-                <option value="Somente TransferÃªncias" className="dark:bg-gray-800">TransferÃªncias</option>
+                <option value="Somente Transferências" className="dark:bg-gray-800">Transferências</option>
               </FloatingLabelSelect>
             </div>
 
@@ -721,13 +800,13 @@ export default function ScheduleControl() {
           )}
 
           <PageInfo>
-            A tela de Controle e PrevisÃ£o apresenta de forma integrada os indicadores financeiros e operacionais do sistema, permitindo acompanhar em tempo real as entradas e saÃ­das previstas.
+            A tela de Controle e Previsão apresenta de forma integrada os indicadores financeiros e operacionais do sistema, permitindo acompanhar em tempo real as entradas e saídas previstas.
           </PageInfo>
         </div>
 
         {/* Row 2: Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-2 overflow-x-auto">
-          <div role="group" aria-label="Filtros por perÃ­odo" className="flex flex-nowrap gap-2">
+          <div role="group" aria-label="Filtros por período" className="flex flex-nowrap gap-2">
             {buttons.map(b => (
               <button
                 key={b.id}
@@ -745,7 +824,7 @@ export default function ScheduleControl() {
                 <div className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase border-b border-green-300 dark:border-green-800 leading-tight mb-0.5">
                   SOMA ITENS ({selectedIds.size})
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">LanÃ§amentos Selecionados</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Lançamentos Selecionados</div>
                 <div className={`text-sm font-bold ${selectionSum >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} leading-tight`}>
                   {selectionSum < 0 ? '-' : ''}R$ {formatMoneyBr(Math.abs(selectionSum))}
                 </div>
@@ -761,13 +840,19 @@ export default function ScheduleControl() {
           className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'realizar' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
           onClick={() => setActiveMainTab('realizar')}
         >
-          PrevisÃ£o Ã  Realizar
+          Previsão à Realizar
         </button>
         <button
           className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'resumida' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
           onClick={() => setActiveMainTab('resumida')}
         >
           Previsão Resumida
+        </button>
+        <button
+          className={`px-4 py-2 text-xs md:text-sm font-medium rounded-t-md transition-all ${activeMainTab === 'saldos' ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm border-t border-x border-gray-200 dark:border-gray-700 relative top-1.5 pb-3' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
+          onClick={() => setActiveMainTab('saldos')}
+        >
+          Saldos
         </button>
 
         {/* Expand/Collapse Buttons moved here */}
@@ -800,6 +885,30 @@ export default function ScheduleControl() {
             showHistoryOption={true}
             accounts={caixas}
           />
+        ) : activeMainTab === 'saldos' ? (
+          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-xl font-normal text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="account_balance" className="w-5 h-5 text-blue-600" />
+              Saldos das Contas
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {balances
+                .map(b => {
+                  const acct = caixas.find(a => a.id === b.account_id)
+                  return { ...b, nome: acct?.nome || b.account_id, ativo: acct?.ativo, cor: acct?.cor }
+                })
+                .filter(b => b.ativo !== false)
+                .sort((a, b) => a.nome.localeCompare(b.nome))
+                .map(b => (
+                  <div key={b.account_id} className="bg-gray-50/50 dark:bg-gray-700/20 border dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-all border-l-4" style={{ borderLeftColor: b.cor || '#e5e7eb' }}>
+                    <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-bold mb-1 line-clamp-1">{b.nome}</div>
+                    <div className={`text-base font-bold ${Number(b.saldo_atual) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      R$ {Number(b.saldo_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             {
@@ -808,7 +917,7 @@ export default function ScheduleControl() {
                   {rows.data.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
                       <Icon name="check-circle" className="w-10 h-10 mb-2 opacity-50" />
-                      <p>Nenhum lanÃ§amento pendente para este perÃ­odo.</p>
+                      <p>Nenhum lançamento pendente para este período.</p>
                     </div>
                   )}
                   {rows.data.length > 0 && GROUP_TITLES.map(groupTitle => {
@@ -825,7 +934,7 @@ export default function ScheduleControl() {
                       } else if (groupTitle === 'Vencidos') {
                         return vencimento >= firstDayOfCurrentMonth && vencimento < today
                       } else {
-                        // PrÃ³ximos LanÃ§amentos (Hoje ou Futuro)
+                        // Próximos Lançamentos (Hoje ou Futuro)
                         return vencimento >= today
                       }
                     })
@@ -844,7 +953,7 @@ export default function ScheduleControl() {
                           onClick={() => setExpanded(prev => ({ ...prev, [groupTitle]: !prev[groupTitle] }))}>
                           <div className="flex items-center gap-2">
                             <Icon name={!expanded[groupTitle] ? 'chevron-down' : 'chevron-right'} className="w-5 h-5" />
-                            <span>SituaÃ§Ã£o: {groupTitle}</span>
+                            <span>Situação: {groupTitle}</span>
                           </div>
                           <div className="flex items-center gap-4">
                             <span className={groupTotal >= 0 ? 'text-green-300' : 'text-red-300'}>
@@ -859,14 +968,23 @@ export default function ScheduleControl() {
                             <table className="w-full text-xs table-fixed">
                               <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
                                 <tr>
-                                  <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
-                                  <th className="px-4 py-2 text-left w-[15%]">Caixa de Lançamento</th>
-                                  <th className="px-4 py-2 text-left w-[20%]">Cliente</th>
-                                  <th className="px-4 py-2 text-left w-[15%]">Compromisso</th>
-                                  <th className="px-4 py-2 text-left w-[15%]">Histórico</th>
-                                  <th className="px-4 py-2 text-right w-28">Receita</th>
-                                  <th className="px-4 py-2 text-right w-28">Despesa</th>
-                                  <th className="px-4 py-2 text-center w-16">Parcela</th>
+                                  {[
+                                    ['vencimento', 'Data Vencimento'],
+                                    ['caixa', 'Caixa de Lançamento'],
+                                    ['cliente', 'Cliente'],
+                                    ['compromisso', 'Compromisso'],
+                                    ['historico', 'Histórico'],
+                                    ['receita', 'Receita'],
+                                    ['despesa', 'Despesa'],
+                                    ['parcela', 'Parcela'],
+                                  ].map(([key, label]) => (
+                                    <th key={key} className={`px-4 py-2 ${['receita', 'despesa'].includes(key) ? 'text-right w-28' : 'text-left'} ${key === 'vencimento' ? 'w-24' : key === 'caixa' ? 'w-[15%]' : key === 'cliente' ? 'w-[20%]' : key === 'compromisso' ? 'w-[15%]' : key === 'historico' ? 'w-[15%]' : key === 'parcela' ? 'w-16 text-center' : ''}`}>
+                                      <button onClick={() => toggleSort(key)} className="flex items-center gap-1 w-full justify-start hover:text-blue-600 transition-colors">
+                                        <span className={['receita', 'despesa'].includes(key) ? 'ml-auto' : ''}>{label}</span>
+                                        {sort.key === key && <Icon name={sort.dir === 'asc' ? 'chevron-up' : 'chevron-down'} className="w-3 h-3" />}
+                                      </button>
+                                    </th>
+                                  ))}
                                   <th className="px-4 py-2 text-center w-16">Conferido</th>
                                 </tr>
                               </thead>
@@ -981,12 +1099,12 @@ export default function ScheduleControl() {
                   })}
                 </div >
               ) : (
-                // Tabela PadrÃ£o para outros filtros (nÃ£o agrupada por SituaÃ§Ã£o/Meses, ou simples)
+                // Tabela Padrão para outros filtros (não agrupada por Situação/Meses, ou simples)
                 <div className="space-y-4">
                   {rows.data.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
                       <Icon name="check-circle" className="w-10 h-10 mb-2 opacity-50" />
-                      <p>Nenhum lanÃ§amento pendente para este perÃ­odo.</p>
+                      <p>Nenhum lançamento pendente para este período.</p>
                     </div>
                   )}
                   {rows.data.length > 0 && (
@@ -995,14 +1113,23 @@ export default function ScheduleControl() {
                         <table className="w-full text-xs">
                           <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
                             <tr>
-                              <th className="px-4 py-2 text-left w-24">Data Vencimento</th>
-                              <th className="px-4 py-2 text-left">Caixa de Lançamento</th>
-                              <th className="px-4 py-2 text-left">Cliente</th>
-                              <th className="px-4 py-2 text-left">Compromisso</th>
-                              <th className="px-4 py-2 text-left">Histórico</th>
-                              <th className="px-4 py-2 text-right w-36">Receita</th>
-                              <th className="px-4 py-2 text-right w-36">Despesa</th>
-                              <th className="px-4 py-2 text-center w-16">Parcela</th>
+                              {[
+                                ['vencimento', 'Data Vencimento'],
+                                ['caixa', 'Caixa de Lançamento'],
+                                ['cliente', 'Cliente'],
+                                ['compromisso', 'Compromisso'],
+                                ['historico', 'Histórico'],
+                                ['receita', 'Receita'],
+                                ['despesa', 'Despesa'],
+                                ['parcela', 'Parcela'],
+                              ].map(([key, label]) => (
+                                <th key={key} className={`px-4 py-2 ${['receita', 'despesa'].includes(key) ? 'text-right w-36' : 'text-left'} ${key === 'vencimento' ? 'w-24' : key === 'parcela' ? 'w-16 text-center' : ''}`}>
+                                  <button onClick={() => toggleSort(key)} className="flex items-center gap-1 w-full justify-start hover:text-blue-600 transition-colors">
+                                    <span className={['receita', 'despesa'].includes(key) ? 'ml-auto' : ''}>{label}</span>
+                                    {sort.key === key && <Icon name={sort.dir === 'asc' ? 'chevron-up' : 'chevron-down'} className="w-3 h-3" />}
+                                  </button>
+                                </th>
+                              ))}
                               <th className="px-4 py-2 text-center w-16">Conferido</th>
                             </tr>
                           </thead>
@@ -1142,7 +1269,7 @@ export default function ScheduleControl() {
                         }
                         setContextMenu(null)
                       } else {
-                        alert('Este item nÃ£o possui agendamento vinculado.')
+                        alert('Este item não possui agendamento vinculado.')
                         setContextMenu(null)
                       }
                     }}>
@@ -1164,7 +1291,7 @@ export default function ScheduleControl() {
                       setContextMenu(null)
                     }}>
                       <Icon name="skip-forward" className="w-4 h-4" />
-                      Saltar LanÃ§amento
+                      Saltar Lançamento
                     </button>
                     <button className="w-full text-left px-4 py-1.5 whitespace-nowrap hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-blue-600 dark:text-blue-400" onClick={() => {
                       const d = contextMenu.item.vencimento ? contextMenu.item.vencimento.split('T')[0] : ''
@@ -1202,7 +1329,11 @@ export default function ScheduleControl() {
                       type="number"
                       className="w-full border rounded px-3 py-2 mb-4"
                       value={editValueModal.value}
-                      onChange={e => setEditValueModal({ ...editValueModal, value: parseFloat(e.target.value) })}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                        setEditValueModal({ ...editValueModal, value: parseFloat(truncated) || 0 });
+                      }}
                     />
                     <div className="flex justify-end gap-2">
                       <button className="px-3 py-1 border rounded hover:bg-gray-50" onClick={() => setEditValueModal(null)}>Cancelar</button>
@@ -1256,7 +1387,7 @@ export default function ScheduleControl() {
                 <ConfirmModal
                   isOpen={showSkipConfirm}
                   title="Saltar Lançamento"
-                  message="Tem certeza que deseja saltar este lanÃ§amento? Ele nÃ£o serÃ¡ contabilizado nos totais."
+                  message="Tem certeza que deseja saltar este lançamento? Ele não será contabilizado nos totais."
                   onConfirm={async () => {
                     if (skipId) {
                       if (hasBackend) {
@@ -1293,7 +1424,7 @@ export default function ScheduleControl() {
                 <ConfirmModal
                   isOpen={showConfirmModal}
                   title="Confirmar Baixa"
-                  message={`Deseja realmente baixar o lanÃ§amento "${pendingConfirmation?.item?.historico}"?`}
+                  message={`Deseja realmente baixar o lançamento "${pendingConfirmation?.item?.historico}"?`}
                   onClose={() => {
                     setShowConfirmModal(false)
                     setPendingConfirmation(null)
@@ -1336,7 +1467,11 @@ export default function ScheduleControl() {
                         type="number"
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600"
                         value={modalValor}
-                        onChange={e => setModalValor(parseFloat(e.target.value))}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
+                          setModalValor(parseFloat(truncated) || 0);
+                        }}
                       />
                     </div>
                   </div>
@@ -1423,6 +1558,17 @@ export default function ScheduleControl() {
               onConfirm={handleConfirmSingle}
               title="Confirmar Lançamento"
               message="Confirmar Lançamento no Livro Caixa?"
+            />
+
+            <ConfirmModal
+              isOpen={showSelectAllConfirm}
+              onClose={() => setShowSelectAllConfirm(false)}
+              onConfirm={() => {
+                setShowSelectAllConfirm(false)
+                executeBulkSelect(true)
+              }}
+              title="Selecionar Todos"
+              message="Deseja realmente selecionar todos os itens que estão na tela?"
             />
           </div>
         )
