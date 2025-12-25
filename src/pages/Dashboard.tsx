@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getProfile } from '../services/db'
 import { useAppStore } from '../store/AppStore'
 import { CountUp } from '../components/ui/CountUp'
-
+import { DashboardCustomizeModal } from '../components/modals/DashboardCustomizeModal'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 
 export default function Dashboard() {
@@ -16,6 +16,42 @@ export default function Dashboard() {
   const [userName, setUserName] = useState('')
   const [detailGroup, setDetailGroup] = useState<any | null>(null)
   const detailsRef = useRef<HTMLDivElement>(null)
+
+  // Customization State
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false)
+
+  // Define Widgets
+  const WIDGETS = [
+    { id: 'total_entrada_fixa', label: 'Total entrada (Fixa/Mês)', icon: 'arrow_upward', color: 'text-green-600', countUp: (data: any) => data?.totalReceitasFixasMes || 0, textColor: 'text-profit', isCurrency: true },
+    { id: 'total_despesa_fixa', label: 'Total despesas (Fixa/Mês)', icon: 'arrow_downward', color: 'text-red-600', countUp: (data: any) => data?.totalRetiradaFixaMes || 0, textColor: 'text-loss', isCurrency: true },
+    { id: 'total_despesa', label: 'Total despesas variáveis', icon: 'receipt_long', color: 'text-red-500', countUp: (data: any) => data?.totalDespesas || 0, textColor: 'text-loss', isCurrency: true },
+    { id: 'valores_aberto', label: 'Valores em Aberto', icon: 'warning', color: 'text-red-600', countUp: (data: any) => Number(data?.totais?.total_atrasado || 0), textColor: (data: any) => Number(data?.totais?.total_atrasado || 0) >= 0 ? 'text-profit' : 'text-loss', isCurrency: true },
+    { id: 'despesas_lancadas', label: 'Total de despesas lançadas', icon: 'receipt_long', color: 'text-blue-600', countUp: (data: any) => data?.totalDespesasGeral || 0, textColor: 'text-text-main-light dark:text-text-main-dark', isCurrency: true },
+    { id: 'total_recebido', label: 'Total recebido (Livro Caixa)', icon: 'attach_money', color: 'text-blue-600', countUp: (data: any) => Number(data?.totais?.real_total_recebido || 0), textColor: 'text-neutral', isCurrency: true },
+    { id: 'total_pago', label: 'Total pago (Livro Caixa)', icon: 'money_off', color: 'text-red-600', countUp: (data: any) => Number(data?.totais?.real_total_pago || 0), textColor: 'text-loss', isCurrency: true },
+    { id: 'saldo_atual', label: 'Saldo Atual', icon: 'account_balance_wallet', color: 'text-gray-600', countUp: (data: any) => Number(data?.totais?.saldo_atual || 0), textColor: (data: any) => Number(data?.totais?.saldo_atual || 0) >= 0 ? 'text-profit' : 'text-loss', isCurrency: true },
+    { id: 'previsao_saldo', label: 'Previsão Saldo Mês Atual', icon: 'trending_up', color: 'text-gray-600', countUp: (data: any) => Number(data?.totais?.previsao_saldo || 0), textColor: (data: any) => Number(data?.totais?.previsao_saldo || 0) >= 0 ? 'text-profit' : 'text-loss', isCurrency: true },
+    { id: 'saldo_aplicacao', label: 'Saldo Aplicação', icon: 'savings', color: 'text-blue-500', countUp: (data: any) => data?.totais?.saldo_aplicacao || 0, textColor: (data: any) => Number(data?.totais?.saldo_aplicacao || 0) >= 0 ? 'text-profit' : 'text-loss', isCurrency: true },
+    { id: 'divisao_lucro', label: 'Previsão divisão de lucro (Anual)', icon: 'savings', color: 'text-green-600', countUp: (data: any) => data?.totalReceitasDivisaoLucro || 0, textColor: 'text-profit', isCurrency: true },
+  ]
+
+  const [selectedWidgets, setSelectedWidgets] = useState<string[]>(() => {
+    const saved = localStorage.getItem('dashboard_widgets')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        console.error('Error parsing saved widgets', e)
+      }
+    }
+    return WIDGETS.map(w => w.id)
+  })
+
+  // Save changes to localStorage
+  const handleSaveWidgets = (newSelection: string[]) => {
+    setSelectedWidgets(newSelection)
+    localStorage.setItem('dashboard_widgets', JSON.stringify(newSelection))
+  }
 
   useEffect(() => {
     if (detailGroup && detailsRef.current) {
@@ -35,6 +71,7 @@ export default function Dashboard() {
   const year = parseInt(selectedMonth.split('-')[0])
   const month = parseInt(selectedMonth.split('-')[1]) - 1
 
+  const dashboardData = useDashboardData(month, year, store.activeOrganization)
   const {
     totais,
     totalDespesas,
@@ -44,134 +81,68 @@ export default function Dashboard() {
     totalRetiradaFixaMes,
     totalDespesasGeral,
     loading: metricsLoading
-  } = useDashboardData(month, year, store.activeOrganization)
+  } = dashboardData
+
   const { monthlyData, expensesByGroup, loading: chartsLoading } = useChartData(store.activeOrganization)
 
   if (metricsLoading) {
     return <LoadingSpinner />
   }
 
+  // Helper to render widget
+  const renderWidget = (widgetId: string) => {
+    const widget = WIDGETS.find(w => w.id === widgetId)
+    if (!widget) return null
+
+    // Evaluate dynamic value logic
+    // We pass the whole dashboardData hook result to countUp function
+    const value = widget.countUp(dashboardData)
+    const textColorClass = typeof widget.textColor === 'function' ? widget.textColor(dashboardData) : widget.textColor
+
+    return (
+      <div key={widget.id} className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center animate-in fade-in zoom-in duration-300">
+        <div className={`${widget.color} mr-4`}>
+          <span className="material-icons-outlined text-4xl">{widget.icon}</span>
+        </div>
+        <div>
+          <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">{widget.label}</p>
+          <h3 className={`text-xl font-bold ${textColorClass}`}>
+            <CountUp end={value} />
+          </h3>
+        </div>
+      </div>
+    )
+  }
+
   return (
-
     <div className="space-y-6">
-
-      {/* Date Filter */}
-      <div className="flex items-center gap-4">
-        <span className="text-sm font-medium text-text-muted-light dark:text-text-muted-dark">Período:</span>
-        <div className="relative">
-          <input
-            type="month"
-            className="px-4 py-2 rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-main-light dark:text-text-main-dark text-sm focus:ring-primary focus:border-primary"
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-          />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative">
+        {/* Date Filter */}
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-text-muted-light dark:text-text-muted-dark">Período:</span>
+          <div className="relative">
+            <input
+              type="month"
+              className="px-4 py-2 rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-text-main-light dark:text-text-main-dark text-sm focus:ring-primary focus:border-primary"
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+            />
+          </div>
         </div>
+
+        {/* Customize Button */}
+        <button
+          onClick={() => setShowCustomizeModal(true)}
+          className="p-2 text-gray-500 dark:text-gray-400 hover:text-primary transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+          title="Customizar Dashboard"
+        >
+          <span className="material-icons-outlined text-2xl">settings</span>
+        </button>
       </div>
 
-      {/* Row 1: Fixed/Monthly & Overdue - 5 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-green-600 mr-4">
-            <span className="material-icons-outlined text-4xl">arrow_upward</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total entrada (Fixa/Mês)</p>
-            <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasFixasMes || 0} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-red-600 mr-4">
-            <span className="material-icons-outlined text-4xl">arrow_downward</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total despesas (Fixa/Mês)</p>
-            <h3 className="text-xl font-bold text-loss"><CountUp end={totalRetiradaFixaMes || 0} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-red-500 mr-4">
-            <span className="material-icons-outlined text-4xl">receipt_long</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total despesas</p>
-            <h3 className="text-xl font-bold text-loss"><CountUp end={totalDespesas || 0} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-red-600 mr-4">
-            <span className="material-icons-outlined text-4xl">warning</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Valores em Aberto</p>
-            <h3 className={`text-xl font-bold ${Number(totais?.total_atrasado || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.total_atrasado || 0)} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-blue-600 mr-4">
-            <span className="material-icons-outlined text-4xl">receipt_long</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total de despesas lançadas</p>
-            <h3 className="text-xl font-bold text-text-main-light dark:text-text-main-dark"><CountUp end={totalDespesasGeral || 0} /></h3>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 2: Totais do Livro Caixa + Previsão - 5 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-blue-600 mr-4">
-            <span className="material-icons-outlined text-4xl">attach_money</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total recebido</p>
-            <h3 className="text-xl font-bold text-neutral"><CountUp end={Number(totais?.real_total_recebido || 0)} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-red-600 mr-4">
-            <span className="material-icons-outlined text-4xl">money_off</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Total pago</p>
-            <h3 className="text-xl font-bold text-loss"><CountUp end={Number(totais?.real_total_pago || 0)} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-gray-600 mr-4">
-            <span className="material-icons-outlined text-4xl">account_balance_wallet</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Saldo Atual</p>
-            <h3 className={`text-xl font-bold ${Number(totais?.saldo_atual || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.saldo_atual || 0)} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-gray-600 mr-4">
-            <span className="material-icons-outlined text-4xl">trending_up</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão Saldo Mês Atual</p>
-            <h3 className={`text-xl font-bold ${Number(totais?.previsao_saldo || 0) >= 0 ? 'text-profit' : 'text-loss'}`}><CountUp end={Number(totais?.previsao_saldo || 0)} /></h3>
-          </div>
-        </div>
-
-        <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center">
-          <div className="text-green-600 mr-4">
-            <span className="material-icons-outlined text-4xl">savings</span>
-          </div>
-          <div>
-            <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">Previsão divisão de lucro (Anual)</p>
-            <h3 className="text-xl font-bold text-profit"><CountUp end={totalReceitasDivisaoLucro || 0} /></h3>
-          </div>
-        </div>
+      {/* Dynamic Widget Grid - Auto Flow */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-6">
+        {WIDGETS.filter(w => selectedWidgets.includes(w.id)).map(w => renderWidget(w.id))}
       </div>
 
       {/* Charts Section */}
@@ -242,6 +213,15 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Customization Modal */}
+      <DashboardCustomizeModal
+        isOpen={showCustomizeModal}
+        onClose={() => setShowCustomizeModal(false)}
+        initialSelection={selectedWidgets}
+        onSave={handleSaveWidgets}
+        availableWidgets={WIDGETS.map(w => ({ id: w.id, label: w.label }))}
+      />
     </div>
   )
 }

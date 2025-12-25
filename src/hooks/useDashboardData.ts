@@ -12,6 +12,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
     const [totalRetiradaFixaMes, setTotalRetiradaFixaMes] = useState(0)
     const [totalDespesasGeral, setTotalDespesasGeral] = useState(0)
     const [saldoAtualGeral, setSaldoAtualGeral] = useState(0)
+    const [saldoAplicacao, setSaldoAplicacao] = useState(0)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -56,7 +57,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
 
                     // Calculate Saldo Atual from account_balances_view, filtering ACTIVE accounts
                     const { data: accountsData } = await client.from('account_balances_view').select('account_id, saldo_atual').eq('organization_id', orgId)
-                    const { data: activeAccounts } = await client.from('accounts').select('id, ativo').eq('organization_id', orgId)
+                    const { data: activeAccounts } = await client.from('accounts').select('id, ativo, tipo').eq('organization_id', orgId)
 
                     const saldoGeral = accountsData?.reduce((sum, bal) => {
                         const account = activeAccounts?.find(a => a.id === bal.account_id)
@@ -64,8 +65,17 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         return sum + Number(bal.saldo_atual || 0)
                     }, 0) || 0
 
+                    const saldoApp = accountsData?.reduce((sum, bal) => {
+                        const account = activeAccounts?.find(a => a.id === bal.account_id)
+                        if (account && account.ativo !== false && account.tipo === 'aplicacao') {
+                            return sum + Number(bal.saldo_atual || 0)
+                        }
+                        return sum
+                    }, 0) || 0
+
                     currentSaldoGeral = saldoGeral
                     setSaldoAtualGeral(saldoGeral)
+                    setSaldoAplicacao(saldoApp)
                 }
 
                 // Fetch schedules to calculate despesas and receitas totals
@@ -101,9 +111,9 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                             return (m - 1) === month && y === year
                         })
 
-                        // Calculate total despesas (PENDING ONLY per user request)
+                        // Calculate total despesas (PENDING ONLY per user request) - NOW ONLY VARIABLE
                         const despesas = currentMonthSchedules.filter((s: any) =>
-                            s.operacao?.toLowerCase() === 'despesa' && s.situacao !== 2
+                            s.operacao?.toLowerCase() === 'despesa' && s.situacao !== 2 && s.tipo === 'variavel'
                         )
                         const totalDesp = despesas.reduce((sum: number, s: any) => {
                             const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
@@ -152,7 +162,6 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                                 // If it's variable/installments, 'valor' might be Total? 
                                 // But usually 'schedules' list returns generated/projected items?
                                 // listSchedules returns `schedules_view`? 
-                                // Actually, listSchedules in db.ts maps to `schedules_view`? 
                                 // No, listSchedules queries `schedules`? 
                                 // Let's simplify and use logic similar to 'totalDespesas':
                                 // If parcelas > 1, calc single parcel value.
@@ -249,6 +258,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
         totais: {
             ...totais,
             saldo_atual: saldoAtualGeral,
+            saldo_aplicacao: saldoAplicacao
             // If we calculated predicted inside the effect and updated 'totais', it's there.
             // But 'totais' update might lag one render cycle or race?
             // Actually, we are updating 'totais' state in the effect.
