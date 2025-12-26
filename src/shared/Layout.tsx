@@ -12,6 +12,7 @@ import { useAppStore } from '../store/AppStore'
 import { listMyMemberships, listMyOrganizations, getProfile } from '../services/db'
 import { useLayout } from '../context/LayoutContext'
 import { CookieConsentModal } from '../components/modals/CookieConsentModal'
+import { MobileNav } from '../components/layout/MobileNav'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const store = useAppStore()
@@ -258,11 +259,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onOpenTransfer={() => setShowTransfer(true)}
         />
 
-        <div className="flex-1 relative p-6">
+        <div className="flex-1 relative p-4 md:p-6 pb-24 md:pb-6">
           {children}
         </div>
 
         <Footer />
+        <MobileNav onMore={() => setMobileOpen(true)} />
       </main>
 
       {showCalculator && <CalculatorModal onClose={() => setShowCalculator(false)} />}

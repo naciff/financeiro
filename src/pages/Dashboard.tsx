@@ -100,13 +100,13 @@ export default function Dashboard() {
     const textColorClass = typeof widget.textColor === 'function' ? widget.textColor(dashboardData) : widget.textColor
 
     return (
-      <div key={widget.id} className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center animate-in fade-in zoom-in duration-300">
-        <div className={`${widget.color} mr-4`}>
-          <span className="material-icons-outlined text-4xl">{widget.icon}</span>
+      <div key={widget.id} className="bg-surface-light dark:bg-surface-dark p-3 md:p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex items-center animate-in fade-in zoom-in duration-300">
+        <div className={`${widget.color} mr-2 md:mr-4`}>
+          <span className="material-icons-outlined text-3xl md:text-4xl">{widget.icon}</span>
         </div>
-        <div>
-          <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-1">{widget.label}</p>
-          <h3 className={`text-xl font-bold ${textColorClass}`}>
+        <div className="overflow-hidden">
+          <p className="text-xs md:text-sm text-text-muted-light dark:text-text-muted-dark mb-1 truncate">{widget.label}</p>
+          <h3 className={`text-sm md:text-xl font-bold ${textColorClass} truncate`}>
             <CountUp end={value} />
           </h3>
         </div>
@@ -141,7 +141,7 @@ export default function Dashboard() {
       </div>
 
       {/* Dynamic Widget Grid - Auto Flow */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6 mb-6">
         {WIDGETS.filter(w => selectedWidgets.includes(w.id)).map(w => renderWidget(w.id))}
       </div>
 

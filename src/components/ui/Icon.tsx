@@ -119,6 +119,12 @@ export function Icon({ name, className, title }: Props) {
       return (<svg {...common} className={className}><path fill="currentColor" d="M8 5v14l11-7z" /></svg>)
     case 'link':
       return (<svg {...common} className={className}><path fill="currentColor" d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" /></svg>)
+    case 'menu':
+      return (<svg {...common} className={className}><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" /></svg>)
+    case 'speed':
+      return (<svg {...common} className={className}><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" /></svg>) // Simple placeholder or speedometer
+    case 'dots':
+      return (<svg {...common} className={className}><path fill="currentColor" d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2z" /></svg>)
     default:
       return (<svg {...common} className={className}><circle cx="12" cy="12" r="10" fill="currentColor" /></svg>)
   }
