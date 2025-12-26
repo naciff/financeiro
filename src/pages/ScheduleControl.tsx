@@ -697,7 +697,28 @@ export default function ScheduleControl() {
         onClose={() => setTestResultModal({ ...testResultModal, open: false })}
       />
 
-      <div className="flex flex-col gap-2">
+      <div className="md:hidden flex flex-col gap-2 mb-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Controle</h1>
+          <div className="flex gap-2">
+            <button className="text-blue-600 font-medium text-sm" onClick={() => setShowTestConfirm(true)}>Testar</button>
+          </div>
+        </div>
+        {/* Mobile Filter Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          {buttons.map(b => (
+            <button
+              key={b.id}
+              className={`px-4 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap border ${filter === b.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600'}`}
+              onClick={() => { setFilter(b.id); setPage(1) }}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="hidden md:flex flex-col gap-2">
         {/* Row 1: Actions, Search, Filters */}
         <div className="flex flex-wrap items-center gap-2 w-full">
           {/* Action Buttons Removed */}
@@ -1015,7 +1036,7 @@ export default function ScheduleControl() {
                         {(!expanded[groupTitle]) && (
                           <div className="overflow-x-auto">
                             <table className="w-full text-xs table-fixed">
-                              <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
+                              <thead className="hidden md:table-header-group bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
                                 <tr>
                                   {[
                                     ['vencimento', 'Data Vencimento'],
@@ -1041,7 +1062,7 @@ export default function ScheduleControl() {
                                 {groupData.map(item => (
                                   <React.Fragment key={item.id}>
                                     <tr
-                                      className={`hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
+                                      className={`hidden md:table-row hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${item.conferido ? 'bg-gray-50/50 dark:bg-gray-900/30 font-bold text-blue-600 dark:text-blue-400' : ''
                                         } ${selectedIds.has(item.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''}`}
                                       onClick={(e) => handleSelect(e, item.id)}
                                       onContextMenu={(e) => {
@@ -1122,6 +1143,61 @@ export default function ScheduleControl() {
                                         />
                                       </td>
                                     </tr >
+
+                                    {/* Mobile Card Layout for Table Row */}
+                                    <tr className="md:hidden border-b dark:border-gray-700 last:border-0"
+                                      onClick={() => {
+                                        if (selectedIds.has(item.id)) {
+                                          handleSelect({ ctrlKey: false } as any, item.id)
+                                        } else {
+                                          if (selectedIds.size > 0) {
+                                            handleSelect({ ctrlKey: true } as any, item.id)
+                                          } else {
+                                            // Open modal
+                                            openModal(item)
+                                            setShowTransactionModal(true)
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <td colSpan={100} className="p-3">
+                                        <div className={`flex items-start gap-3 ${item.conferido ? 'opacity-80' : ''}`}>
+                                          <div
+                                            className={`w-5 h-5 mt-1 rounded border flex items-center justify-center shrink-0 ${item.conferido ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-600'}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              updateFinancial(item.id, { conferido: !item.conferido }, store.activeOrganization!).then(() => refresh())
+                                            }}
+                                          >
+                                            {item.conferido && <Icon name="check" className="w-3.5 h-3.5 text-white" />}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start">
+                                              <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm line-clamp-1">{item.historico || item.compromisso || 'Sem descrição'}</span>
+                                              <span className={`font-bold text-sm whitespace-nowrap ${item.receita > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {item.receita > 0 ? `R$ ${formatMoneyBr(item.receita)}` : `R$ ${formatMoneyBr(item.despesa)}`}
+                                              </span>
+                                            </div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap gap-x-2">
+                                              <span>{item.vencimentoBr}</span>
+                                              <span>•</span>
+                                              <span>{item.cliente}</span>
+                                              {item.totalParcelas > 1 && (
+                                                <>
+                                                  <span>•</span>
+                                                  <span>{item.parcela}/{item.totalParcelas}</span>
+                                                </>
+                                              )}
+                                            </div>
+                                            {!item.conferido && item.diasAtraso > 0 && (
+                                              <div className="text-[10px] text-red-500 font-medium mt-1">
+                                                Vencido há {item.diasAtraso} dias
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </tr>
                                     {item.agendamento?.parcial && item.agendamento.valor > (item.receita || item.despesa) && (
                                       <tr className="">
                                         <td colSpan={9} className="px-4 py-1 text-left font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">

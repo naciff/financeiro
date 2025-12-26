@@ -620,8 +620,29 @@ export default function Ledger() {
         </div>
       </div>
 
-      {/* Filtros e Abas */}
-      <div className="flex flex-col gap-4">
+      {/* Mobile Header: Month Selection */}
+      <div className="md:hidden flex items-center justify-between bg-white dark:bg-gray-800 p-2 rounded-lg border dark:border-gray-700 mb-4 shadow-sm">
+        <button onClick={() => {
+          const curr = new Date(selectedMonth + '-01')
+          curr.setMonth(curr.getMonth() - 1)
+          setSelectedMonth(curr.toISOString().slice(0, 7))
+        }} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Icon name="chevron-left" className="w-5 h-5" />
+        </button>
+        <span className="font-semibold text-gray-900 dark:text-gray-100 capitalize">
+          {new Date(selectedMonth + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+        </span>
+        <button onClick={() => {
+          const curr = new Date(selectedMonth + '-01')
+          curr.setMonth(curr.getMonth() + 1)
+          setSelectedMonth(curr.toISOString().slice(0, 7))
+        }} className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Icon name="chevron-right" className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Filtros e Abas (Desktop) */}
+      <div className="hidden md:flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex gap-2">
             <button
@@ -711,11 +732,73 @@ export default function Ledger() {
           </div>
         )}
       </div>
+
+      {/* Mobile Transactions List */}
+      <div className="md:hidden space-y-3 pb-24">
+        {/* Group by Date */}
+        {Array.from(new Set(filteredTxs.map(t => t.data_lancamento))).sort().reverse().map(date => {
+          const dayTxs = filteredTxs.filter(t => t.data_lancamento === date)
+          return (
+            <div key={date}>
+              <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 mt-4 px-1 sticky top-0 bg-background-light dark:bg-background-dark py-1 z-10">
+                {new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </div>
+              <div className="space-y-3">
+                {dayTxs.map(tx => (
+                  <div
+                    key={tx.id}
+                    onClick={() => {
+                      if (selectedIds.has(tx.id)) {
+                        handleSelect({ ctrlKey: false } as any, tx.id)
+                      } else {
+                        // If already selected, maybe toggle? For now just open modal on click if no selection mode?
+                        // Or if selection is active, toggle.
+                        if (selectedIds.size > 0) {
+                          handleSelect({ ctrlKey: true } as any, tx.id)
+                        } else {
+                          openModal(tx)
+                        }
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between ${selectedIds.has(tx.id) ? 'ring-2 ring-blue-500' : ''}`}
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${tx.operacao === 'receita' ? 'bg-green-100 text-green-600' :
+                        tx.operacao === 'despesa' ? 'bg-red-100 text-red-600' :
+                          'bg-blue-100 text-blue-600'
+                        }`}>
+                        <Icon name={tx.operacao === 'receita' ? 'arrow-up' : (tx.operacao === 'despesa' ? 'arrow-down' : 'refresh')} className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                          {tx.historico || 'Sem histórico'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {tx.cliente?.nome || tx.operacao} • {accounts.find(a => a.id === tx.conta_id)?.nome}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end shrink-0 ml-2">
+                      <span className={`font-bold ${Number(tx.valor_entrada) > 0 ? 'text-green-600' :
+                        Number(tx.valor_saida) > 0 ? 'text-red-600' : 'text-gray-600'
+                        }`}>
+                        {Number(tx.valor_entrada) > 0 ? `+ ${formatMoneyBr(Number(tx.valor_entrada))}` :
+                          Number(tx.valor_saida) > 0 ? `- ${formatMoneyBr(Number(tx.valor_saida))}` : 'R$ 0,00'}
+                      </span>
+                      {tx.status === 'done' && <Icon name="check" className="w-3 h-3 text-green-500" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
       {msg && <div className="text-sm text-green-700">{msg}</div>}
 
 
       <div className={`flex gap-4 items-start ${filterMode === 'attachments' ? 'h-[calc(100vh-250px)]' : ''}`}>
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded text-gray-900 dark:text-gray-100 flex-1 h-full overflow-hidden flex flex-col">
+        <div className="hidden md:flex bg-white dark:bg-gray-800 border dark:border-gray-700 rounded text-gray-900 dark:text-gray-100 flex-1 h-full overflow-hidden flex-col">
           <div className="overflow-auto flex-1">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
@@ -904,16 +987,18 @@ export default function Ledger() {
         message="Deseja salvar este lançamento como Favorito?"
       />
 
-      {showTransferModal && (
-        <TransferModal
-          onClose={() => {
-            setShowTransferModal(false)
-            setEditingTransfer(null)
-            load()
-          }}
-          initialData={editingTransfer || undefined}
-        />
-      )}
+      {
+        showTransferModal && (
+          <TransferModal
+            onClose={() => {
+              setShowTransferModal(false)
+              setEditingTransfer(null)
+              load()
+            }}
+            initialData={editingTransfer || undefined}
+          />
+        )
+      }
 
       <AlertModal
         isOpen={alertModal.open}
@@ -921,6 +1006,6 @@ export default function Ledger() {
         message={alertModal.message}
         onClose={() => setAlertModal({ ...alertModal, open: false })}
       />
-    </div>
+    </div >
   )
 }
