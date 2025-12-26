@@ -380,20 +380,20 @@ export async function updateTransaction(id: string, payload: any, orgId?: string
 
 export async function listClients(orgId: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('clients').select('id,nome,documento').eq('organization_id', orgId).order('nome', { ascending: true })
+  return supabase.from('clients').select('*').eq('organization_id', orgId).order('nome', { ascending: true })
 }
 
 export async function searchClients(term: string, orgId: string, limit = 10) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('clients').select('id,nome').ilike('nome', `%${term}%`).eq('organization_id', orgId).order('nome').limit(limit)
+  return supabase.from('clients').select('id,nome,notify_email,notify_whatsapp').ilike('nome', `%${term}%`).eq('organization_id', orgId).order('nome').limit(limit)
 }
 
-export async function createClient(payload: { nome: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string; organization_id: string }) {
+export async function createClient(payload: { nome: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string; notify_email?: boolean; notify_whatsapp?: boolean; organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('clients').insert([{ user_id: userId, ...payload }]).select('id').single()
 }
-export async function updateClient(id: string, payload: { nome?: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string }) {
+export async function updateClient(id: string, payload: { nome?: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string; notify_email?: boolean; notify_whatsapp?: boolean }) {
   if (!supabase) return { data: null, error: null }
   return supabase.from('clients').update({ ...payload }).eq('id', id).select('id').single()
 }

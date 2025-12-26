@@ -21,3 +21,17 @@ export function maskCpfCnpj(v: string) {
     return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
   }
 }
+
+export function maskPhone(v: string) {
+  v = v.replace(/\D/g, '')
+  v = v.slice(0, 11)
+  if (v.length > 10) {
+    return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3')
+  } else if (v.length > 5) {
+    return v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3')
+  } else if (v.length > 2) {
+    return v.replace(/^(\d{2})(\d{0,5}).*/, '($1) $2')
+  } else {
+    return v.replace(/^(\d*)/, '($1')
+  }
+}

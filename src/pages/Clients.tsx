@@ -1,31 +1,21 @@
 import { useEffect, useState } from 'react'
 import { hasBackend } from '../lib/runtime'
-import { listClients, createClient, updateClient, deleteClient } from '../services/db'
+import { listClients, deleteClient } from '../services/db'
 import { useAppStore } from '../store/AppStore'
 import { ClientModal } from '../components/modals/ClientModal'
 import { Icon } from '../components/ui/Icon'
+import { maskPhone } from '../utils/format'
 
 export default function Clients() {
   const store = useAppStore()
   const [items, setItems] = useState<any[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [nome, setNome] = useState('')
-  const [cpfCnpj, setCpfCnpj] = useState('')
-  const [telefone, setTelefone] = useState('')
-  const [email, setEmail] = useState('')
-  const [cep, setCep] = useState('')
-  const [endereco, setEndereco] = useState('')
-  const [numero, setNumero] = useState('')
-  const [complemento, setComplemento] = useState('')
-  const [bairro, setBairro] = useState('')
-  const [cidade, setCidade] = useState('')
-  const [uf, setUf] = useState('')
-  const [observacoes, setObservacoes] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [editId, setEditId] = useState('')
 
+  // State for Modal
   const [showClientModal, setShowClientModal] = useState(false)
+  const [clientToEdit, setClientToEdit] = useState<any>(null)
+
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
@@ -57,74 +47,37 @@ export default function Clients() {
       if (r.error) { setError(r.error.message); setItems([]) }
       else setItems((r.data as any) || [])
     } else {
-      setItems(store.clients.map(c => ({ id: c.id, nome: c.nome, cpf_cnpj: c.documento, telefone: c.telefone, email: c.email, cep: c.cep, endereco: c.endereco, numero: c.numero, complemento: c.complemento, bairro: c.bairro, cidade: c.cidade, uf: c.uf, observacoes: c.observacoes })))
+      setItems(store.clients.map(c => ({
+        id: c.id,
+        nome: c.nome,
+        cpf_cnpj: c.documento,
+        telefone: c.telefone,
+        email: c.email,
+        endereco: c.endereco,
+        razao_social: c.razao_social,
+        atividade_principal: c.atividade_principal,
+        notify_email: c.notify_email,
+        notify_whatsapp: c.notify_whatsapp
+      })))
     }
     setLoading(false)
   }
   useEffect(() => { load() }, [store.activeOrganization])
 
-  async function onSave(e: React.FormEvent) {
-    // ... existing onSave code ...
-    e.preventDefault()
-    if (!nome.trim()) { setError('Nome é obrigatório'); return }
-    setError(null)
-    const clientData = {
-      nome,
-      cpf_cnpj: cpfCnpj || undefined,
-      telefone: telefone || undefined,
-      email: email || undefined,
-      cep: cep || undefined,
-      endereco: endereco || undefined,
-      numero: numero || undefined,
-      complemento: complemento || undefined,
-      bairro: bairro || undefined,
-      cidade: cidade || undefined,
-      uf: uf || undefined,
-      observacoes: observacoes || undefined,
-    }
-    if (hasBackend) {
-      if (editId) {
-        const r = await updateClient(editId, clientData)
-        if (r.error) setError(r.error.message)
-      } else {
-        if (!store.activeOrganization) {
-          setError('Nenhuma empresa selecionada')
-          return
-        }
-        const r = await createClient({ ...clientData, organization_id: store.activeOrganization })
-        if (r.error) setError(r.error.message)
-      }
-    } else {
-      if (editId) {
-        store.updateClient(editId, clientData as any)
-      } else {
-        store.createClient(clientData as any)
-      }
-    }
-    setNome(''); setCpfCnpj(''); setTelefone(''); setEmail(''); setCep(''); setEndereco(''); setNumero(''); setComplemento(''); setBairro(''); setCidade(''); setUf(''); setObservacoes(''); setEditId(''); setShowForm(false); load()
-  }
-
   function handleEdit() {
     const selectedIds = Object.keys(selected).filter(id => selected[id])
     if (selectedIds.length !== 1) return
     const idToEdit = selectedIds[0]
-    const c = items.find(x => x.id === idToEdit) as any
+    const c = items.find(x => x.id === idToEdit)
     if (c) {
-      setEditId(c.id)
-      setNome(c.nome)
-      setCpfCnpj(c.cpf_cnpj || '')
-      setTelefone(c.telefone || '')
-      setEmail(c.email || '')
-      setCep(c.cep || '')
-      setEndereco(c.endereco || '')
-      setNumero(c.numero || '')
-      setComplemento(c.complemento || '')
-      setBairro(c.bairro || '')
-      setCidade(c.cidade || '')
-      setUf(c.uf || '')
-      setObservacoes(c.observacoes || '')
-      setShowForm(true)
+      setClientToEdit(c)
+      setShowClientModal(true)
     }
+  }
+
+  function handleOpenNew() {
+    setClientToEdit(null)
+    setShowClientModal(true)
   }
 
   async function handleDelete() {
@@ -148,7 +101,7 @@ export default function Clients() {
       <div className="flex flex-wrap items-center gap-2 w-full">
         <button
           className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
-          onClick={() => setShowClientModal(true)}
+          onClick={handleOpenNew}
         >
           <Icon name="add" className="w-4 h-4" /> Incluir
         </button>
@@ -178,39 +131,17 @@ export default function Clients() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        {search && (
+          <button
+            className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap"
+            onClick={() => setSearch('')}
+          >
+            Limpar
+          </button>
+        )}
       </div>
 
-      {!showForm ? null : (
-        <form onSubmit={onSave} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-4 space-y-3">
-          <div className="font-medium text-gray-900 dark:text-gray-100">{editId ? 'Editar cliente' : 'Novo cliente'}</div>
-          <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={nome} onChange={e => setNome(e.target.value.toUpperCase())} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">CPF/CNPJ (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={cpfCnpj} onChange={e => setCpfCnpj(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Telefone (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={telefone} onChange={e => setTelefone(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Email (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={email} onChange={e => setEmail(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">CEP (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={cep} onChange={e => setCep(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Endereço (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={endereco} onChange={e => setEndereco(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Número (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={numero} onChange={e => setNumero(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Complemento (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={complemento} onChange={e => setComplemento(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Bairro (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={bairro} onChange={e => setBairro(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Cidade (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={cidade} onChange={e => setCidade(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">UF (opcional)</label>
-          <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={uf} onChange={e => setUf(e.target.value)} />
-          <label className="text-sm text-gray-700 dark:text-gray-300">Observações (opcional)</label>
-          <textarea className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => setObservacoes(e.target.value)} />
-          {error && <div className="text-xs text-red-600 dark:text-red-400">{error}</div>}
-          <div className="flex justify-end gap-2"><button type="button" className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { setShowForm(false); setError(null); setEditId('') }}>Cancelar</button><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" type="submit">Salvar</button></div>
-        </form>
-      )}
+      {error && <div className="text-red-500 text-sm">{error}</div>}
 
       {/* Table */}
       <div className="bg-white dark:bg-gray-800 rounded border dark:border-gray-700 overflow-hidden">
@@ -238,6 +169,7 @@ export default function Clients() {
                     <th className="p-3">Nome</th>
                     <th className="p-3">CPF/CNPJ</th>
                     <th className="p-3">Telefone</th>
+                    <th className="p-3">Email</th>
                     <th className="p-3">Cidade/UF</th>
                   </tr>
                 </thead>
@@ -248,20 +180,8 @@ export default function Clients() {
                       className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                       onClick={() => setSelected(s => ({ ...s, [item.id]: !s[item.id] }))}
                       onDoubleClick={() => {
-                        setEditId(item.id)
-                        setNome(item.nome)
-                        setCpfCnpj(item.cpf_cnpj || '')
-                        setTelefone(item.telefone || '')
-                        setEmail(item.email || '')
-                        setCep(item.cep || '')
-                        setEndereco(item.endereco || '')
-                        setNumero(item.numero || '')
-                        setComplemento(item.complemento || '')
-                        setBairro(item.bairro || '')
-                        setCidade(item.cidade || '')
-                        setUf(item.uf || '')
-                        setObservacoes(item.observacoes || '')
-                        setShowForm(true)
+                        setClientToEdit(item)
+                        setShowClientModal(true)
                       }}
                     >
                       <td className="p-3 text-center" onClick={e => e.stopPropagation()}>
@@ -272,9 +192,10 @@ export default function Clients() {
                         />
                       </td>
                       <td className="p-3 font-medium">{item.nome}</td>
-                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.cpf_cnpj || '-'}</td>
-                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.telefone || '-'}</td>
-                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.cidade ? `${item.cidade}/${item.uf}` : '-'}</td>
+                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.cpf_cnpj || item.documento || '-'}</td>
+                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.telefone ? maskPhone(item.telefone) : '-'}</td>
+                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.email || '-'}</td>
+                      <td className="p-3 text-gray-500 dark:text-gray-400">{item.endereco ? (item.endereco.split(',').slice(-2).join('/').trim()) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -311,9 +232,13 @@ export default function Clients() {
 
       <ClientModal
         isOpen={showClientModal}
-        onClose={() => setShowClientModal(false)}
+        onClose={() => {
+          setShowClientModal(false)
+          setClientToEdit(null)
+        }}
+        clientToEdit={clientToEdit}
         onSuccess={(client: { id: string, nome: string }) => {
-          setItems(prev => [client, ...prev])
+          // Refresh list
           load()
         }}
       />

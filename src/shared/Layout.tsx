@@ -167,6 +167,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       to: '/settings', label: 'Configurações', icon: 'settings', children: [
         { to: '/settings?tab=geral', label: 'Geral', icon: 'settings_applications' },
         { to: '/settings?tab=organizacoes', label: 'Organizações', icon: 'business' },
+        { to: '/settings?tab=integracoes', label: 'Integrações', icon: 'link' },
         { to: '/admin/db-manager', label: 'Gerenciador de Banco', icon: 'storage' }
       ]
     }] : [])

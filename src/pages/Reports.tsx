@@ -2,6 +2,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { listTransactions, listAccounts, listCommitmentGroups, listCommitmentsByGroup, listCostCenters, listMyOrganizations, listFinancials, listScheduleCostCenters } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
+import { getImageProperties } from '../utils/image'
+import { uploadFile } from '../utils/upload'
+import { sendWhatsAppMessage } from '../services/whatsapp'
+import { RecipientModal } from '../components/modals/RecipientModal'
+import { sendEmail } from '../services/email'
 import { Icon } from '../components/ui/Icon'
 import { FloatingLabelSelect } from '../components/ui/FloatingLabelSelect'
 import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
@@ -37,6 +42,9 @@ export default function Reports() {
   const [syntheticData, setSyntheticData] = useState<any[]>([])
   const [ccDetailedData, setCcDetailedData] = useState<{ months: string[], rows: any[] }>({ months: [], rows: [] })
   const [generated, setGenerated] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [showRecipientModal, setShowRecipientModal] = useState(false)
+  const [recipientMode, setRecipientMode] = useState<'email' | 'whatsapp'>('email')
 
   useEffect(() => {
     loadInitialData()
@@ -177,7 +185,9 @@ export default function Reports() {
       acc[key].expense += valSaida
       acc[key].total += (valEntrada - valSaida)
       return acc
-    }, {})
+      acc[key].total += (valEntrada - valSaida)
+      return acc
+    }, {} as any)
 
     const processedSynthetic = Object.values(grouped)
       .filter((d: any) => d.income !== 0 || d.expense !== 0) // Hide zero values
@@ -290,7 +300,7 @@ export default function Reports() {
     document.body.removeChild(link)
   }
 
-  async function handleExportPDF() {
+  async function handleExportPDF(action: 'download' | 'blob' = 'download') {
     if (!generated) return
     // Dynamic import to avoid build errors if not installed yet
     try {
@@ -298,93 +308,147 @@ export default function Reports() {
       const autoTable = (await import('jspdf-autotable')).default
 
       const orientation = viewType === 'cc_detailed' ? 'l' : 'p'
-      const doc = new jsPDF(orientation)
 
-      // --- HEADERS CONFIGURATION ---
-      const hasCustomHeader = !!reportConfig
-      let startY = 25
+      // Calculate Logo Dimensions before creating PDF
+      let logoMainDim = { w: 30, h: 15 }
+      let logoSecDim = { w: 30, h: 15 }
 
-      if (hasCustomHeader) {
-        const {
-          logo_main, logo_secondary, company_name, cnpj,
-          address, site, email, phone, report_title_prefix
-        } = reportConfig
-
-        let currentY = 10
-
-        // 1. Main Logo (Left)
-        if (logo_main) {
-          try {
-            // Determine image format from extension roughly
-            const ext = logo_main.split('.').pop().toLowerCase()
-            const format = (ext === 'png') ? 'PNG' : 'JPEG'
-            doc.addImage(logo_main, format, 10, 5, 30, 15) // x, y, w, h
-          } catch (err) {
-            console.error('Error loading main logo', err)
+      if (reportConfig?.logo_main) {
+        try {
+          const props = await getImageProperties(reportConfig.logo_main)
+          // Fit within 30x15
+          const maxWidth = 30
+          const maxHeight = 15
+          let w = maxWidth
+          let h = w / props.ratio
+          if (h > maxHeight) {
+            h = maxHeight
+            w = h * props.ratio
           }
+          logoMainDim = { w, h }
+        } catch (e) {
+          console.error('Error calculating main logo ratio', e)
         }
-
-        // 2. Secondary Logo (Right)
-        if (logo_secondary) {
-          try {
-            const ext = logo_secondary.split('.').pop().toLowerCase()
-            const format = (ext === 'png') ? 'PNG' : 'JPEG'
-            doc.addImage(logo_secondary, format, 170, 5, 30, 15)
-          } catch (err) {
-            console.error('Error loading secondary logo', err)
-          }
-        }
-
-        // 3. Company Info (Center/Left - offset by logo)
-        // X Position: 45 if logo exists, else 14
-        const textX = logo_main ? 45 : 14
-
-        doc.setFontSize(14)
-        doc.setFont("helvetica", "bold")
-        doc.text(company_name || 'Minha Empresa', textX, 10)
-
-        doc.setFontSize(9)
-        doc.setFont("helvetica", "normal")
-        if (cnpj) doc.text(`CNPJ: ${cnpj}`, textX, 15)
-
-        doc.setFontSize(8)
-        if (address) doc.text(address, textX, 19)
-
-        // Contact Line
-        let contactLine = ''
-        if (site) contactLine += `Site: ${site}  `
-        if (email) contactLine += `E-mail: ${email}  `
-        if (phone) contactLine += `Celular: ${phone}`
-        if (contactLine) doc.text(contactLine, textX, 23)
-
-        // 4. Report Title
-        // Draw a line separator
-        doc.setLineWidth(0.5)
-        doc.line(10, 26, 200, 26) // Horizontal line
-
-        doc.setFontSize(12)
-        doc.setFont("helvetica", "bold")
-        const titlePrefix = report_title_prefix || 'Relatório Financeiro'
-        const titleSuffix = viewType === 'analytic' ? 'Analítico' : (viewType === 'cc_detailed' ? 'Centro de Custo Detalhado' : 'Sintético')
-        doc.text(`${titlePrefix} - ${titleSuffix}`.toUpperCase(), doc.internal.pageSize.width / 2, 32, { align: 'center' })
-
-
-        doc.setFontSize(10)
-        doc.setFont("helvetica", "normal")
-        doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, doc.internal.pageSize.width / 2, 37, { align: 'center' })
-
-        startY = 45
-      } else {
-        // Default Header
-        doc.setFontSize(16)
-        const titleSuffix = viewType === 'analytic' ? 'Analítico' : (viewType === 'cc_detailed' ? 'Centro de Custo Detalhado' : 'Sintético')
-        doc.text(`Relatório Financeiro - ${titleSuffix}`, 14, 15)
-        doc.setFontSize(10)
-        doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 14, 22)
       }
 
-      // Capture footer text before closure
-      const footerText = reportConfig?.footer_text || ''
+      if (reportConfig?.logo_secondary) {
+        try {
+          const props = await getImageProperties(reportConfig.logo_secondary)
+          const maxWidth = 30
+          const maxHeight = 15
+          let w = maxWidth
+          let h = w / props.ratio
+          if (h > maxHeight) {
+            h = maxHeight
+            w = h * props.ratio
+          }
+          logoSecDim = { w, h }
+        } catch (e) {
+          console.error('Error calculating secondary logo ratio', e)
+        }
+      }
+
+      const doc = new jsPDF(orientation)
+
+      // --- HERO CONFIGURATION ---
+      // Define drawHeader function to be called on every page
+      const drawHeader = (doc: any) => {
+        const pageWidth = doc.internal.pageSize.width
+        const hasCustomHeader = !!reportConfig
+
+        // Define Header Area Height
+        // If custom header, it's taller. 
+        // We handle y positions dynamically inside.
+
+        if (hasCustomHeader) {
+          const {
+            logo_main, logo_secondary, company_name, cnpj,
+            address, site, email, phone, report_title_prefix
+          } = reportConfig
+
+          // 1. Main Logo (Left)
+          if (logo_main) {
+            try {
+              const ext = logo_main.split('.').pop().toLowerCase()
+              const format = (ext === 'png') ? 'PNG' : 'JPEG'
+              // Center vertically in the 15 unit heigh space: y = 5 + (15 - h)/2
+              const yPos = 5 + (15 - logoMainDim.h) / 2
+              doc.addImage(logo_main, format, 10, yPos, logoMainDim.w, logoMainDim.h)
+            } catch (err) {
+              console.error('Error loading main logo', err)
+            }
+          }
+
+          // 2. Secondary Logo (Right)
+          if (logo_secondary) {
+            try {
+              const ext = logo_secondary.split('.').pop().toLowerCase()
+              const format = (ext === 'png') ? 'PNG' : 'JPEG'
+              // Right align: pageWidth - 10 - w
+              const xPos = pageWidth - 10 - logoSecDim.w
+              const yPos = 5 + (15 - logoSecDim.h) / 2
+              doc.addImage(logo_secondary, format, xPos, yPos, logoSecDim.w, logoSecDim.h)
+            } catch (err) {
+              console.error('Error loading secondary logo', err)
+            }
+          }
+
+          // 3. Company Info (Center/Left - offset by logo)
+          // X Position: 45 if logo exists, else 14
+          // We can also adjust this dynamically based on logo width if we wanted, but sticking to 45 is safe for now unless logo is huge (we capped at 30).
+          const textX = logo_main ? 45 : 14
+
+          doc.setFontSize(14)
+          doc.setFont("helvetica", "bold")
+          doc.text(company_name || 'Minha Empresa', textX, 10)
+
+          doc.setFontSize(9)
+          doc.setFont("helvetica", "normal")
+          if (cnpj) doc.text(`CNPJ: ${cnpj}`, textX, 15)
+
+          doc.setFontSize(8)
+          if (address) doc.text(address, textX, 19)
+
+          // Contact Line
+          let contactLine = ''
+          if (site) contactLine += `Site: ${site}  `
+          if (email) contactLine += `E-mail: ${email}  `
+          if (phone) contactLine += `Celular: ${phone}`
+          if (contactLine) doc.text(contactLine, textX, 23)
+
+          // 4. Report Title
+          // Draw a line separator - Full width
+          doc.setLineWidth(0.5)
+          doc.line(10, 26, pageWidth - 10, 26) // Horizontal line
+
+          doc.setFontSize(12)
+          doc.setFont("helvetica", "bold")
+          const titlePrefix = report_title_prefix || 'Relatório Financeiro'
+          const titleSuffix = viewType === 'analytic' ? 'Analítico' : (viewType === 'cc_detailed' ? 'Centro de Custo Detalhado' : 'Sintético')
+
+          // Center Title
+          doc.text(`${titlePrefix} - ${titleSuffix}`.toUpperCase(), pageWidth / 2, 32, { align: 'center' })
+
+          doc.setFontSize(10)
+          doc.setFont("helvetica", "normal")
+          doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, pageWidth / 2, 37, { align: 'center' })
+
+        } else {
+          // Default Header
+          doc.setFontSize(16)
+          const titleSuffix = viewType === 'analytic' ? 'Analítico' : (viewType === 'cc_detailed' ? 'Centro de Custo Detalhado' : 'Sintético')
+          doc.text(`Relatório Financeiro - ${titleSuffix}`, 14, 15)
+          doc.setFontSize(10)
+          doc.text(`Período: ${toBr(startDate)} a ${toBr(endDate)}`, 14, 22)
+
+          // Line separator for default view too? Maybe nice.
+          doc.setLineWidth(0.5)
+          doc.line(14, 24, pageWidth - 14, 24)
+        }
+      }
+
+      // Calculate safe top margin for table
+      const headerHeight = !!reportConfig ? 45 : 30
 
       // Define page content function for AutoTable hooks or post-processing
       const drawFooter = (doc: any) => {
@@ -401,6 +465,9 @@ export default function Reports() {
           doc.setFontSize(8)
           doc.setFont("helvetica", "italic")
 
+          // Capture footer text
+          const footerText = reportConfig?.footer_text || ''
+
           // Left Text
           if (footerText) {
             doc.text(footerText, 10, pageHeight - 10)
@@ -412,82 +479,166 @@ export default function Reports() {
       }
 
       if (viewType === 'analytic') {
-        const rows = reportData.map(t => [
-          toBr(t.data_vencimento),
-          toBr(t.data_lancamento),
-          t.caixa?.nome || accounts.find(a => a.id === t.conta_id)?.nome || '-',
-          t.cliente?.nome || '-',
-          t.grupo?.nome || '-',
-          t.compromisso?.nome || '-',
-          t.cost_center?.descricao || t.cost_center?.nome || '-',
-          formatMoneyBr(Number(t.valor_entrada || 0) - Number(t.valor_saida || 0))
-        ])
+        const rows = reportData.map(t => {
+          const val = Number(t.valor_entrada || 0) - Number(t.valor_saida || 0)
+          return [
+            toBr(t.data_vencimento),
+            toBr(t.data_lancamento),
+            t.caixa?.nome || accounts.find(a => a.id === t.conta_id)?.nome || '-',
+            t.cliente?.nome || '-',
+            t.grupo?.nome || '-',
+            t.compromisso?.nome || '-',
+            t.cost_center?.descricao || t.cost_center?.nome || '-',
+            `${formatMoneyBr(Math.abs(val))} ${val >= 0 ? 'C' : 'D'}`
+          ]
+        })
 
         autoTable(doc, {
-          startY: startY,
-          head: [['Vencto', 'Pagto', 'Caixa', 'Cliente', 'Grupo', 'Compromisso', 'Centro de Custo', 'Valor']],
+          startY: headerHeight,
+          head: [['Vencimento', 'Lançamento', 'Caixa', 'Cliente', 'Grupo', 'Compromisso', 'C. Custo', 'Valor']],
           body: rows,
           styles: { fontSize: 8 },
-          headStyles: { fillColor: [66, 133, 244] },
-          margin: { top: startY }
+          headStyles: { fillColor: [41, 128, 185] },
+          columnStyles: { 7: { halign: 'right' } },
+          margin: { top: headerHeight },
+          didDrawPage: (data: any) => {
+            drawHeader(doc)
+          }
         })
       } else if (viewType === 'cc_detailed') {
+        const { months, rows } = ccDetailedData
         const head = [
-          'Centro de Custo',
-          ...ccDetailedData.months.map(m => {
+          ['Centro de Custo', ...months.map(m => {
             const [year, mon] = m.split('-')
             return `${monthNames[parseInt(mon) - 1]}/${year.slice(-2)}`
-          }),
-          'TOTAL'
+          }), 'TOTAL']
         ]
-        const rows = ccDetailedData.rows.map(row => [
-          row.ccName,
-          ...ccDetailedData.months.map(m => row.monthly[m] ? formatMoneyBr(Math.abs(row.monthly[m])) : '-'),
-          formatMoneyBr(Math.abs(row.total))
+        const body = rows.map((r: any) => [
+          r.ccName,
+          ...months.map(m => r.monthly[m] ? formatMoneyBr(Math.abs(r.monthly[m])) : '-'),
+          formatMoneyBr(Math.abs(r.total))
         ])
 
         autoTable(doc, {
-          startY: startY,
-          head: [head],
-          body: rows,
-          styles: { fontSize: 7, halign: 'center' },
-          columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
-          headStyles: { fillColor: [66, 133, 244] },
-          margin: { top: startY }
+          startY: headerHeight,
+          head: head,
+          body: body,
+          styles: { fontSize: 7, cellPadding: 1 },
+          headStyles: { fillColor: [41, 128, 185] },
+          margin: { top: headerHeight },
+          didDrawPage: (data: any) => {
+            drawHeader(doc)
+          }
         })
       } else {
-        const rows = syntheticData.map(d => [
+        // Synthetic
+        const rows = syntheticData.map((d: any) => [
           d.groupName,
           d.ccName,
+          formatMoneyBr(d.income),
+          formatMoneyBr(d.expense),
           formatMoneyBr(d.total)
         ])
 
         autoTable(doc, {
-          startY: startY,
-          head: [['Grupo', 'Centro de Custo', 'Total']],
+          startY: headerHeight,
+          head: [['Grupo', 'Centro de Custo', 'Entradas', 'Saídas', 'Total']],
           body: rows,
-          headStyles: { fillColor: [66, 133, 244] },
-          margin: { top: startY }
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [41, 128, 185] },
+          margin: { top: headerHeight },
+          didDrawPage: (data: any) => {
+            drawHeader(doc)
+          }
         })
       }
 
       // Draw footer on all pages
       drawFooter(doc)
 
-      doc.save(`relatorio_${viewType}.pdf`)
+      if (action === 'download') {
+        doc.save(`relatorio_${viewType}.pdf`)
+      } else {
+        return doc.output('blob')
+      }
     } catch (e) {
       alert('Erro ao gerar PDF. Verifique se as bibliotecas estão instaladas.')
       console.error(e)
     }
   }
 
+  function handleOpenSend(mode: 'email' | 'whatsapp') {
+    setRecipientMode(mode)
+    setShowRecipientModal(true)
+  }
+
+  async function onConfirmRecipients(recipients: { id: string, contact: string }[]) {
+    setShowRecipientModal(false)
+    if (recipients.length === 0) return
+
+    setSending(true)
+    try {
+      // 1. Generate & Upload PDF Once
+      const blob = await handleExportPDF('blob')
+      if (!blob) throw new Error('Falha ao gerar PDF')
+
+      const fileName = `relatorio_${viewType}_${startDate}.pdf`
+      // Upload
+      const publicUrl = await uploadFile(blob as Blob, 'reports', undefined, fileName)
+      if (!publicUrl) throw new Error('Falha ao fazer upload do relatório para o bucket "reports".')
+
+      // 2. Iterate and Send
+      let successCount = 0
+      let failCount = 0
+
+      if (recipientMode === 'whatsapp') {
+        const message = `Segue o Relatório Financeiro (${toBr(startDate)} a ${toBr(endDate)}): ${publicUrl}`
+        for (const r of recipients) {
+          const res = await sendWhatsAppMessage(r.contact, message)
+          if (res.success) successCount++
+          else {
+            console.error(`Falha ao enviar para ${r.contact}: ${res.error}`)
+            failCount++
+          }
+        }
+      } else {
+        // Email
+        const subject = `${reportConfig?.report_title_prefix || 'Relatório Financeiro'} - ${toBr(startDate)} a ${toBr(endDate)}`
+        const html = `<p>Segue em anexo o relatório financeiro do período <strong>${toBr(startDate)}</strong> a <strong>${toBr(endDate)}</strong>.</p><p><a href="${publicUrl}">Clique aqui para baixar o PDF</a></p>`
+
+        if (!store.activeOrganization) throw new Error('Organização não selecionada')
+
+        for (const r of recipients) {
+          const res = await sendEmail(store.activeOrganization, r.contact, subject, html, [publicUrl])
+          if (res.success) successCount++
+          else {
+            console.error(`Falha ao enviar para ${r.contact}: ${res.error}`)
+            failCount++
+          }
+        }
+      }
+
+      alert(`Envio concluído!\nSucesso: ${successCount}\nFalhas: ${failCount}`)
+
+    } catch (error: any) {
+      console.error(error)
+      alert('Erro no processo de envio: ' + error.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
   function toBr(iso: string) {
     if (!iso) return ''
-    return iso.split('T')[0].split('-').reverse().join('/')
+    try {
+      return iso.split('T')[0].split('-').reverse().join('/')
+    } catch (e) {
+      return iso
+    }
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
       </div>
 
@@ -617,7 +768,7 @@ export default function Reports() {
               <Icon name="excel" className="w-6 h-6 text-green-600" />
             </button>
             <button
-              onClick={handleExportPDF}
+              onClick={() => handleExportPDF('download')}
               disabled={!generated}
               className="flex items-center justify-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Exportar PDF"
@@ -633,6 +784,25 @@ export default function Reports() {
               {loading ? 'Carregando...' : 'Gerar Relatório'}
             </button>
           </div>
+        </div>
+
+        <div className="flex gap-2 justify-end mt-2">
+          <button
+            onClick={() => handleOpenSend('whatsapp')}
+            disabled={!generated || sending}
+            className="flex items-center gap-1 text-xs bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
+          >
+            <Icon name="whatsapp" className="w-4 h-4" />
+            WhatsApp
+          </button>
+          <button
+            onClick={() => handleOpenSend('email')}
+            disabled={!generated || sending}
+            className="flex items-center gap-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2 py-1 rounded transition-colors disabled:opacity-50"
+          >
+            <Icon name="mail" className="w-4 h-4" />
+            E-mail
+          </button>
         </div>
       </div>
 
@@ -760,6 +930,13 @@ export default function Reports() {
           )}
         </div>
       )}
+
+      <RecipientModal
+        isOpen={showRecipientModal}
+        mode={recipientMode}
+        onClose={() => setShowRecipientModal(false)}
+        onConfirm={onConfirmRecipients}
+      />
     </div>
   )
 }

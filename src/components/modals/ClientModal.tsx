@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { createClient } from '../../services/db'
+import { createClient, updateClient } from '../../services/db' // Import updateClient
 import { useAppStore } from '../../store/AppStore'
 import { hasBackend } from '../../lib/runtime'
-import { digits, maskCpfCnpj } from '../../utils/format'
+import { digits, maskCpfCnpj, maskPhone } from '../../utils/format'
 import { Icon } from '../ui/Icon'
 import { FloatingLabelInput } from '../ui/FloatingLabelInput'
 
@@ -10,9 +10,10 @@ type Props = {
     isOpen: boolean
     onClose: () => void
     onSuccess: (client: { id: string, nome: string }) => void
+    clientToEdit?: any // Add prop
 }
 
-export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
+export function ClientModal({ isOpen, onClose, onSuccess, clientToEdit }: Props) {
     const store = useAppStore()
     const [tipoPessoa, setTipoPessoa] = useState<'pf' | 'pj'>('pj')
     const [cpfCnpj, setCpfCnpj] = useState('')
@@ -24,22 +25,44 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
     const [novoClienteTelefone, setNovoClienteTelefone] = useState('')
     const [docStatus, setDocStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
     const [docError, setDocError] = useState('')
+    const [notifyEmail, setNotifyEmail] = useState(false)
+    const [notifyWhatsapp, setNotifyWhatsapp] = useState(false)
 
-    // Reset form when modal opens
+    // Reset or Populate form
     useEffect(() => {
         if (isOpen) {
-            setTipoPessoa('pj')
-            setCpfCnpj('')
-            setNovoClienteNome('')
-            setRazaoSocial('')
-            setEnderecoEmpresa('')
-            setAtividadePrincipal('')
-            setNovoClienteEmail('')
-            setNovoClienteTelefone('')
             setDocStatus('idle')
             setDocError('')
+            if (clientToEdit) {
+                // Determine Persona Type
+                const doc = clientToEdit.documento || clientToEdit.cpf_cnpj || ''
+                const d = digits(doc)
+                const isPj = d.length > 11 || (clientToEdit.razao_social && clientToEdit.razao_social.length > 0)
+                setTipoPessoa(isPj ? 'pj' : 'pf')
+
+                setCpfCnpj(doc)
+                setNovoClienteNome(clientToEdit.nome || '')
+                setRazaoSocial(clientToEdit.razao_social || '')
+                setEnderecoEmpresa(clientToEdit.endereco || '')
+                setAtividadePrincipal(clientToEdit.atividade_principal || '')
+                setNovoClienteEmail(clientToEdit.email || '')
+                setNovoClienteTelefone(maskPhone(clientToEdit.telefone || ''))
+                setNotifyEmail(!!clientToEdit.notify_email)
+                setNotifyWhatsapp(!!clientToEdit.notify_whatsapp)
+            } else {
+                setTipoPessoa('pj')
+                setCpfCnpj('')
+                setNovoClienteNome('')
+                setRazaoSocial('')
+                setEnderecoEmpresa('')
+                setAtividadePrincipal('')
+                setNovoClienteEmail('')
+                setNovoClienteTelefone('')
+                setNotifyEmail(false)
+                setNotifyWhatsapp(false)
+            }
         }
-    }, [isOpen])
+    }, [isOpen, clientToEdit])
 
     function validarCNPJ(v: string) {
         const d = digits(v)
@@ -113,10 +136,10 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
         try {
             if (hasBackend) {
                 if (!store.activeOrganization) {
-                    alert('Nenhuma empresa selecionada') // Or handle gracefully
+                    alert('Nenhuma empresa selecionada')
                     return
                 }
-                const r = await createClient({
+                const payload = {
                     nome: finalName,
                     documento: cpfCnpj || undefined,
                     email: novoClienteEmail || undefined,
@@ -124,14 +147,27 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                     razao_social: razaoSocial || undefined,
                     endereco: enderecoEmpresa || undefined,
                     atividade_principal: atividadePrincipal || undefined,
-                    organization_id: store.activeOrganization
-                })
+                    notify_email: notifyEmail,
+                    notify_whatsapp: notifyWhatsapp
+                }
+
+                let r;
+                if (clientToEdit) {
+                    r = await updateClient(clientToEdit.id, payload)
+                } else {
+                    r = await createClient({
+                        ...payload,
+                        organization_id: store.activeOrganization
+                    })
+                }
+
                 if (!r.error && r.data?.id) {
                     onSuccess({ id: r.data.id, nome: finalName })
                     onClose()
                 }
             } else {
-                const id = store.createClient({
+                // Local mode fallback
+                const payload = {
                     nome: finalName,
                     documento: cpfCnpj || undefined,
                     email: novoClienteEmail || undefined,
@@ -139,8 +175,15 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                     razao_social: razaoSocial || undefined,
                     endereco: enderecoEmpresa || undefined,
                     atividade_principal: atividadePrincipal || undefined
-                })
-                onSuccess({ id, nome: finalName })
+                }
+
+                if (clientToEdit) {
+                    store.updateClient(clientToEdit.id, payload)
+                    onSuccess({ id: clientToEdit.id, nome: finalName })
+                } else {
+                    const id = store.createClient(payload)
+                    onSuccess({ id, nome: finalName })
+                }
                 onClose()
             }
         } catch (error) {
@@ -155,7 +198,7 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
             <div className="absolute inset-0" onClick={onClose} aria-hidden="true"></div>
             <div className="relative bg-white dark:bg-gray-800 border dark:border-gray-700 rounded w-[90%] max-w-lg max-h-[80vh] overflow-auto p-4 text-gray-900 dark:text-gray-100 shadow-xl">
                 <div className="flex items-center justify-between mb-3 border-b dark:border-gray-700 pb-2">
-                    <div className="font-medium text-lg">Novo Cliente</div>
+                    <div className="font-medium text-lg">{clientToEdit ? 'Editar Cliente' : 'Novo Cliente'}</div>
                     <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
                         <Icon name="x" className="w-5 h-5" />
                     </button>
@@ -243,9 +286,30 @@ export function ClientModal({ isOpen, onClose, onSuccess }: Props) {
                                 label="Telefone"
                                 id="telefone"
                                 value={novoClienteTelefone}
-                                onChange={e => setNovoClienteTelefone(e.target.value)}
+                                onChange={e => setNovoClienteTelefone(maskPhone(e.target.value))}
                             />
                         </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={notifyEmail}
+                                onChange={e => setNotifyEmail(e.target.checked)}
+                                className="rounded border-gray-300 dark:border-gray-600 text-black focus:ring-black"
+                            />
+                            <span className="text-sm font-medium">Receber Relatórios via E-mail</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={notifyWhatsapp}
+                                onChange={e => setNotifyWhatsapp(e.target.checked)}
+                                className="rounded border-gray-300 dark:border-gray-600 text-black focus:ring-black"
+                            />
+                            <span className="text-sm font-medium">Receber via WhatsApp</span>
+                        </label>
                     </div>
 
                     <div className="flex justify-end gap-2 mt-4 pt-2 border-t dark:border-gray-700">

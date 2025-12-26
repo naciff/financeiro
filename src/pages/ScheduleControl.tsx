@@ -11,7 +11,7 @@ import { AlertModal } from '../components/ui/AlertModal'
 import { TransactionModal } from '../components/modals/TransactionModal'
 
 import { BulkTransactionModal } from '../components/modals/BulkTransactionModal'
-import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction, skipFinancialItem, listAccountBalances } from '../services/db'
+import { listFinancials, listAccounts, listCommitmentGroups, listCostCenters, confirmProvision, updateFinancial, updateScheduleAndFutureFinancials, getFinancialItemByScheduleAndDate, updateSchedule, deleteFinancial, listFinancialsBySchedule, createTransaction, skipFinancialItem, listAccountBalances, listTransactions } from '../services/db'
 import { formatMoneyBr } from '../utils/format'
 import { useDailyAutomation } from '../hooks/useDailyAutomation'
 import { LinkedItemsModal } from '../components/modals/LinkedItemsModal'
@@ -33,8 +33,10 @@ function toBr(iso: string) {
 
 export default function ScheduleControl() {
   const navigate = useNavigate()
+  const navigator = useNavigate() // Typo fix if needed, but original used useNavigate
   const store = useAppStore()
   const [remote, setRemote] = useState<any[]>([])
+  const [transactions, setTransactions] = useState<any[]>([])
   const [modal, setModal] = useState<any | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<Filter>('mesAtual')
@@ -232,6 +234,10 @@ export default function ScheduleControl() {
       if (!r.error && r.data) {
         setRemote(r.data as any)
       }
+      const t = await listTransactions(5000, store.activeOrganization)
+      if (!t.error && t.data) {
+        setTransactions(t.data as any)
+      }
     }
   }
 
@@ -409,50 +415,83 @@ export default function ScheduleControl() {
         return sort.dir === 'asc' ? res : -res
       })
 
-    // 1. Data for Summary (Includes Realized, respects Filters + Date)
-    // When "12 Last Months" is checked in View, it will handle the date range itself using 'filteredCommon' if we pass it,
-    // or we can pass 'allData' (filtered by Common Filters but ALL DATES) and 'currentData' (filtered by Common + Date).
-
-    // filteredCommon: All dates, but respects Caixa/Op/Grupo Search
+    // 0. Data for List View (Legacy Financials Logic)
     const filteredCommon = data
-
-    // filteredByDate: filteredCommon + Date Range
     const filteredByDate = filteredCommon.filter(r => within(new Date(r.vencimento)))
-
-    // 2. Data for List (Pending Only? Or follow previous logic?)
-    // Previously: listFinancials({ status: 1 }) -> Only Pending.
-    // So 'data' (List View) should filter 'filteredByDate' to exclude realized (unless we want to show them now).
-    // Let's preserve "Previsão A Realizar" meaning: Open Items.
-    // However, if we filter strictly !conferido, items we JUST marked as conferido might disappear instantly?
-    // User might want to see them briefly. But 'remote' update usually forces refresh.
-    // Let's filter !conferido for the List View to match legacy behavior.
-    // Update: User wants to see checked items. But we must HIDE paid items (situacao === 2).
     const listData = filteredByDate.filter(r => r.situacao !== 2)
 
-    // Apply strict search on listData?
-    // Search is already applied in 'data' map/filter chain above? 
-    // Wait, the map/filter chain above returns 'data' which is ALREADY filtered by 'within' and 'search'.
-    // I need to split the 'within' and 'search' out if I want to pass "All Time" to Summary.
-
-    // Let's refactor the chain.
-
-    // Calculate totals based on displayed list
     const totalReceitas = listData.reduce((sum, r) => sum + r.receita, 0)
     const totalDespesas = listData.reduce((sum, r) => sum + r.despesa, 0)
     const totalRecords = listData.length
 
+    // 1. Data for Summary (Includes Realized, respects Filters + Date)
+    // When "12 Last Months" is checked in View, it will handle the date range itself using 'filteredCommon' if we pass it,
+    // or we can pass 'allData' (filtered by Common Filters but ALL DATES) and 'currentData' (filtered by Common + Date).
+
+    // MERGED DATA FOR SUMMARY (Pending Financials + Realized Transactions)
+    // 1. Pending Financials (situacao === 1 from remote)
+    const pendingFinancials = remote.filter((r: any) => r.situacao === 1).map((s: any) => ({
+      ...s,
+      vencimento: s.data_vencimento,
+      valor: Number(s.valor),
+      situacao: 1, // Pending
+      operacao: s.operacao,
+      receita: (s.operacao === 'receita' || s.operacao === 'aporte') ? Number(s.valor) : 0,
+      despesa: (s.operacao === 'despesa' || s.operacao === 'retirada') ? Number(s.valor) : 0,
+      caixaId: s.caixa_id,
+      grupoCompromissoId: s.agendamento?.grupo?.id || s.grupo_compromisso_id,
+      costCenterId: s.cost_center_id || s.agendamento?.cost_center_id
+    }))
+
+    // 2. Realized Transactions (All fetched transactions)
+    const realizedTransactions = transactions.map((t: any) => ({
+      ...t,
+      vencimento: t.data_vencimento || t.data_lancamento,
+      valor: Number(t.valor_total || (t.valor_entrada > 0 ? t.valor_entrada : t.valor_saida)),
+      situacao: 2, // Realized
+      operacao: t.operacao,
+      // Transactions have valor_entrada/saida, or we derive from op
+      receita: t.valor_entrada > 0 ? t.valor_entrada : ((t.operacao === 'receita' || t.operacao === 'aporte') ? (t.valor_total || 0) : 0),
+      despesa: t.valor_saida > 0 ? t.valor_saida : ((t.operacao === 'despesa' || t.operacao === 'retirada') ? (t.valor_total || 0) : 0),
+      caixaId: t.conta_id, // Transaction uses conta_id
+      grupoCompromissoId: t.grupo_compromisso_id,
+      costCenterId: t.cost_center_id
+    }))
+
+    // 3. Merge
+    const allSummaryRaw = [...pendingFinancials, ...realizedTransactions]
+
+    // 4. Apply Filters to Summary Data (Same filters as List)
+    const filteredSummary = allSummaryRaw
+      .filter((r: any) => !filterCaixa || r.caixaId === filterCaixa)
+      .filter((r: any) => {
+        if (filterOp === 'Todas') return true
+        if (filterOp === 'Somente Receitas') return r.operacao === 'receita'
+        if (filterOp === 'Somente Despesas') return r.operacao === 'despesa'
+        if (filterOp === 'Somente Aporte/Ret./Transf.') return ['aporte', 'retirada', 'transferencia'].includes(r.operacao || '')
+        // ... (Repeat filterOp logic or use helper, simplified here for now)
+        if (filterOp === 'Despesas e Retiradas') return ['despesa', 'retirada'].includes(r.operacao || '')
+        if (filterOp === 'Receitas e Aportes') return ['receita', 'aporte'].includes(r.operacao || '')
+        if (filterOp === 'Somente Aporte') return r.operacao === 'aporte'
+        if (filterOp === 'Somente Retiradas') return r.operacao === 'retirada'
+        return true
+      })
+      .filter((r: any) => !filterGrupo || r.grupoCompromissoId === filterGrupo)
+      .filter((r: any) => !filterCostCenter || r.costCenterId === filterCostCenter)
+
+
     return {
       data: listData,
       allData: listData, // Used for selection logic
-      summaryData: filteredByDate,
-      summaryHistory: filteredCommon,
+      summaryData: filteredSummary.filter((r: any) => within(new Date(r.vencimento))), // Current View Summary
+      summaryHistory: filteredSummary, // Full History (12 months view)
       current: 1,
       totalPages: 1,
       totalReceitas,
       totalDespesas,
       totalRecords
     }
-  }, [remote, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter, sort])
+  }, [remote, transactions, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter, sort])
 
   async function handleSelectAll() {
     const allOnScreen = rows.data
@@ -882,6 +921,7 @@ export default function ScheduleControl() {
           <ScheduleSummaryView
             data={rows.summaryData}
             accounts={caixas}
+            showHistoryOption={true}
             totalBalance={balances
               .map(b => ({ ...b, ativo: caixas.find(a => a.id === b.account_id)?.ativo }))
               .filter(b => b.ativo !== false)

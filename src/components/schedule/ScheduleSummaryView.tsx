@@ -26,13 +26,34 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
         // Let's filter <= EndOfCurrentMonth and >= StartOfCurrentMonth - 12 Months?
 
         let processedData = targetData
+
+        const now = new Date()
+        const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+
         if (showLast12Months) {
-            const now = new Date()
-            const start = new Date(now.getFullYear(), now.getMonth() - 12, 1) // 12 months back + current
-            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0) // End of current month
+            // Show Last 12 Months + Current
+            const start = new Date(now.getFullYear(), now.getMonth() - 11, 1) // 11 months back + current = 12 months total span? or 12 back? User said '12 ultimos meses'.
+            // Let's keep 12 back.
+            const start12 = new Date(now.getFullYear(), now.getMonth() - 11, 1)
             processedData = targetData.filter(d => {
                 const date = new Date(d.vencimento)
-                return date >= start && date <= end
+                const inRange = date >= start12 && date <= currentMonthEnd
+                // Also keep overdue items even if older than 11 months, to not hide debt when viewing history
+                const isOverdue = d.situacao === 1 && date < start12
+                return inRange || isOverdue
+            })
+        } else {
+            // Default: Current Month + Past Overdue
+            processedData = targetData.filter(d => {
+                const date = new Date(d.vencimento)
+                // If in current month: Keep
+                if (date >= currentMonthStart && date <= currentMonthEnd) return true
+
+                // If past (before current month start) AND overdue (situacao === 1): Keep
+                if (date < currentMonthStart && d.situacao === 1) return true
+
+                return false
             })
         }
 
@@ -172,7 +193,7 @@ export function ScheduleSummaryView({ data, history, showHistoryOption, accounts
                             <th className="p-0 bg-white dark:bg-gray-800 border-r dark:border-gray-500 align-bottom min-w-[120px]">
                                 <div className="flex flex-col w-full">
                                     <div className="bg-blue-700 text-white p-1 font-bold text-xs uppercase">Saldo Atual</div>
-                                    <div className={`p-2 text-center font-bold text-xs ${totalBalance >= 0 ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100' : 'bg-gray-200 dark:bg-gray-600 text-red-600 dark:text-red-400'}`}>
+                                    <div className={`p-2 text-center font-bold text-lg ${totalBalance >= 0 ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100' : 'bg-gray-200 dark:bg-gray-600 text-red-600 dark:text-red-400'}`}>
                                         {formatMoneyBr(totalBalance)}
                                     </div>
                                 </div>

@@ -6,6 +6,7 @@ import { listMyMemberships, getProfile, listOrganizationMembers, addOrganization
 import Permissions from './Permissions'
 import AdminUsers from './AdminUsers'
 import { FloatingLabelInput } from '../components/ui/FloatingLabelInput'
+import { ImageUploadInput } from '../components/ui/ImageUploadInput'
 import { SettingsContent } from '../components/layout/SettingsContent'
 
 
@@ -14,18 +15,19 @@ export default function Settings() {
   const { activeOrganization, setActiveOrganization } = useAppStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTab = (searchParams.get('tab') as any) || 'organizacoes'
-  const [activeTab, setActiveTab] = useState<'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users' | 'ajustes'>(initialTab)
+  const [activeTab, setActiveTab] = useState<'config_relatorios' | 'integracoes' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users' | 'ajustes'>(initialTab)
+  const [integrationSubTab, setIntegrationSubTab] = useState<'whatsapp' | 'email'>('whatsapp')
 
   useEffect(() => {
     const tab = searchParams.get('tab')
     if (tab === 'geral') {
       setActiveTab('config_relatorios')
-    } else if (tab && ['config_relatorios', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users', 'ajustes'].includes(tab)) {
+    } else if (tab && ['config_relatorios', 'integracoes', 'integracao', 'equipe', 'organizacoes', 'permissoes', 'users', 'ajustes'].includes(tab)) {
       setActiveTab(tab as any)
     }
   }, [searchParams])
 
-  const handleTabChange = (tab: 'config_relatorios' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users' | 'ajustes') => {
+  const handleTabChange = (tab: 'config_relatorios' | 'integracoes' | 'integracao' | 'equipe' | 'organizacoes' | 'permissoes' | 'users' | 'ajustes') => {
     setActiveTab(tab)
     setSearchParams({ tab })
   }
@@ -63,7 +65,13 @@ export default function Settings() {
     email: '',
     phone: '',
     report_title_prefix: 'Relatório Financeiro',
-    footer_text: ''
+    footer_text: '',
+    smtp_host: '',
+    smtp_port: '',
+    smtp_secure: false,
+    smtp_user: '',
+    smtp_pass: '',
+    smtp_from: ''
   })
 
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle')
@@ -102,7 +110,13 @@ export default function Settings() {
           email: '',
           phone: '',
           report_title_prefix: 'Relatório Financeiro',
-          footer_text: ''
+          footer_text: '',
+          smtp_host: '',
+          smtp_port: '',
+          smtp_secure: false,
+          smtp_user: '',
+          smtp_pass: '',
+          smtp_from: ''
         })
       }
     }
@@ -367,7 +381,7 @@ export default function Settings() {
         )}
 
         {/* Context: General Settings */}
-        {(['config_relatorios', 'integracao', 'users', 'ajustes'].includes(activeTab)) && (
+        {(['config_relatorios', 'users', 'ajustes'].includes(activeTab)) && (
           <>
             <button
               className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'config_relatorios' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
@@ -381,12 +395,7 @@ export default function Settings() {
             >
               Usuários Cadastrados
             </button>
-            <button
-              className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'integracao' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
-              onClick={() => handleTabChange('integracao')}
-            >
-              Integrações
-            </button>
+
             <button
               className={`px-4 py-2 text-sm font-medium whitespace-nowrap ${activeTab === 'ajustes' ? 'border-b-2 border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
               onClick={() => handleTabChange('ajustes')}
@@ -421,18 +430,20 @@ export default function Settings() {
             {/* Logos */}
             <div className="space-y-4">
               <h3 className="font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">Logos</h3>
-              <FloatingLabelInput
-                label="URL Logo Principal (Esquerda)"
+              <ImageUploadInput
+                label="Logo Principal (Esquerda)"
                 value={reportConfig.logo_main}
-                onChange={e => setReportConfig({ ...reportConfig, logo_main: e.target.value })}
+                onChange={url => setReportConfig({ ...reportConfig, logo_main: url })}
+                bucket="logos"
               />
-              <FloatingLabelInput
-                label="URL Logo Secundária (Direita - Opcional)"
+              <ImageUploadInput
+                label="Logo Secundária (Direita - Opcional)"
                 value={reportConfig.logo_secondary}
-                onChange={e => setReportConfig({ ...reportConfig, logo_secondary: e.target.value })}
+                onChange={url => setReportConfig({ ...reportConfig, logo_secondary: url })}
+                bucket="logos"
               />
               <div className="text-xs text-gray-500">
-                Recomendado: Imagens em formato PNG ou JPG. Use links públicos (ex: hospedados em seu site ou bucket).
+                Recomendado: Imagens em formato PNG ou JPG. Tamanho recomendado: 200x100px (Proporção 2:1). Fazer upload salvará a imagem no banco de dados.
               </div>
             </div>
 
@@ -477,6 +488,8 @@ export default function Settings() {
                 />
               </div>
             </div>
+
+
 
             {/* Report Title */}
             <div className="space-y-4 md:col-span-2">
@@ -777,196 +790,277 @@ export default function Settings() {
         </div>
       )}
 
-      {activeTab === 'integracao' && (
+      {activeTab === 'integracoes' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
-            <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
-              <Icon name="message-circle" className="w-5 h-5 text-green-500" />
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${integrationSubTab === 'whatsapp' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              onClick={() => setIntegrationSubTab('whatsapp')}
+            >
               Integração WhatsApp
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Configure a API para envio de mensagens automáticas.
-            </p>
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${integrationSubTab === 'email' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+              onClick={() => setIntegrationSubTab('email')}
+            >
+              Configurações de E-mail
+            </button>
+          </div>
 
-            <div className="space-y-4 max-w-3xl">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endpoint da API</label>
-                <input
-                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  value={waUrl}
-                  onChange={e => setWaUrl(e.target.value)}
-                  placeholder="https://api.exemplo.com/send"
+          {integrationSubTab === 'email' && (
+            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+              <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                <Icon name="mail" className="w-5 h-5 text-blue-500" />
+                Configurações de E-mail (SMTP)
+              </h2>
+              <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded text-sm text-orange-800 dark:text-orange-200 mb-4">
+                Essas configurações são usadas para enviar relatórios por e-mail.
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FloatingLabelInput
+                  label="Servidor SMTP (Host)"
+                  value={reportConfig.smtp_host || ''}
+                  onChange={e => setReportConfig({ ...reportConfig, smtp_host: e.target.value })}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <FloatingLabelInput
+                    label="Porta"
+                    value={reportConfig.smtp_port || ''}
+                    onChange={e => setReportConfig({ ...reportConfig, smtp_port: e.target.value })}
+                  />
+                  <div className="flex items-center">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={reportConfig.smtp_secure || false}
+                        onChange={e => setReportConfig({ ...reportConfig, smtp_secure: e.target.checked })}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Usar SSL/TLS (Secure)
+                    </label>
+                  </div>
+                </div>
+                <FloatingLabelInput
+                  label="Usuário (User)"
+                  value={reportConfig.smtp_user || ''}
+                  onChange={e => setReportConfig({ ...reportConfig, smtp_user: e.target.value })}
+                />
+                <FloatingLabelInput
+                  label="Senha (Password)"
+                  value={reportConfig.smtp_pass || ''}
+                  onChange={e => setReportConfig({ ...reportConfig, smtp_pass: e.target.value })}
+                  type="password"
+                />
+                <FloatingLabelInput
+                  label="E-mail de Envio (From)"
+                  value={reportConfig.smtp_from || ''}
+                  onChange={e => setReportConfig({ ...reportConfig, smtp_from: e.target.value })}
+                  className="md:col-span-2"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token de Autenticação (Bearer)</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono"
-                    value={waToken}
-                    onChange={e => setWaToken(e.target.value)}
-                    placeholder="Token..."
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
+              <div className="mt-4 flex justify-end">
                 <button
-                  onClick={saveConfig}
+                  onClick={saveReportConfig}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
                 >
-                  Salvar Configuração
+                  Salvar SMTP
                 </button>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* 1. Connection Test */}
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
-            <h3 className="text-md font-bold mb-4 text-gray-900 dark:text-gray-100">1. Testar Conexão</h3>
+          {integrationSubTab === 'whatsapp' && (
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6">
+                <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                  <Icon name="message-circle" className="w-5 h-5 text-green-500" />
+                  Integração WhatsApp
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Configure a API para envio de mensagens automáticas.
+                </p>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endpoint de Status</label>
-              <input
-                className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                value={waStatusUrl}
-                onChange={e => setWaStatusUrl(e.target.value)}
-                placeholder="URL para verificar status..."
-              />
-            </div>
+                <div className="space-y-4 max-w-3xl">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endpoint da API</label>
+                    <input
+                      className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      value={waUrl}
+                      onChange={e => setWaUrl(e.target.value)}
+                      placeholder="https://api.exemplo.com/send"
+                    />
+                  </div>
 
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Verifica se a instância WhatsApp está conectada</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token de Autenticação (Bearer)</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono"
+                        value={waToken}
+                        onChange={e => setWaToken(e.target.value)}
+                        placeholder="Token..."
+                      />
+                    </div>
+                  </div>
 
-            <button
-              onClick={handleTestConnection}
-              disabled={connectionStatus === 'checking'}
-              className={`w-full font-medium py-3 px-4 rounded transition-colors shadow-md text-white ${connectionStatus === 'checking' ? 'bg-gray-400' : 'bg-purple-600 hover:bg-purple-700'}`}
-            >
-              {connectionStatus === 'checking' ? 'Verificando...' : 'Testar Conexão'}
-            </button>
-
-            {connectionResponse && (
-              <div className={`mt-4 p-3 rounded border overflow-auto ${connectionStatus === 'success' ? 'bg-gray-900 border-gray-700 text-green-400' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'}`}>
-                <pre className="text-xs font-mono">{connectionResponse}</pre>
+                  <div className="pt-2">
+                    <button
+                      onClick={saveConfig}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      Salvar Whatsapp
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* 2. Message Test */}
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
-            <h3 className="text-md font-bold mb-4 text-gray-900 dark:text-gray-100">2. Testar Envio de Mensagem</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Número Destino (com DDI e DDD)</label>
+              {/* 1. Connection Test */}
+              <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
+                <h3 className="text-md font-bold mb-4 text-gray-900 dark:text-gray-100">1. Testar Conexão Check</h3>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endpoint de Status</label>
                   <input
-                    className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
-                    value={testNumber}
-                    onChange={e => setTestNumber(e.target.value)}
-                    placeholder="Ex: 558599999999"
+                    className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    value={waStatusUrl}
+                    onChange={e => setWaStatusUrl(e.target.value)}
+                    placeholder="URL para verificar status..."
                   />
-                  <p className="text-xs text-gray-500 mt-1">Formato: 55 + DDD + Número (apenas números)</p>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Mensagem</label>
-                  <textarea
-                    className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    value={testMessage}
-                    onChange={e => setTestMessage(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Verifica se a instância WhatsApp está conectada</p>
 
                 <button
-                  onClick={handleTestWhatsApp}
-                  disabled={testStatus === 'sending'}
-                  className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors w-full flex items-center justify-center gap-2 ${testStatus === 'sending' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}
+                  onClick={handleTestConnection}
+                  disabled={connectionStatus === 'checking'}
+                  className={`w-full font-medium py-3 px-4 rounded transition-colors shadow-md text-white ${connectionStatus === 'checking' ? 'bg-gray-400' : 'bg-purple-600 hover:bg-purple-700'}`}
                 >
-                  {testStatus === 'sending' ? 'Enviando...' : 'Enviar Mensagem de Teste'}
-                  <Icon name="send" className="w-4 h-4" />
+                  {connectionStatus === 'checking' ? 'Verificando...' : 'Testar Conexão'}
                 </button>
+
+                {connectionResponse && (
+                  <div className={`mt-4 p-3 rounded border overflow-auto ${connectionStatus === 'success' ? 'bg-gray-900 border-gray-700 text-green-400' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400'}`}>
+                    <pre className="text-xs font-mono">{connectionResponse}</pre>
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Log de Resposta</label>
-                <div className="w-full h-48 bg-gray-900 rounded p-3 overflow-auto font-mono text-xs text-green-400 border border-gray-700">
-                  {testResponse || '// Aguardando envio...'}
-                </div>
-                {testStatus === 'success' && <p className="text-xs text-green-600 font-medium">Sucesso!</p>}
-                {testStatus === 'error' && <p className="text-xs text-red-600 font-medium">Falha no envio.</p>}
-              </div>
-            </div>
-          </div>
+              {/* 2. Message Test */}
+              <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
+                <h3 className="text-md font-bold mb-4 text-gray-900 dark:text-gray-100">2. Testar Envio de Mensagem</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Número Destino (com DDI e DDD)</label>
+                      <input
+                        className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                        value={testNumber}
+                        onChange={e => setTestNumber(e.target.value)}
+                        placeholder="Ex: 558599999999"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Formato: 55 + DDD + Número (apenas números)</p>
+                    </div>
 
-          {/* 3. Automação Diária */}
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
-            <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
-              <Icon name="clock" className="w-5 h-5 text-blue-500" />
-              Automação Diária
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Envie automaticamente um resumo da agenda do dia para seu WhatsApp.
-              <br />
-              <span className="text-xs text-orange-600 dark:text-orange-400 font-medium"> Nota: Para funcionar, o sistema deve estar aberto em uma aba do navegador no horário configurado.</span>
-            </p>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Mensagem</label>
+                      <textarea
+                        className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        value={testMessage}
+                        onChange={e => setTestMessage(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
 
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="dailyActive"
-                    className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:ring-2"
-                    checked={localStorage.getItem('financeiro_daily_active') === 'true'}
-                    onChange={(e) => {
-                      localStorage.setItem('financeiro_daily_active', String(e.target.checked))
-                      window.location.reload()
-                    }}
-                  />
-                  <label htmlFor="dailyActive" className="text-sm font-medium text-gray-700 dark:text-gray-300">Ativar Relatório Diário</label>
-                </div>
+                    <button
+                      onClick={handleTestWhatsApp}
+                      disabled={testStatus === 'sending'}
+                      className={`px-4 py-2 rounded text-sm font-medium text-white transition-colors w-full flex items-center justify-center gap-2 ${testStatus === 'sending' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}`}
+                    >
+                      {testStatus === 'sending' ? 'Enviando...' : 'Enviar Mensagem de Teste'}
+                      <Icon name="send" className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Horário:</label>
-                  <input
-                    type="time"
-                    className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    defaultValue={localStorage.getItem('financeiro_daily_time') || '08:00'}
-                    onChange={(e) => localStorage.setItem('financeiro_daily_time', e.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Log de Resposta</label>
+                    <div className="w-full h-48 bg-gray-900 rounded p-3 overflow-auto font-mono text-xs text-green-400 border border-gray-700">
+                      {testResponse || '// Aguardando envio...'}
+                    </div>
+                    {testStatus === 'success' && <p className="text-xs text-green-600 font-medium">Sucesso!</p>}
+                    {testStatus === 'error' && <p className="text-xs text-red-600 font-medium">Falha no envio.</p>}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Modelo da Mensagem</label>
-                <p className="text-xs text-gray-500 mb-2">Use <code>[dia_atual]</code> para a data e <code>[lista_lancamentos]</code> para a lista de itens.</p>
-                <textarea
-                  rows={8}
-                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono"
-                  defaultValue={localStorage.getItem('financeiro_daily_template') || `🗓️ Agenda do dia [dia_atual]:
+              {/* 3. Automação Diária */}
+              <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded p-6 shadow-sm">
+                <h2 className="text-lg font-medium mb-4 flex items-center gap-2 text-gray-900 dark:text-gray-100">
+                  <Icon name="clock" className="w-5 h-5 text-blue-500" />
+                  Automação Diária
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Envie automaticamente um resumo da agenda do dia para seu WhatsApp.
+                  <br />
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium"> Nota: Para funcionar, o sistema deve estar aberto em uma aba do navegador no horário configurado.</span>
+                </p>
+
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="dailyActive"
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:ring-2"
+                        checked={localStorage.getItem('financeiro_daily_active') === 'true'}
+                        onChange={(e) => {
+                          localStorage.setItem('financeiro_daily_active', String(e.target.checked))
+                          window.location.reload()
+                        }}
+                      />
+                      <label htmlFor="dailyActive" className="text-sm font-medium text-gray-700 dark:text-gray-300">Ativar Relatório Diário</label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Horário:</label>
+                      <input
+                        type="time"
+                        className="border dark:border-gray-600 rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        defaultValue={localStorage.getItem('financeiro_daily_time') || '08:00'}
+                        onChange={(e) => localStorage.setItem('financeiro_daily_time', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Modelo da Mensagem</label>
+                    <p className="text-xs text-gray-500 mb-2">Use <code>[dia_atual]</code> para a data e <code>[lista_lancamentos]</code> para a lista de itens.</p>
+                    <textarea
+                      rows={8}
+                      className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono"
+                      defaultValue={localStorage.getItem('financeiro_daily_template') || `🗓️ Agenda do dia [dia_atual]:
 
 [lista_lancamentos]
 
 ✨ Que seu dia seja abençoado!`}
-                  onChange={(e) => localStorage.setItem('financeiro_daily_template', e.target.value)}
-                />
-              </div>
-              <div className="pt-2">
-                <button
-                  onClick={() => alert('Configurações salvas (locais).')}
-                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded text-sm font-medium transition-colors"
-                >
-                  Salvar Preferências
-                </button>
+                      onChange={(e) => localStorage.setItem('financeiro_daily_template', e.target.value)}
+                    />
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      onClick={() => alert('Configurações salvas (locais).')}
+                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded text-sm font-medium transition-colors"
+                    >
+                      Salvar Preferências
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )
-      }
+      )}
+
       {activeTab === 'permissoes' && (
         <Permissions />
       )}
