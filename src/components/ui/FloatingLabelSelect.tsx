@@ -13,9 +13,10 @@ export const FloatingLabelSelect = React.forwardRef<HTMLSelectElement, FloatingL
                 ref={ref}
                 className={`
           peer block w-full appearance-none rounded border-2 border-gray-200 
-          bg-transparent px-2.5 pb-2.5 pt-4 text-sm text-gray-900 
+          bg-white px-2.5 pb-2.5 pt-4 text-sm text-gray-900 
           focus:border-blue-500 focus:outline-none focus:ring-0 
-          dark:border-gray-700 dark:text-white dark:focus:border-blue-500
+          dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500
+          [color-scheme:light] dark:[color-scheme:dark]
           ${className}
         `}
                 {...props}

@@ -55,25 +55,25 @@ export function DashboardCustomizeModal({ isOpen, onClose, initialSelection, onS
                 <h2 className="text-xl font-bold text-text-main-light dark:text-text-main-dark mb-4">
                     Customizar Dashboard
                 </h2>
-                
+
                 <p className="text-sm text-text-muted-light dark:text-text-muted-dark mb-6">
-                    Selecione entre 8 e 10 cards para exibir no seu dashboard.
-                    Currently selected: {selected.length}
+                    Selecione entre 8 e 10 cards para exibir no seu dashboard.<br />
+                    Atualmente selecionado: {selected.length}
                 </p>
 
                 <div className="space-y-3 max-h-[60vh] overflow-y-auto mb-6 pr-2">
                     {availableWidgets.map(widget => {
                         const isSelected = selected.includes(widget.id)
                         const isDisabled = (isSelected && selected.length <= 8) || (!isSelected && selected.length >= 10)
-                        
+
                         return (
-                            <div 
+                            <div
                                 key={widget.id}
                                 onClick={() => handleToggle(widget.id)}
                                 className={`
                                     flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all
-                                    ${isSelected 
-                                        ? 'bg-primary/10 border-primary block' 
+                                    ${isSelected
+                                        ? 'bg-primary/10 border-primary block'
                                         : 'bg-transparent border-border-light dark:border-border-dark opacity-70 hover:opacity-100'
                                     }
                                     ${isDisabled && !isSelected ? 'opacity-40 cursor-not-allowed' : ''}
@@ -84,8 +84,8 @@ export function DashboardCustomizeModal({ isOpen, onClose, initialSelection, onS
                                 </span>
                                 <div className={`
                                     w-5 h-5 rounded border flex items-center justify-center
-                                    ${isSelected 
-                                        ? 'bg-primary border-primary text-white' 
+                                    ${isSelected
+                                        ? 'bg-primary border-primary text-white'
                                         : 'border-text-muted-light dark:border-text-muted-dark'
                                     }
                                 `}>
