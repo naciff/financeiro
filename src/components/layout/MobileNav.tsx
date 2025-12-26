@@ -36,5 +36,4 @@ export function MobileNav({ onMore }: { onMore: () => void }) {
             </button>
         </div>
     )
-    )
 }
