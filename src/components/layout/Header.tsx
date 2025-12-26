@@ -143,8 +143,57 @@ export function Header({
             <h1 className="text-2xl font-bold text-text-main-light dark:text-text-main-dark">{title}</h1>
           </div>
 
-          {/* Right: Rearranged Items */}
           <div className="flex items-center gap-6">
+            {/* Mobile Org Switcher */}
+            <div className="md:hidden relative">
+              <button
+                onClick={() => setShowOrgMenu(!showOrgMenu)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-muted-light dark:text-text-muted-dark transition-colors"
+                title="Trocar Empresa"
+              >
+                <div className="relative">
+                  <span className="material-icons-outlined text-[24px]">business</span>
+                  <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-surface-light dark:border-surface-dark ${store.activeOrganization ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                </div>
+              </button>
+
+              {showOrgMenu && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowOrgMenu(false)}></div>
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700 z-[70] py-2 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="px-4 py-2 border-b dark:border-gray-700 mb-1">
+                      <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Selecionar Empresa</div>
+                    </div>
+                    {store.organizations.map(org => (
+                      <button
+                        key={org.id}
+                        className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors ${store.activeOrganization === org.id ? 'bg-blue-50 dark:bg-blue-900/20 font-bold text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200'}`}
+                        onClick={() => {
+                          store.setActiveOrganization(org.id)
+                          setShowOrgMenu(false)
+                        }}
+                      >
+                        <span className={`w-3 h-3 rounded-full shrink-0 ${org.name === 'Pessoal' ? 'bg-blue-500' : 'bg-green-500'}`}></span>
+                        <span className="truncate">{org.name}</span>
+                        {store.activeOrganization === org.id && <span className="material-icons-outlined text-sm ml-auto">check</span>}
+                      </button>
+                    ))}
+
+                    <div className="border-t dark:border-gray-700 my-1"></div>
+                    <button
+                      className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-blue-600 dark:text-blue-400 transition-colors"
+                      onClick={() => {
+                        handleCreateOrg()
+                        setShowOrgMenu(false)
+                      }}
+                    >
+                      <span className="material-icons-outlined text-base">add_business</span>
+                      Nova Empresa
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* 1. Shortcuts */}
             <div className="hidden md:flex items-center gap-4 text-text-muted-light dark:text-text-muted-dark">

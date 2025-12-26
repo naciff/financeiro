@@ -5,10 +5,10 @@ export function MobileNav({ onMore }: { onMore: () => void }) {
     const location = useLocation()
 
     const items = [
-        { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
-        { to: '/calendar', label: 'Calendário', icon: 'calendar' },
-        { to: '/schedules/control', label: 'Controle', icon: 'speed' },
+        { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+        { to: '/schedules/control', label: 'Controle', icon: 'analytics' },
         { to: '/ledger', label: 'Livro Caixa', icon: 'book' },
+        { to: '/schedules', label: 'Agendamento', icon: 'schedule' },
     ]
 
     return (
@@ -31,9 +31,10 @@ export function MobileNav({ onMore }: { onMore: () => void }) {
                 onClick={onMore}
                 className="flex flex-col items-center gap-1 min-w-[60px] p-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
             >
-                <Icon name="menu" className="w-6 h-6" />
+                <Icon name="dots" className="w-6 h-6" />
                 <span className="text-[10px] font-medium">Mais</span>
             </button>
         </div>
+    )
     )
 }
