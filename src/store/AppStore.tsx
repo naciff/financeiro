@@ -24,8 +24,8 @@ type Transaction = {
   schedule_id?: string
 }
 type Client = { id: string; nome: string; documento?: string; email?: string; telefone?: string; razao_social?: string; endereco?: string; atividade_principal?: string; notify_email?: boolean; notify_whatsapp?: boolean }
-type CommitmentGroup = { id: string; nome: string }
-type Commitment = { id: string; nome: string; grupo_id: string; ir?: boolean }
+type CommitmentGroup = { id: string; nome: string; ativo?: boolean }
+type Commitment = { id: string; nome: string; grupo_id: string; ir?: boolean; ativo?: boolean }
 type Cashbox = { id: string; nome: string }
 type Schedule = {
   id: string

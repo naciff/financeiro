@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../components/ui/Icon'
 import { listCostCenters, createCostCenter, updateCostCenter, deleteCostCenter, checkCostCenterDependencies } from '../services/db'
-import { SystemModal } from '../components/modals/SystemModal'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { useAppStore } from '../store/AppStore'
 
 export function CostCenters() {
@@ -9,8 +9,6 @@ export function CostCenters() {
     const [items, setItems] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
-    const [page, setPage] = useState(1)
-    const pageSize = 10
 
     // Form
     const [showForm, setShowForm] = useState(false)
@@ -22,6 +20,7 @@ export function CostCenters() {
 
     // Selection
     const [selected, setSelected] = useState<Record<string, boolean>>({})
+    const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: '', message: '', onConfirm: () => { } })
 
     async function load() {
         setLoading(true)
@@ -87,32 +86,49 @@ export function CostCenters() {
     async function handleDelete() {
         if (!canDelete) return
 
-        // Single delete check to keep it simple or loop? 
-        // User asked: "não permitir excluir ... se já existir vinculo ... nesse caso deve ter a opção de inativar"
-        // If multiple selected, complex. Assuming single select or handling one by one?
-        // Let's handle all selected.
+        const idsToDelete = [...selectedIds]
 
-        for (const id of selectedIds) {
+        const processNext = async (index: number) => {
+            if (index >= idsToDelete.length) {
+                setSelected({})
+                load()
+                return
+            }
+
+            const id = idsToDelete[index]
             const deps = await checkCostCenterDependencies(id)
             if (deps.count > 0) {
-                if (confirm(`O centro de custo "${items.find(i => i.id === id)?.descricao}" possui vínculos e não pode ser excluído. Deseja inativá-lo?`)) {
-                    await updateCostCenter(id, { situacao: false })
-                }
+                const item = items.find(i => i.id === id)
+                setConfirmConfig({
+                    isOpen: true,
+                    title: 'Inativar Centro de Custo',
+                    message: `O centro de custo "${item?.descricao}" possui vínculos e não pode ser excluído. Deseja inativá-lo?`,
+                    onConfirm: async () => {
+                        await updateCostCenter(id, { situacao: false })
+                        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+                        processNext(index + 1)
+                    }
+                })
             } else {
-                if (confirm(`Excluir definitivamente o centro de custo "${items.find(i => i.id === id)?.descricao}"?`)) {
-                    await deleteCostCenter(id)
-                }
+                const item = items.find(i => i.id === id)
+                setConfirmConfig({
+                    isOpen: true,
+                    title: 'Excluir Centro de Custo',
+                    message: `Excluir definitivamente o centro de custo "${item?.descricao}"?`,
+                    onConfirm: async () => {
+                        await deleteCostCenter(id)
+                        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+                        processNext(index + 1)
+                    }
+                })
             }
         }
 
-        setSelected({})
-        load()
+        processNext(0)
     }
 
     const filteredItems = items.filter(i => i.descricao.toLowerCase().includes(search.toLowerCase()))
-    const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
-    const current = Math.min(page, totalPages)
-    const pageItems = filteredItems.slice((current - 1) * pageSize, current * pageSize)
+    const pageItems = filteredItems
 
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
@@ -149,13 +165,13 @@ export function CostCenters() {
                         className="outline-none flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
                         placeholder="Buscar por descrição"
                         value={search}
-                        onChange={e => { setSearch(e.target.value); setPage(1) }}
+                        onChange={e => setSearch(e.target.value)}
                     />
                 </div>
                 {search && (
                     <button
                         className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap transition-colors"
-                        onClick={() => { setSearch(''); setPage(1) }}
+                        onClick={() => setSearch('')}
                     >
                         Limpar
                     </button>
@@ -297,23 +313,16 @@ export function CostCenters() {
                             </table>
                         </div>
 
-                        {totalPages > 1 && (
-                            <div className="flex items-center justify-end gap-2 p-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-gray-700 dark:text-gray-300">
-                                <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={current === 1}>Anterior</button>
-                                <span>Página {current} de {totalPages}</span>
-                                <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={current === totalPages}>Próxima</button>
-                            </div>
-                        )}
                     </>
                 )}
             </div>
-            {/* Keeping SystemModal only if needed for delete confirmation, actually I kept confirm() but SystemModal import is there. Let's remove SystemModal usage if I heavily rely on confirm() or restore it.
-                Wait, in handle New code I used confirm(). I should use SystemModal properly if I want to be consistent. 
-                But to ensure exact pattern match with previous code provided in replacement, I will stick to what I wrote in Step 318 which used confirm() inside handleDelete but kept SystemModal import unused?
-                Actually, looking at Step 318 content I see: 
-                `if (!confirm(...)) return`
-                So I will stick to that to start.
-             */}
+            <ConfirmModal
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmConfig.onConfirm}
+            />
         </div>
     )
 }

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
-import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters, saveScheduleCostCenters, getScheduleCostCenters } from '../services/db'
+import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters, saveScheduleCostCenters, getScheduleCostCenters, listServices } from '../services/db'
 import { supabase } from '../lib/supabase'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
@@ -39,8 +39,6 @@ export default function Schedules() {
   const [sharedCostCenterModal, setSharedCostCenterModal] = useState<{ open: boolean; value: number; onConfirm?: (ids: string[], share: number) => Promise<void> }>({ open: false, value: 0 })
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<Sort>({ key: 'ano_mes_inicial', dir: 'asc' })
-  const [page, setPage] = useState(1)
-  const pageSize = 10000
 
   const [operacao, setOperacao] = useState('despesa')
   const [tipo, setTipo] = useState('fixo')
@@ -58,7 +56,7 @@ export default function Schedules() {
   const [valorFocused, setValorFocused] = useState(false)
   const [proxima, setProxima] = useState('')
   const [dateDisplay, setDateDisplay] = useState('')
-  const [periodoFix, setPeriodoFix] = useState<'mensal' | 'anual'>('mensal')
+  const [periodoFix, setPeriodoFix] = useState<'mensal' | 'anual' | 'semanal' | 'trimestral' | 'semestral'>('mensal')
   const [parcelas, setParcelas] = useState<number>(1)
   const [preview, setPreview] = useState<Array<{ date: string; valor: number }>>([])
   const [changesLog, setChangesLog] = useState<string[]>([])
@@ -92,6 +90,40 @@ export default function Schedules() {
   const [costCenterId, setCostCenterId] = useState('')
   const [costCenters, setCostCenters] = useState<{ id: string; descricao: string; principal?: boolean; compartilhado?: boolean }[]>([])
   const [selectedSharedCCs, setSelectedSharedCCs] = useState<string[]>([])
+
+  // Contract Management
+  const [services, setServices] = useState<{ id: string; name: string; default_value?: number }[]>([])
+  const [isContractMode, setIsContractMode] = useState(false)
+  const [contractStart, setContractStart] = useState('')
+  const [contractEnd, setContractEnd] = useState('')
+  const [contractItems, setContractItems] = useState<{ service_id?: string; name: string; qty: number; discount: number; value: number }[]>([])
+  const [serviceForm, setServiceForm] = useState({ service_id: '', name: '', qty: 1, discount: 0, value: 0 })
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+
+  const toggleRowExpansion = (id: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  useEffect(() => {
+    const cc = costCenters.find(c => c.id === costCenterId)
+    const active = cc?.descricao.toLowerCase().includes('contrato') || false
+    setIsContractMode(active)
+
+    if (active && showForm === 'create' && !contractStart) {
+      const today = new Date()
+      const start = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+      const end = new Date(start.getFullYear() + 1, start.getMonth(), start.getDate())
+
+      const toIso = (d: Date) => d.toISOString().split('T')[0]
+      setContractStart(toIso(start))
+      setContractEnd(toIso(end))
+    }
+  }, [costCenterId, costCenters, showForm])
 
   // Auto-select Principal Account
   useEffect(() => {
@@ -214,7 +246,7 @@ export default function Schedules() {
   const [remoteSchedules, setRemoteSchedules] = useState<any[]>([])
   const nativeDateRef = useRef<HTMLInputElement>(null)
   const [typeFilter, setTypeFilter] = useState<'fixo' | 'variavel' | ''>('')
-  const [periodFilter, setPeriodFilter] = useState<'mensal' | 'semestral' | 'anual' | 'determinado' | ''>('')
+  const [periodFilter, setPeriodFilter] = useState<'mensal' | 'semanal' | 'trimestral' | 'semestral' | 'anual' | 'determinado' | ''>('')
   const [gridCollapsed, setGridCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('schedules.gridCollapsed') === '1' } catch { return false }
   })
@@ -257,9 +289,15 @@ export default function Schedules() {
     const arr = source.map((s: any) => {
       const start = new Date(s.ano_mes_inicial)
       const end = new Date(s.ano_mes_inicial)
-      if (s.periodo === 'mensal') end.setMonth(end.getMonth() + (s.parcelas || 1))
-      else if (s.periodo === 'semestral') end.setMonth(end.getMonth() + (6 * (s.parcelas || 1)))
-      else end.setFullYear(end.getFullYear() + (s.parcelas || 1))
+      const mult = Number(s.parcelas || 1)
+      if (s.periodo === 'semanal') end.setDate(end.getDate() + (7 * mult))
+      else if (s.periodo === 'quinzenal') end.setDate(end.getDate() + (15 * mult))
+      else if (s.periodo === 'mensal') end.setMonth(end.getMonth() + mult)
+      else if (s.periodo === 'bimestral') end.setMonth(end.getMonth() + (2 * mult))
+      else if (s.periodo === 'trimestral') end.setMonth(end.getMonth() + (3 * mult))
+      else if (s.periodo === 'semestral') end.setMonth(end.getMonth() + (6 * mult))
+      else if (s.periodo === 'anual') end.setFullYear(end.getFullYear() + mult)
+      else end.setFullYear(end.getFullYear() + mult)
       const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
       // Valor total deve ser o valor original da compra, não a soma das parcelas arredondadas
       const valorTotal = Number(s.valor)
@@ -318,6 +356,7 @@ export default function Schedules() {
         raw_vencimento: s.proxima_vencimento, // Hidden field for sorting
         parcial: s.parcial || false,
         qtd_restante: s.tipo === 'fixo' ? '' : (s.parcelas - cur + 1),
+        contract_items: s.contract_items || [],
       }
     })
     const byTab = arr.filter(r => {
@@ -344,9 +383,7 @@ export default function Schedules() {
       if (av === bv) return 0
       return (sort.dir === 'asc' ? 1 : -1) * (av > bv ? 1 : -1)
     })
-    const totalRecords = sorted.length
-    const totalPages = Math.ceil(totalRecords / pageSize)
-    const paginated = sorted.slice((page - 1) * pageSize, page * pageSize)
+    const paginated = sorted
 
     const totalDespesas = filt.reduce((acc, s) => acc + (s.operacao === 'despesa' || s.operacao === 'retirada' ? Number(s.valor_total) : 0), 0)
     const totalReceitas = filt.reduce((acc, s) => acc + (s.operacao === 'receita' || s.operacao === 'aporte' ? Number(s.valor_total) : 0), 0)
@@ -362,13 +399,12 @@ export default function Schedules() {
 
     return {
       data: paginated,
-      totalPages,
-      totalRecords,
+      totalRecords: sorted.length,
       totalDespesas,
       totalReceitas,
       selectionSum // Export sum
     }
-  }, [store.schedules, remoteSchedules, search, sort, page, pageSize, contas, typeFilter, periodFilter, activeTab, clientes, selectedIds])
+  }, [store.schedules, remoteSchedules, search, sort, contas, typeFilter, periodFilter, activeTab, clientes, selectedIds])
 
   function toggleSort(key: string) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
@@ -384,6 +420,8 @@ export default function Schedules() {
     setCostCenterId(principalCostCenter?.id || '')
     setSelectedSharedCCs([])
     setDetalhes(''); setErrors({}); setRefChoice('vencimento'); setParcial(false)
+    setContractStart(''); setContractEnd(''); setContractItems([]);
+    setServiceForm({ service_id: '', name: '', qty: 1, discount: 0, value: 0 })
   }
 
   function validate() {
@@ -421,13 +459,14 @@ export default function Schedules() {
             return
           }
           const orgId = store.activeOrganization
-          const [cRes, gRes, accRes, cbRes, sRes, ccRes] = await Promise.all([
+          const [cRes, gRes, accRes, cbRes, sRes, ccRes, servRes] = await Promise.all([
             listClients(orgId),
             listCommitmentGroups(orgId),
             listAccounts(orgId),
             listCashboxes(orgId),
             listSchedules(10000, { includeConcluded: true, orgId }),
             listCostCenters(orgId),
+            listServices(orgId)
           ])
           if (cRes.error) throw cRes.error
           if (gRes.error) throw gRes.error
@@ -439,6 +478,7 @@ export default function Schedules() {
           setContas((accRes.data as any) || [])
           setCaixas((cbRes.data as any) || [])
           setCostCenters((ccRes?.data as any) || [])
+          setServices((servRes?.data as any) || [])
 
           setRemoteSchedules((sRes.data as any) || [])
           console.log('Schedules: dados carregados', {
@@ -588,9 +628,15 @@ export default function Schedules() {
         detalhes, valor: valor2, proxima_vencimento: proxima || todayIso,
         periodo, parcelas: tipo === 'variavel' ? parcelas : 1,
         nota_fiscal: notaFiscal ? Number(notaFiscal) : null, situacao: 1,
-        parcial, cost_center_id: costCenterId || null
+        parcial, cost_center_id: costCenterId || null,
+        contract_start: contractStart || null,
+        contract_end: contractEnd || null,
+        contract_items: contractItems
       }, store.activeOrganization)
-      if (r.error) { setMsg(r.error.message); setMsgType('error') }
+      if (r.error) {
+        setMsg(`Erro ao salvar: ${r.error.message}`)
+        setMsgType('error')
+      }
       else {
         // Save Shared Cost Centers if any
         if (selectedSharedCCs.length > 0 && r.data?.id) {
@@ -631,6 +677,11 @@ export default function Schedules() {
     setCaixaId(cId);
 
     setDetalhes(s.detalhes || ''); setParcial(s.parcial || false); setCostCenterId(s.cost_center_id || '')
+
+    // Contract Data
+    setContractStart(s.contract_start || '')
+    setContractEnd(s.contract_end || '')
+    setContractItems(Array.isArray(s.contract_items) ? s.contract_items : [])
 
     // Load Shared Cost Centers
     if (hasBackend && s.cost_center_id) {
@@ -761,6 +812,11 @@ export default function Schedules() {
     setParcelas(s.tipo === 'variavel' ? 1 : (s.parcelas || 1));
     setGrupoId(s.grupo_compromisso_id || ''); setCompromissoId(s.compromisso_id || ''); setCaixaId(s.caixa_id || ''); setDetalhes(s.detalhes || ''); setCostCenterId(s.cost_center_id || '')
 
+    // Contract Data Duplication
+    setContractStart(s.contract_start || '')
+    setContractEnd(s.contract_end || '')
+    setContractItems(Array.isArray(s.contract_items) ? s.contract_items : [])
+
     // Open in CREATE mode
     setShowForm('create')
     setIsDuplicating(true)
@@ -817,11 +873,31 @@ export default function Schedules() {
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
       const valor2 = Math.round(valor * 100) / 100
-      updateSched(selectedId, { operacao, tipo, especie, ano_mes_inicial: anoMesInicial, favorecido_id: clienteId, grupo_compromisso_id: grupoId, compromisso_id: compromissoId, historico, caixa_id: caixaId, detalhes, valor: valor2, proxima_vencimento: proxima, periodo, parcelas: tipo === 'variavel' ? parcelas : 1, parcial, cost_center_id: costCenterId || null }).then(() => {
-        if (store.activeOrganization) {
-          saveScheduleCostCenters(selectedId, selectedSharedCCs, store.activeOrganization)
+      updateSched(selectedId, {
+        operacao, tipo, especie, ano_mes_inicial: anoMesInicial,
+        favorecido_id: clienteId, grupo_compromisso_id: grupoId,
+        compromisso_id: compromissoId, historico, caixa_id: caixaId,
+        detalhes, valor: valor2, proxima_vencimento: proxima,
+        periodo, parcelas: tipo === 'variavel' ? parcelas : 1,
+        parcial, cost_center_id: costCenterId || null,
+        contract_start: contractStart || null,
+        contract_end: contractEnd || null,
+        contract_items: contractItems
+      }).then((res) => {
+        if (res.error) {
+          setMsg(`Erro ao atualizar: ${res.error.message}`)
+          setMsgType('error')
+        } else {
+          if (store.activeOrganization) {
+            saveScheduleCostCenters(selectedId, selectedSharedCCs, store.activeOrganization)
+          }
+          setMsg('Agendamento atualizado com sucesso')
+          setMsgType('success')
+          fetchRemoteSchedules()
+          setShowForm('none')
+          resetForm()
+          setTimeout(() => setMsg(''), 2500)
         }
-        fetchRemoteSchedules()
       })
     } else {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
@@ -890,7 +966,7 @@ export default function Schedules() {
             return (
               <button
                 key={tabLabel}
-                onClick={() => { setActiveTab(id); setPage(1) }}
+                onClick={() => { setActiveTab(id) }}
                 className={`px-4 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${activeTab === id ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
               >
                 {tabLabel}
@@ -899,18 +975,6 @@ export default function Schedules() {
           })}
         </div>
       </div>
-
-      <div className="hidden md:flex flex-col gap-2">
-
-        <button
-          onClick={() => { resetForm(); const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); setAnoMesInicial(`${yyyy}-${mm}-${dd}`); setShowForm('create') }}
-          className="text-blue-600 font-medium text-sm"
-        >
-          Incluir
-        </button>
-      </div>
-
-
 
 
       {/* Row 1: Actions, Search, Filters, Exports (Desktop) */}
@@ -937,7 +1001,7 @@ export default function Schedules() {
         {/* Search Field - Grows to fill space */}
         <div className="flex-1 flex items-center gap-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded px-3 py-2 min-w-[200px]">
           <Icon name="search" className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-          <input className="outline-none w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setPage(1); setSearch(e.target.value) }} />
+          <input className="outline-none w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm" placeholder="Buscar cliente, histórico ou valor" value={search} onChange={e => { setSearch(e.target.value) }} />
         </div>
 
         {/* Filters */}
@@ -946,7 +1010,7 @@ export default function Schedules() {
             <FloatingLabelSelect
               label="Tipo"
               value={typeFilter}
-              onChange={e => { setTypeFilter(e.target.value as any); setPage(1) }}
+              onChange={e => { setTypeFilter(e.target.value as any) }}
               bgColor="bg-background-light dark:bg-background-dark"
             >
               <option value="" className="dark:bg-gray-800">Todos</option>
@@ -959,15 +1023,16 @@ export default function Schedules() {
             <FloatingLabelSelect
               label="Período"
               value={periodFilter}
-              onChange={e => { setPeriodFilter(e.target.value as any); setPage(1) }}
+              onChange={e => { setPeriodFilter(e.target.value as any) }}
               bgColor="bg-background-light dark:bg-background-dark"
             >
               <option value="" className="dark:bg-gray-800">Todos</option>
               <option value="mensal" className="dark:bg-gray-800">Mensal</option>
               <option value="semanal" className="dark:bg-gray-800">Semanal</option>
+              <option value="trimestral" className="dark:bg-gray-800">Trimestral</option>
+              <option value="semestral" className="dark:bg-gray-800">Semestral</option>
               <option value="anual" className="dark:bg-gray-800">Anual</option>
               <option value="unico" className="dark:bg-gray-800">Único</option>
-              <option value="semestral" className="dark:bg-gray-800">Semestral</option>
             </FloatingLabelSelect>
           </div>
 
@@ -975,7 +1040,7 @@ export default function Schedules() {
             <FloatingLabelSelect
               label="Grupo"
               value={grupoCompromissoFilter}
-              onChange={e => { setGrupoCompromissoFilter(e.target.value); setPage(1) }}
+              onChange={e => { setGrupoCompromissoFilter(e.target.value) }}
               bgColor="bg-background-light dark:bg-background-dark"
             >
               <option value="" className="dark:bg-gray-800">Todos</option>
@@ -1031,7 +1096,7 @@ export default function Schedules() {
         </div>
 
         {(search || typeFilter || periodFilter) && (
-          <button className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter(''); setPage(1) }}>
+          <button className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap" onClick={() => { setSearch(''); setTypeFilter(''); setPeriodFilter('') }}>
             Limpar
           </button>
         )}
@@ -1053,7 +1118,7 @@ export default function Schedules() {
             { id: 'concluidos', label: 'Concluídos' },
           ]}
           activeId={activeTab}
-          onChange={id => { setActiveTab(id as any); setPage(1) }}
+          onChange={id => { setActiveTab(id as any) }}
           disabled={showForm !== 'none'}
         />
 
@@ -1383,12 +1448,14 @@ export default function Schedules() {
                           value={valorFocused ? valor : valor.toFixed(2)}
                           onFocus={() => setValorFocused(true)}
                           onBlur={() => setValorFocused(false)}
+                          readOnly={isContractMode}
+                          disabled={isContractMode}
                           onChange={e => {
                             const val = e.target.value;
                             const truncated = val.includes('.') ? val.split('.')[0] + '.' + val.split('.')[1].slice(0, 2) : val;
                             setValor(parseFloat(truncated) || 0);
                           }}
-                          className={(!valor || valor <= 0) ? 'border-red-500' : ''}
+                          className={(!valor || valor <= 0) ? 'border-red-500' : (isContractMode ? 'bg-gray-100 dark:bg-gray-800' : '')}
                         />
                         {(!valor || valor <= 0) && <div className="text-xs text-red-600 dark:text-red-400 mt-1">Valor deve ser maior que 0</div>}
                         <div className="mt-2 flex items-center gap-2">
@@ -1428,6 +1495,28 @@ export default function Schedules() {
                                 }
                               } else {
                                 setProxima('')
+                              }
+                            }}
+                            onBlur={() => {
+                              if (!dateDisplay) return
+                              const parts = dateDisplay.split('/')
+                              const now = new Date()
+                              let day = parts[0]
+                              let month = parts[1] || (now.getMonth() + 1).toString().padStart(2, '0')
+                              let year = parts[2] || now.getFullYear().toString()
+
+                              if (day.length === 1) day = '0' + day
+                              if (month.length === 1) month = '0' + month
+                              if (year.length === 2) year = '20' + year
+
+                              const finalDisplay = `${day}/${month}/${year}`
+                              const iso = `${year}-${month}-${day}`
+                              const d = new Date(iso)
+
+                              if (!Number.isNaN(d.getTime()) && finalDisplay.length === 10) {
+                                setDateDisplay(finalDisplay)
+                                setProxima(iso)
+                                setErrors(prev => { const { proxima, ...rest } = prev; return rest })
                               }
                             }}
                           />
@@ -1473,6 +1562,7 @@ export default function Schedules() {
                             onChange={e => { setPeriodoFix(e.target.value as any) }}
                           >
                             <option value="mensal">Mensal</option>
+                            <option value="trimestral">Trimestral</option>
                             <option value="semestral">Semestral</option>
                             <option value="anual">Anual</option>
                           </FloatingLabelSelect>
@@ -1498,6 +1588,149 @@ export default function Schedules() {
                         onChange={e => setDetalhes(e.target.value)}
                       />
                     </div>
+
+                    {isContractMode && (
+                      <div className="md:col-span-2 space-y-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-lg animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-center gap-2 border-b dark:border-gray-700 pb-2 mb-2">
+                          <Icon name="app_registration" className="w-5 h-5 text-blue-600" />
+                          <h3 className="font-bold text-[#00665c] dark:text-teal-400">Itens do Contrato</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="md:col-span-1">
+                            <FloatingLabelInput
+                              label="Início"
+                              id="contract_start"
+                              type="date"
+                              value={contractStart}
+                              onChange={e => setContractStart(e.target.value)}
+                            />
+                          </div>
+                          <div className="md:col-span-1">
+                            <FloatingLabelInput
+                              label="Término"
+                              id="contract_end"
+                              type="date"
+                              value={contractEnd}
+                              onChange={e => setContractEnd(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                            <div className="md:col-span-4">
+                              <FloatingLabelSelect
+                                label="Serviço"
+                                id="service_select"
+                                value={serviceForm.service_id}
+                                onChange={e => {
+                                  const id = e.target.value
+                                  const s = services.find(x => x.id === id)
+                                  setServiceForm({ ...serviceForm, service_id: id, name: s?.name || '', value: s?.default_value || 0 })
+                                }}
+                              >
+                                <option value="">Selecione</option>
+                                {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                              </FloatingLabelSelect>
+                            </div>
+                            <div className="md:col-span-2">
+                              <FloatingLabelInput
+                                label="Qtd"
+                                id="service_qty"
+                                type="number"
+                                value={serviceForm.qty}
+                                onChange={e => setServiceForm({ ...serviceForm, qty: parseInt(e.target.value) || 1 })}
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <FloatingLabelInput
+                                label="Desconto"
+                                id="service_discount"
+                                type="number"
+                                value={serviceForm.discount}
+                                onChange={e => setServiceForm({ ...serviceForm, discount: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <FloatingLabelInput
+                                label="Valor"
+                                id="service_value"
+                                type="number"
+                                value={serviceForm.value}
+                                onChange={e => setServiceForm({ ...serviceForm, value: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <button
+                                type="button"
+                                className="w-full h-[48px] bg-green-600 hover:bg-green-700 text-white rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                onClick={() => {
+                                  if (!serviceForm.name) return
+                                  setContractItems([...contractItems, { ...serviceForm }])
+                                  // Update total valor if user wants? Or keep it separate? 
+                                  // Usually total value is determined by items. 
+                                  // Let's add a helper to update main valor.
+                                  const nextItems = [...contractItems, { ...serviceForm }]
+                                  const sum = nextItems.reduce((acc, current) => acc + (current.qty * current.value) - current.discount, 0)
+                                  setValor(sum)
+                                  setServiceForm({ service_id: '', name: '', qty: 1, discount: 0, value: 0 })
+                                }}
+                              >
+                                <Icon name="add" className="w-5 h-5" /> Adicionar
+                              </button>
+                            </div>
+                          </div>
+
+                          {contractItems.length > 0 && (
+                            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded overflow-hidden shadow-sm">
+                              <table className="w-full text-xs md:text-sm">
+                                <thead className="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+                                  <tr>
+                                    <th className="p-2 text-left">Serviço</th>
+                                    <th className="p-2 text-center">Qtd</th>
+                                    <th className="p-2 text-right">Preço</th>
+                                    <th className="p-2 text-right">Desc.</th>
+                                    <th className="p-2 text-right">Total</th>
+                                    <th className="p-2 text-center">Ações</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y dark:divide-gray-700 font-medium">
+                                  {contractItems.map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                      <td className="p-2">{item.name}</td>
+                                      <td className="p-2 text-center">{item.qty}</td>
+                                      <td className="p-2 text-right">R$ {formatMoneyBr(item.value)}</td>
+                                      <td className="p-2 text-right text-red-500">{item.discount > 0 ? `- R$ ${formatMoneyBr(item.discount)}` : '-'}</td>
+                                      <td className="p-2 text-right font-bold text-gray-900 dark:text-gray-100">R$ {formatMoneyBr((item.qty * item.value) - item.discount)}</td>
+                                      <td className="p-2 text-center">
+                                        <button
+                                          type="button"
+                                          className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                          onClick={() => {
+                                            const nextItems = contractItems.filter((_, i) => i !== idx)
+                                            setContractItems(nextItems)
+                                            const sum = nextItems.reduce((acc, current) => acc + (current.qty * current.value) - current.discount, 0)
+                                            setValor(sum)
+                                          }}
+                                        >
+                                          Remover
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr className="bg-gray-50 dark:bg-gray-700/50 font-bold">
+                                    <td colSpan={4} className="p-2 text-right border-t dark:border-gray-600">Total do Contrato:</td>
+                                    <td className="p-2 text-right border-t dark:border-gray-600 text-blue-600 dark:text-blue-400">R$ {formatMoneyBr(contractItems.reduce((acc, current) => acc + (current.qty * current.value) - current.discount, 0))}</td>
+                                    <td className="p-2 border-t dark:border-gray-600"></td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
                       <button className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-black dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-2 font-medium transition-colors" type="button" onClick={() => { setShowForm('none'); resetForm() }}>Cancelar</button>
@@ -1672,6 +1905,7 @@ export default function Schedules() {
                           <table className="w-full text-xs text-gray-900 dark:text-gray-100">
                             <thead>
                               <tr className="text-left bg-white dark:bg-gray-900">
+                                <th className="p-2 w-[30px]"></th>
                                 {[
                                   ['data_referencia', 'Data Referência'],
                                   ['cliente', 'Cliente'],
@@ -1693,24 +1927,67 @@ export default function Schedules() {
                             </thead>
                             <tbody>
                               {list.map(r => (
-                                <tr key={r.id} className={`border-t border-gray-200 dark:border-gray-700 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onDoubleClick={() => { setSelectedId(r.id); onEditOpen() }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: r.id }) }} title="Clique com botão direito para opções">
-                                  <td className="p-2 w-[100px]">{r.data_referencia}</td>
-                                  <td className="p-2 w-[180px] break-words whitespace-normal" title={r.cliente}>{r.cliente}</td>
-                                  <td className="p-2 w-[200px] break-words whitespace-normal" title={r.historico}>{r.historico}</td>
-                                  <td className="p-2 w-[100px]">{r.vencimento}</td>
-                                  <td className="p-2 w-[120px] capitalize">{r.tipo === 'variavel' ? 'Prazo determinado' : r.periodo}</td>
-                                  <td className="p-2 w-[100px]">{r.data_final}</td>
-                                  <td className="p-2 w-[110px] text-right">R$ {formatMoneyBr(Number(r.valor_parcela))}</td>
-                                  <td className="p-2 w-[60px] text-right">{formatIntBr(Number(r.qtd))}</td>
-                                  <td className="p-2 w-[100px] capitalize">{r.especie ? (r.especie.charAt(0).toUpperCase() + r.especie.slice(1).replace('_', ' ')) : '-'}</td>
-                                  <td className="p-2 w-[100px] text-right">{r.qtd_restante}</td>
-                                  <td className="p-2 w-[110px] text-right font-semibold">R$ {formatMoneyBr(Number(r.valor_total))}</td>
-                                </tr>
+                                <React.Fragment key={r.id}>
+                                  <tr className={`border-t border-gray-200 dark:border-gray-700 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onDoubleClick={() => { setSelectedId(r.id); onEditOpen() }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: r.id }) }} title="Clique com botão direito para opções">
+                                    <td className="p-2 w-[30px]" onClick={(e) => { e.stopPropagation(); toggleRowExpansion(r.id) }}>
+                                      {Array.isArray(r.contract_items) && r.contract_items.length > 0 && (
+                                        <Icon name={expandedRows.has(r.id) ? 'keyboard_arrow_down' : 'keyboard_arrow_right'} className="w-5 h-5 text-blue-600" />
+                                      )}
+                                    </td>
+                                    <td className="p-2 w-[100px]">{r.data_referencia}</td>
+                                    <td className="p-2 w-[180px] break-words whitespace-normal" title={r.cliente}>{r.cliente}</td>
+                                    <td className="p-2 w-[200px] break-words whitespace-normal" title={r.historico}>{r.historico}</td>
+                                    <td className="p-2 w-[100px]">{r.vencimento}</td>
+                                    <td className="p-2 w-[120px]">
+                                      {r.tipo === 'variavel' ? 'Prazo determinado' : (({
+                                        semanal: 'Semanal',
+                                        quinzenal: 'Quinzenal',
+                                        mensal: 'Mensal',
+                                        bimestral: 'Bimestral',
+                                        trimestral: 'Trimestral',
+                                        semestral: 'Semestral',
+                                        anual: 'Anual',
+                                        unico: 'Único'
+                                      } as any)[r.periodo] || r.periodo)}
+                                    </td>
+                                    <td className="p-2 w-[100px]">{r.data_final}</td>
+                                    <td className="p-2 w-[110px] text-right">R$ {formatMoneyBr(Number(r.valor_parcela))}</td>
+                                    <td className="p-2 w-[60px] text-right">{formatIntBr(Number(r.qtd))}</td>
+                                    <td className="p-2 w-[100px] capitalize">{r.especie ? (r.especie.charAt(0).toUpperCase() + r.especie.slice(1).replace('_', ' ')) : '-'}</td>
+                                    <td className="p-2 w-[100px] text-right">{r.qtd_restante}</td>
+                                    <td className="p-2 w-[110px] text-right font-semibold">R$ {formatMoneyBr(Number(r.valor_total))}</td>
+                                  </tr>
+                                  {expandedRows.has(r.id) && Array.isArray(r.contract_items) && r.contract_items.length > 0 && (
+                                    <tr className="bg-blue-50/10 dark:bg-blue-900/5 animate-in fade-in slide-in-from-top-1">
+                                      <td colSpan={12} className="p-0">
+                                        <table className="w-full text-[10px] md:text-xs table-fixed">
+                                          <tbody className="divide-y dark:divide-gray-800">
+                                            {r.contract_items.map((item: any, idx: number) => (
+                                              <tr key={idx} className="hover:bg-blue-50/20 dark:hover:bg-blue-900/10">
+                                                <td className="w-[30px]"></td>
+                                                <td className="w-[100px]"></td>
+                                                <td className="w-[180px]"></td>
+                                                <td className="w-[630px] p-2 text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                                                  <Icon name="subdirectory_arrow_right" className="w-3 h-3 opacity-50" />
+                                                  <span className="truncate" title={item.name}>{item.name}</span>
+                                                </td>
+                                                <td className="w-[60px] p-2 text-right text-gray-600 dark:text-gray-400">{item.qty}</td>
+                                                <td className="w-[100px] p-2 text-right text-gray-600 dark:text-gray-400">R$ {formatMoneyBr(item.value)}</td>
+                                                <td className="w-[100px] p-2 text-right text-red-400">{item.discount > 0 ? `- R$ ${formatMoneyBr(item.discount)}` : '-'}</td>
+                                                <td className="w-[110px] p-2 text-right font-bold text-blue-600/70 dark:text-blue-400/70">R$ {formatMoneyBr((item.qty * item.value) - item.discount)}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
                               ))}
                             </tbody>
                             <tfoot>
                               <tr className="bg-gray-50 dark:bg-gray-800 font-medium border-t dark:border-gray-700">
-                                <td className="p-2 text-right" colSpan={6}>Total do Caixa</td>
+                                <td className="p-2 text-right" colSpan={7}>Total do Caixa</td>
                                 <td className="p-2 text-right">R$ {formatMoneyBr(list.reduce((sum, r) => sum + Number(r.valor_parcela), 0))}</td>
                                 <td className="p-2 text-right"></td>
                                 <td className="p-2"></td>
@@ -1762,11 +2039,11 @@ export default function Schedules() {
         {data.data.map(item => (
           <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border dark:border-gray-700 relative" onClick={() => { setSelectedId(item.id); onEditOpen() }}>
             <div className="flex justify-between items-start mb-2">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${item.receita > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                {item.receita > 0 ? 'Receita' : 'Despesa'}
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${['receita', 'aporte'].includes(item.operacao) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {['receita', 'aporte'].includes(item.operacao) ? 'Receita' : 'Despesa'}
               </span>
               <span className="font-bold text-gray-900 dark:text-gray-100">
-                {item.receita > 0 ? `R$ ${formatMoneyBr(Number(item.valor_total))}` : `R$ ${formatMoneyBr(Number(item.valor_total))}`}
+                R$ {formatMoneyBr(Number(item.valor_total))}
               </span>
             </div>
             <div className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100 line-clamp-2">{item.historico || 'Sem histórico'}</div>

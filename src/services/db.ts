@@ -404,7 +404,7 @@ export async function deleteClient(id: string) {
 
 export async function listCommitmentGroups(orgId: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('commitment_groups').select('id,nome,operacao,tipo').eq('organization_id', orgId).order('nome', { ascending: true })
+  return supabase.from('commitment_groups').select('id,nome,operacao,tipo,ativo').eq('organization_id', orgId).order('nome', { ascending: true })
 }
 
 export async function listCostCenters(orgId: string) {
@@ -414,7 +414,28 @@ export async function listCostCenters(orgId: string) {
 
 export async function listCommitmentsByGroup(groupId: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('commitments').select('id,nome,ir').eq('grupo_id', groupId).order('nome', { ascending: true })
+  return supabase.from('commitments').select('id,nome,ir,ativo').eq('grupo_id', groupId).order('nome', { ascending: true })
+}
+
+// Services CRUD
+export async function listServices(orgId: string) {
+  if (!supabase) return { data: [], error: null }
+  return supabase.from('services').select('*').eq('organization_id', orgId).order('name')
+}
+
+export async function createService(payload: { name: string; description?: string; default_value?: number; organization_id: string }) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('services').insert([payload]).select('id').single()
+}
+
+export async function updateService(id: string, patch: { name?: string; description?: string; default_value?: number }) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('services').update(patch).eq('id', id)
+}
+
+export async function deleteService(id: string) {
+  if (!supabase) return { data: null, error: null }
+  return supabase.from('services').delete().eq('id', id)
 }
 
 export async function listCashboxes(orgId: string) {
@@ -427,13 +448,21 @@ export async function createCommitmentGroup(payload: { operacao: 'receita' | 'de
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('commitment_groups').insert([{ user_id: userId, created_by: userId, organization_id: payload.organization_id, nome: payload.nome, operacao: payload.operacao, tipo: payload.operacao }]).select('id').single()
 }
-export async function updateCommitmentGroup(id: string, payload: { operacao?: 'receita' | 'despesa' | 'aporte' | 'retirada'; nome?: string }) {
+export async function updateCommitmentGroup(id: string, payload: { operacao?: 'receita' | 'despesa' | 'aporte' | 'retirada'; nome?: string; ativo?: boolean }) {
   if (!supabase) return { data: null, error: null }
   return supabase.from('commitment_groups').update({ ...payload, tipo: payload.operacao }).eq('id', id).select('id').single()
 }
 export async function deleteCommitmentGroup(id: string) {
   if (!supabase) return { data: null, error: null }
   return supabase.from('commitment_groups').delete().eq('id', id)
+}
+
+export async function checkCommitmentGroupDependencies(id: string) {
+  if (!supabase) return { count: 0 }
+  const { count: c1 } = await supabase.from('commitments').select('*', { count: 'exact', head: true }).eq('grupo_id', id)
+  const { count: c2 } = await supabase.from('schedules').select('*', { count: 'exact', head: true }).eq('grupo_compromisso_id', id)
+  const { count: c3 } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('grupo_compromisso_id', id)
+  return { count: (c1 || 0) + (c2 || 0) + (c3 || 0) }
 }
 
 export async function createCostCenter(payload: { descricao: string; principal?: boolean; situacao?: boolean; compartilhado?: boolean; organization_id: string }) {
@@ -482,12 +511,12 @@ export async function listScheduleCostCenters(orgId: string) {
   return supabase.from('schedule_cost_centers').select('schedule_id, cost_center_id').eq('organization_id', orgId)
 }
 
-export async function createCommitment(payload: { grupo_id: string; nome: string; ir?: boolean; organization_id: string }) {
+export async function createCommitment(payload: { grupo_id: string, nome: string, ir?: boolean, ativo?: boolean, organization_id: string }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
-  return supabase.from('commitments').insert([{ user_id: userId, ...payload }]).select('id, nome, grupo_id').single()
+  return supabase.from('commitments').insert([{ user_id: userId, ...payload }]).select('id, nome, grupo_id, ativo').single()
 }
-export async function updateCommitment(id: string, payload: { grupo_id?: string; nome?: string; ir?: boolean }) {
+export async function updateCommitment(id: string, payload: { grupo_id?: string; nome?: string; ir?: boolean; ativo?: boolean }) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('commitments').update({ ...payload }).eq('id', id).eq('user_id', userId as any).select('id').single()
@@ -496,6 +525,13 @@ export async function deleteCommitment(id: string) {
   if (!supabase) return { data: null, error: null }
   const userId = (await supabase.auth.getUser()).data.user?.id
   return supabase.from('commitments').delete().eq('id', id).eq('user_id', userId as any)
+}
+
+export async function checkCommitmentDependencies(id: string) {
+  if (!supabase) return { count: 0 }
+  const { count: c1 } = await supabase.from('schedules').select('*', { count: 'exact', head: true }).eq('compromisso_id', id)
+  const { count: c2 } = await supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('compromisso_id', id)
+  return { count: (c1 || 0) + (c2 || 0) }
 }
 export async function deleteAccountValidated(id: string) {
   if (!supabase) return { data: null, error: null }

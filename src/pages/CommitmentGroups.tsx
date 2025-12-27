@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
-import { listCommitmentGroups, createCommitmentGroup, updateCommitmentGroup, deleteCommitmentGroup } from '../services/db'
+import { listCommitmentGroups, createCommitmentGroup, updateCommitmentGroup, deleteCommitmentGroup, checkCommitmentGroupDependencies } from '../services/db'
 import { Icon } from '../components/ui/Icon'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 
 export default function CommitmentGroups() {
   const store = useAppStore()
   const [nome, setNome] = useState('')
   const [tipo, setTipo] = useState<'despesa' | 'receita' | 'aporte' | 'retirada'>('despesa')
-  const [items, setItems] = useState<Array<{ id: string; nome: string; operacao?: string }>>([])
+  const [items, setItems] = useState<Array<{ id: string; nome: string; operacao?: string; ativo?: boolean }>>([])
+  const [ativo, setAtivo] = useState(true)
+
   const [editId, setEditId] = useState<string>('')
   const [showForm, setShowForm] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     try { const raw = localStorage.getItem('groups.expanded'); return raw ? JSON.parse(raw) : { despesa: true, receita: true, aporte: true, retirada: true } } catch { return { despesa: true, receita: true, aporte: true, retirada: true } }
   })
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const pageSize = 10
   const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: '', message: '', onConfirm: () => { } })
 
   useEffect(() => { try { localStorage.setItem('groups.expanded', JSON.stringify(expanded)) } catch { } }, [expanded])
 
@@ -56,7 +58,7 @@ export default function CommitmentGroups() {
     } else {
       store.createCommitmentGroup({ nome, operacao: tipo } as any)
     }
-    setNome(''); setShowForm(false)
+    setNome(''); setShowForm(false); setAtivo(true)
   }
   function onUpdate(e: React.FormEvent) {
     e.preventDefault()
@@ -65,8 +67,8 @@ export default function CommitmentGroups() {
       if (!store.activeOrganization) return
       updateCommitmentGroup(editId, { nome, operacao: tipo }).then(() => listCommitmentGroups(store.activeOrganization!).then(r => { if (!r.error && r.data) setItems(r.data as any) }))
     }
-    else store.updateCommitmentGroup(editId, { nome, operacao: tipo } as any)
-    setEditId(''); setNome(''); setShowForm(false)
+    else store.updateCommitmentGroup(editId, { nome, operacao: tipo, ativo } as any)
+    setEditId(''); setNome(''); setShowForm(false); setAtivo(true)
   }
 
 
@@ -82,24 +84,71 @@ export default function CommitmentGroups() {
       setEditId(g.id)
       setNome(g.nome)
       setTipo((g.operacao as any) || 'despesa')
+      setAtivo(g.ativo !== false)
       setShowForm(true)
     }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!canDelete) return
-    if (!confirm(`Excluir ${selectedIds.length} grupos selecionados?`)) return
 
-    const promise = hasBackend
-      ? Promise.all(selectedIds.map(id => deleteCommitmentGroup(id)))
-      : Promise.resolve(selectedIds.forEach(id => store.deleteCommitmentGroup(id)))
+    const idsToDelete = [...selectedIds]
 
-    promise.then(() => {
-      setSelected({})
-      if (hasBackend && store.activeOrganization) {
-        listCommitmentGroups(store.activeOrganization).then(r => { if (!r.error && r.data) setItems(r.data as any) })
+    const processNext = async (index: number) => {
+      if (index >= idsToDelete.length) {
+        setSelected({})
+        if (hasBackend && store.activeOrganization) {
+          const r = await listCommitmentGroups(store.activeOrganization)
+          if (!r.error && r.data) setItems(r.data as any)
+        }
+        return
       }
-    })
+
+      const id = idsToDelete[index]
+      if (hasBackend) {
+        const { count } = await checkCommitmentGroupDependencies(id)
+        if (count > 0) {
+          const g = items.find(x => x.id === id)
+          setConfirmConfig({
+            isOpen: true,
+            title: 'Inativar Grupo',
+            message: `O grupo "${g?.nome}" possui ${count} vínculos (compromissos, agendamentos ou lançamentos) e não pode ser excluído. Deseja apenas inativá-lo?`,
+            onConfirm: async () => {
+              await updateCommitmentGroup(id, { ativo: false })
+              setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+              processNext(index + 1)
+            }
+          })
+        } else {
+          const g = items.find(x => x.id === id)
+          setConfirmConfig({
+            isOpen: true,
+            title: 'Excluir Grupo',
+            message: `Excluir o grupo "${g?.nome}"?`,
+            onConfirm: async () => {
+              await deleteCommitmentGroup(id)
+              setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+              processNext(index + 1)
+            }
+          })
+        }
+      } else {
+        // Local mode
+        setConfirmConfig({
+          isOpen: true,
+          title: 'Excluir Grupos',
+          message: `Excluir ${selectedIds.length} grupos selecionados?`,
+          onConfirm: () => {
+            selectedIds.forEach(id => store.deleteCommitmentGroup(id))
+            setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+            // In local mode we treat all at once for simplicity in this replacement
+            setSelected({})
+          }
+        })
+      }
+    }
+
+    processNext(0)
   }
 
   return (
@@ -135,13 +184,13 @@ export default function CommitmentGroups() {
             className="outline-none flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
             placeholder="Buscar por nome"
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
+            onChange={e => setSearch(e.target.value)}
           />
         </div>
         {search && (
           <button
             className="text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border dark:border-gray-600 rounded px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap transition-colors"
-            onClick={() => { setSearch(''); setPage(1) }}
+            onClick={() => setSearch('')}
           >
             Limpar
           </button>
@@ -160,6 +209,12 @@ export default function CommitmentGroups() {
           </select>
           <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>
           <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="Nome" value={nome} onChange={e => setNome(e.target.value)} />
+
+          <label className="text-sm text-gray-700 dark:text-gray-300">Situação</label>
+          <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={ativo ? 'true' : 'false'} onChange={e => setAtivo(e.target.value === 'true')}>
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
           <div className="flex justify-end gap-2"><button type="button" className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { setShowForm(false); setEditId(''); setNome('') }}>Cancelar</button><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" type="submit">Salvar</button></div>
         </form>
       )}
@@ -175,9 +230,7 @@ export default function CommitmentGroups() {
 
           if (groupItems.length === 0 && search) return null // Hide empty groups when searching? Optional. Leaving standard behavior.
 
-          const totalPages = Math.max(1, Math.ceil(groupItems.length / pageSize))
-          const current = Math.min(page, totalPages)
-          const pageItems = groupItems.slice((current - 1) * pageSize, current * pageSize)
+          const pageItems = groupItems
           return (
             <div key={tipoKey} className="mb-4 border dark:border-gray-700 rounded bg-white dark:bg-gray-800">
               <div className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" onClick={() => setExpanded(s => ({ ...s, [tipoKey]: !s[tipoKey] }))}>
@@ -198,15 +251,16 @@ export default function CommitmentGroups() {
                       <tr className="text-left bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                         <th className="p-2 w-10">Seleção</th>
                         <th className="p-2">Nome</th>
+                        <th className="p-2 w-24">Situação</th>
                       </tr>
                     </thead>
                     <tbody className="text-gray-900 dark:text-gray-100">
                       {pageItems.map(g => (
                         <tr
                           key={g.id}
-                          className="border-t dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                          className={`border-t dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100 ${selected[g.id] ? 'bg-blue-50 dark:bg-blue-900/30' : ''} ${g.ativo === false ? 'opacity-50' : ''}`}
                           onClick={() => setSelected(s => ({ ...s, [g.id]: !s[g.id] }))}
-                          onDoubleClick={() => { setEditId(g.id); setNome(g.nome); setTipo((g.operacao as any) || 'despesa'); setShowForm(true) }}
+                          onDoubleClick={() => { setEditId(g.id); setNome(g.nome); setTipo((g.operacao as any) || 'despesa'); setAtivo(g.ativo !== false); setShowForm(true) }}
                         >
                           <td className="p-2" onClick={e => e.stopPropagation()}>
                             <input
@@ -217,23 +271,28 @@ export default function CommitmentGroups() {
                             />
                           </td>
                           <td className="p-2">{g.nome}</td>
+                          <td className="p-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${g.ativo !== false ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                              {g.ativo !== false ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-end gap-2 p-2 text-gray-700 dark:text-gray-300">
-                      <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={current === 1}>Anterior</button>
-                      <span>Página {current} de {totalPages}</span>
-                      <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={current === totalPages}>Próxima</button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           )
         })}
       </div>
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+      />
     </div>
   )
 }

@@ -1,20 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '../store/AppStore'
 import { hasBackend } from '../lib/runtime'
-import { listCommitmentGroups, createCommitment, updateCommitment, deleteCommitment, listCommitmentsByGroup } from '../services/db'
+import { listCommitmentGroups, listCommitmentsByGroup, createCommitment, updateCommitment, deleteCommitment, checkCommitmentDependencies } from '../services/db'
 import { Icon } from '../components/ui/Icon'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 
 export default function Commitments() {
   const store = useAppStore()
   const [nome, setNome] = useState('')
   const [grupoId, setGrupoId] = useState('')
   const [grupos, setGrupos] = useState<Array<{ id: string; nome: string; operacao?: string }>>([])
-  const [items, setItems] = useState<Array<{ id: string; nome: string; grupo_id: string; ir?: boolean }>>([])
+  const [items, setItems] = useState<Array<{ id: string; nome: string; grupo_id: string; ir?: boolean; ativo?: boolean }>>([])
+  const [ativo, setAtivo] = useState(true)
+
   const [editId, setEditId] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [tab, setTab] = useState<'despesa' | 'receita' | 'retirada' | 'aporte'>('despesa')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<{ key: 'nome' | 'grupo'; dir: 'asc' | 'desc' }>({ key: 'nome', dir: 'asc' })
+  const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: '', message: '', onConfirm: () => { } })
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [ir, setIr] = useState(false)
@@ -32,10 +36,10 @@ export default function Commitments() {
         if (!g.error && g.data) {
           const arr = g.data as any
           setGrupos(arr)
-          const all: Array<{ id: string; nome: string; grupo_id: string; ir?: boolean }> = []
+          const all: Array<{ id: string; nome: string; grupo_id: string; ir?: boolean; ativo?: boolean }> = []
           for (const grp of arr) {
             const r = await listCommitmentsByGroup(grp.id)
-            if (!r.error && r.data) all.push(...(r.data as any).map((c: any) => ({ id: c.id, nome: c.nome, grupo_id: grp.id, ir: c.ir })))
+            if (!r.error && r.data) all.push(...(r.data as any).map((c: any) => ({ id: c.id, nome: c.nome, grupo_id: grp.id, ir: c.ir, ativo: c.ativo })))
           }
           setItems(all)
         } else {
@@ -57,29 +61,33 @@ export default function Commitments() {
     if (!nome.trim() || !grupoId) return
     if (hasBackend) {
       if (!store.activeOrganization) return
-      createCommitment({ nome, grupo_id: grupoId, ir, organization_id: store.activeOrganization }).then(async () => {
+      createCommitment({ nome, grupo_id: grupoId, ir, ativo, organization_id: store.activeOrganization }).then(async (r) => {
         setShowForm(false)
         const g = await listCommitmentGroups(store.activeOrganization!); if (!g.error && g.data) setGrupos(g.data as any)
-        const r = await listCommitmentsByGroup(grupoId);
-        if (!r.error && r.data) {
-          setItems(prev => [...prev.filter(i => i.grupo_id !== grupoId), ...((r.data as any).map((c: any) => ({ id: c.id, nome: c.nome, grupo_id: grupoId, ir: c.ir })))])
+        const r2 = await listCommitmentsByGroup(grupoId);
+        if (!r2.error && r2.data) {
+          setItems(prev => [...prev.filter(i => i.grupo_id !== grupoId), ...((r2.data as any).map((c: any) => ({ id: c.id, nome: c.nome, grupo_id: grupoId, ir: c.ir, ativo: c.ativo })))])
         }
       })
     } else {
-      store.createCommitment({ nome, grupo_id: grupoId, ir })
-      setItems(prev => [...prev, { id: Date.now().toString(), nome, grupo_id: grupoId, ir }])
-      setNome(''); setGrupoId(''); setIr(false); setShowForm(false)
+      store.createCommitment({ nome, grupo_id: grupoId, ir, ativo })
+      setItems(prev => [...prev, { id: Date.now().toString(), nome, grupo_id: grupoId, ir, ativo }])
+      setNome(''); setGrupoId(''); setIr(false); setShowForm(false); setAtivo(true)
     }
   }
   function onUpdate(e: React.FormEvent) {
     e.preventDefault()
     if (!editId || !nome.trim() || !grupoId) return
-    if (hasBackend) updateCommitment(editId, { nome, grupo_id: grupoId, ir }).then(() => {
-      setItems(prev => prev.map(i => i.id === editId ? { ...i, nome, grupo_id: grupoId, ir } : i))
+    if (hasBackend) updateCommitment(editId, { nome, grupo_id: grupoId, ir, ativo }).then(() => {
+      setItems(prev => prev.map(i => i.id === editId ? { ...i, nome, grupo_id: grupoId, ir, ativo } : i))
       setShowForm(false)
+      setEditId(''); setNome(''); setGrupoId(''); setIr(false); setAtivo(true)
     })
-    else store.updateCommitment(editId, { nome, grupo_id: grupoId, ir })
-    setEditId(''); setNome(''); setGrupoId(''); setIr(false); setShowForm(false)
+    else {
+      store.updateCommitment(editId, { nome, grupo_id: grupoId, ir, ativo })
+      setItems(prev => prev.map(i => i.id === editId ? { ...i, nome, grupo_id: grupoId, ir, ativo } : i))
+    }
+    setEditId(''); setNome(''); setGrupoId(''); setIr(false); setShowForm(false); setAtivo(true)
   }
 
   // Filtrar grupos e itens
@@ -114,25 +122,70 @@ export default function Commitments() {
       setEditId(c.id)
       setNome(c.nome)
       setGrupoId(c.grupo_id)
-      setIr((c as any).ir || false)
+      setIr(c.ir || false)
+      setAtivo(c.ativo !== false)
       setShowForm(true)
     }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!canDelete) return
-    if (!confirm(`Excluir ${selectedIds.length} compromissos selecionados?`)) return
 
-    if (hasBackend) {
-      Promise.all(selectedIds.map(id => deleteCommitment(id))).then(() => {
-        setItems(prev => prev.filter(i => !selected[i.id]))
+    const idsToDelete = [...selectedIds]
+
+    const processNext = async (index: number) => {
+      if (index >= idsToDelete.length) {
         setSelected({})
-      })
-    } else {
-      selectedIds.forEach(id => store.deleteCommitment(id))
-      setItems(prev => prev.filter(i => !selected[i.id]))
-      setSelected({})
+        return
+      }
+
+      const id = idsToDelete[index]
+      if (hasBackend) {
+        const { count } = await checkCommitmentDependencies(id)
+        if (count > 0) {
+          const c = items.find(x => x.id === id)
+          setConfirmConfig({
+            isOpen: true,
+            title: 'Inativar Compromisso',
+            message: `O compromisso "${c?.nome}" possui ${count} vínculos (agendamentos ou lançamentos) e não pode ser excluído. Deseja apenas inativá-lo?`,
+            onConfirm: async () => {
+              await updateCommitment(id, { ativo: false })
+              setItems(prev => prev.map(i => i.id === id ? { ...i, ativo: false } : i))
+              setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+              processNext(index + 1)
+            }
+          })
+        } else {
+          const c = items.find(x => x.id === id)
+          setConfirmConfig({
+            isOpen: true,
+            title: 'Excluir Compromisso',
+            message: `Excluir o compromisso "${c?.nome}"?`,
+            onConfirm: async () => {
+              await deleteCommitment(id)
+              setItems(prev => prev.filter(i => i.id !== id))
+              setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+              processNext(index + 1)
+            }
+          })
+        }
+      } else {
+        // Local mode
+        setConfirmConfig({
+          isOpen: true,
+          title: 'Excluir Compromissos',
+          message: `Excluir ${selectedIds.length} compromissos selecionados?`,
+          onConfirm: () => {
+            selectedIds.forEach(id => store.deleteCommitment(id))
+            setItems(prev => prev.filter(i => !selected[i.id]))
+            setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+            setSelected({})
+          }
+        })
+      }
     }
+
+    processNext(0)
   }
 
   return (
@@ -141,7 +194,7 @@ export default function Commitments() {
       <div className="flex flex-wrap items-center gap-2 w-full">
         <button
           className="flex items-center gap-2 bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors"
-          onClick={() => { setShowForm(true); setIr(false) }}
+          onClick={() => { setShowForm(true); setIr(false); setAtivo(true); setNome(''); setGrupoId(''); setEditId('') }}
         >
           <Icon name="add" className="w-4 h-4" /> Incluir
         </button>
@@ -195,6 +248,13 @@ export default function Commitments() {
           <div className="font-medium text-gray-900 dark:text-gray-100">{editId ? 'Editar compromisso' : 'Novo compromisso'}</div>
           <label className="text-sm text-gray-700 dark:text-gray-300">Nome</label>
           <input className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="Nome" value={nome} onChange={e => setNome(e.target.value)} />
+
+          <label className="text-sm text-gray-700 dark:text-gray-300">Situação</label>
+          <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={ativo ? 'true' : 'false'} onChange={e => setAtivo(e.target.value === 'true')}>
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+
           <label className="text-sm text-gray-700 dark:text-gray-300">Grupo de Compromisso</label>
           <select className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={grupoId} onChange={e => setGrupoId(e.target.value)}>
             <option value="">Selecione o grupo</option>
@@ -206,7 +266,7 @@ export default function Commitments() {
             <input type="checkbox" id="irCheck" checked={ir} onChange={e => setIr(e.target.checked)} />
             <label htmlFor="irCheck" className="text-sm text-gray-700 dark:text-gray-300">IR</label>
           </div>
-          <div className="flex justify-end gap-2"><button type="button" className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { setShowForm(false); setEditId(''); setNome(''); setGrupoId(''); setIr(false) }}>Cancelar</button><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" type="submit">Salvar</button></div>
+          <div className="flex justify-end gap-2"><button type="button" className="rounded border dark:border-gray-600 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => { setShowForm(false); setEditId(''); setNome(''); setGrupoId(''); setIr(false); setAtivo(true) }}>Cancelar</button><button className="bg-black dark:bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800 dark:hover:bg-black transition-colors" type="submit">Salvar</button></div>
         </form>
       )}
 
@@ -245,15 +305,16 @@ export default function Commitments() {
                         <th className="p-2 w-10 pl-4">Seleção</th>
                         <th className="p-2">Nome</th>
                         <th className="p-2 text-center w-16">IR</th>
+                        <th className="p-2 w-24">Situação</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y dark:divide-gray-700">
                       {groupItems.map(c => (
                         <tr
                           key={c.id}
-                          className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer text-gray-900 dark:text-gray-100"
+                          className={`border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer text-gray-900 dark:text-gray-100 ${selected[c.id] ? 'bg-blue-50 dark:bg-blue-900/30' : ''} ${c.ativo === false ? 'opacity-50' : ''}`}
                           onClick={() => setSelected(s => ({ ...s, [c.id]: !s[c.id] }))}
-                          onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setGrupoId(c.grupo_id); setIr((c as any).ir || false); setShowForm(true) }}
+                          onDoubleClick={() => { setEditId(c.id); setNome(c.nome); setGrupoId(c.grupo_id); setIr((c as any).ir || false); setAtivo(c.ativo !== false); setShowForm(true) }}
                         >
                           <td className="p-2 pl-4" onClick={e => e.stopPropagation()}>
                             <input
@@ -264,11 +325,16 @@ export default function Commitments() {
                           </td>
                           <td className="p-2">{c.nome}</td>
                           <td className="p-2 text-center">{(c as any).ir ? 'Sim' : ''}</td>
+                          <td className="p-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.ativo !== false ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                              {c.ativo !== false ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </td>
                         </tr>
                       ))}
                       {groupItems.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="p-4 text-center text-gray-500 dark:text-gray-400 italic">Nenhum compromisso neste grupo</td>
+                          <td colSpan={4} className="p-4 text-center text-gray-500 dark:text-gray-400 italic">Nenhum compromisso neste grupo</td>
                         </tr>
                       )}
                     </tbody>
@@ -279,6 +345,13 @@ export default function Commitments() {
           )
         })}
       </div>
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+      />
     </div>
   )
 }

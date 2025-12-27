@@ -41,8 +41,6 @@ export default function ScheduleControl() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<Filter>('mesAtual')
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const pageSize = 12
   const [sort, setSort] = useState<{ key: string, dir: 'asc' | 'desc' }>({ key: 'vencimento', dir: 'asc' })
   const [activeMainTab, setActiveMainTab] = useState<'realizar' | 'resumida' | 'saldos'>('realizar')
   const [msg, setMsg] = useState('')
@@ -491,7 +489,7 @@ export default function ScheduleControl() {
       totalDespesas,
       totalRecords
     }
-  }, [remote, transactions, filter, search, page, filterCaixa, filterGrupo, filterOp, filterCostCenter, sort])
+  }, [remote, transactions, filter, search, filterCaixa, filterGrupo, filterOp, filterCostCenter, sort])
 
   async function handleSelectAll() {
     const allOnScreen = rows.data
@@ -710,7 +708,7 @@ export default function ScheduleControl() {
             <button
               key={b.id}
               className={`px-4 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap border ${filter === b.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600'}`}
-              onClick={() => { setFilter(b.id); setPage(1) }}
+              onClick={() => { setFilter(b.id); }}
             >
               {b.label}
             </button>
@@ -771,7 +769,7 @@ export default function ScheduleControl() {
               className="outline-none w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 text-sm"
               placeholder="Buscar cliente, histórico ou valor"
               value={search}
-              onChange={e => { setPage(1); setSearch(e.target.value) }}
+              onChange={e => { setSearch(e.target.value) }}
             />
           </div>
 
@@ -782,7 +780,7 @@ export default function ScheduleControl() {
                 label="Caixa"
                 id="filterCaixa"
                 value={filterCaixa}
-                onChange={e => { setFilterCaixa(e.target.value); setPage(1) }}
+                onChange={e => { setFilterCaixa(e.target.value); }}
                 bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="" className="dark:bg-gray-800">Todos</option>
@@ -797,7 +795,7 @@ export default function ScheduleControl() {
                 label="Tipo"
                 id="filterOp"
                 value={filterOp}
-                onChange={e => { setFilterOp(e.target.value); setPage(1) }}
+                onChange={e => { setFilterOp(e.target.value); }}
                 bgColor="bg-background-light dark:bg-background-dark"
               >
                 <option value="Todas" className="dark:bg-gray-800">Todas</option>
@@ -871,7 +869,7 @@ export default function ScheduleControl() {
               <button
                 key={b.id}
                 className={`px-4 py-2 text-sm rounded transition-colors duration-300 whitespace-nowrap border ${filter === b.id ? 'bg-fourtek-blue text-white border-fourtek-blue' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-                onClick={() => { setFilter(b.id); setPage(1) }}
+                onClick={() => { setFilter(b.id); }}
               >
                 {b.label}
               </button>

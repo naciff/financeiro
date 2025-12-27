@@ -5,6 +5,7 @@ import { useAppStore } from '../store/AppStore'
 import { ClientModal } from '../components/modals/ClientModal'
 import { Icon } from '../components/ui/Icon'
 import { maskPhone } from '../utils/format'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 
 export default function Clients() {
   const store = useAppStore()
@@ -19,20 +20,13 @@ export default function Clients() {
 
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: '', message: '', onConfirm: () => { } })
 
   const filteredItems = items.filter(i => i.nome.toLowerCase().includes(search.toLowerCase()))
 
   // Calculate pagination
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
-  const current = Math.min(page, totalPages)
-  const pageItems = filteredItems.slice((current - 1) * pageSize, current * pageSize)
+  const pageItems = filteredItems
 
-  // Reset to page 1 when search or page size changes
-  useEffect(() => {
-    setPage(1)
-  }, [search, pageSize])
 
   async function load() {
     setLoading(true); setError(null)
@@ -83,16 +77,24 @@ export default function Clients() {
   async function handleDelete() {
     const selectedIds = Object.keys(selected).filter(id => selected[id])
     if (selectedIds.length === 0) return
-    if (!confirm(`Confirma exclusão de ${selectedIds.length} cliente(s)?`)) return
-    if (hasBackend) {
-      for (const id of selectedIds) {
-        await deleteClient(id)
+
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Clientes',
+      message: `Confirma exclusão de ${selectedIds.length} cliente(s)?`,
+      onConfirm: async () => {
+        if (hasBackend) {
+          for (const id of selectedIds) {
+            await deleteClient(id)
+          }
+        } else {
+          setItems(prev => prev.filter((x: any) => !selectedIds.includes(x.id)))
+        }
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+        setSelected({})
+        load()
       }
-    } else {
-      setItems(prev => prev.filter((x: any) => !selectedIds.includes(x.id)))
-    }
-    setSelected({})
-    load()
+    })
   }
 
   return (
@@ -202,30 +204,6 @@ export default function Clients() {
               </table>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-gray-50 dark:bg-gray-800 border-t dark:border-gray-700 text-gray-700 dark:text-gray-300">
-              <div className="flex items-center gap-2">
-                <span className="text-xs">Itens por página:</span>
-                <select
-                  className="bg-white dark:bg-gray-700 border dark:border-gray-600 rounded px-2 py-1 text-xs outline-none"
-                  value={pageSize}
-                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
-                >
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                  <option value={200}>200</option>
-                  <option value={500}>500</option>
-                </select>
-                <span className="text-xs text-gray-500 dark:text-gray-500 ml-2">
-                  {((current - 1) * pageSize) + 1} - {Math.min(current * pageSize, filteredItems.length)} de {filteredItems.length}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={current === 1}>Anterior</button>
-                <span className="text-xs">Página {current} de {totalPages}</span>
-                <button className="px-3 py-1 rounded border dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={current === totalPages}>Próxima</button>
-              </div>
-            </div>
           </>
         )}
       </div>
@@ -241,6 +219,13 @@ export default function Clients() {
           // Refresh list
           load()
         }}
+      />
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
       />
     </div>
   )

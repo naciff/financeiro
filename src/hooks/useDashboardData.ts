@@ -117,8 +117,7 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         )
                         const totalDesp = despesas.reduce((sum: number, s: any) => {
                             const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
-                            const valorTotal = Math.round(valorParcela * Number(s.parcelas || 1) * 100) / 100
-                            return sum + valorTotal
+                            return sum + valorParcela
                         }, 0)
                         setTotalDespesas(totalDesp)
 
@@ -126,15 +125,15 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         const receitas = currentMonthSchedules.filter((s: any) => s.operacao?.toLowerCase() === 'receita')
                         const totalRec = receitas.reduce((sum: number, s: any) => {
                             const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
-                            const valorTotal = Math.round(valorParcela * Number(s.parcelas || 1) * 100) / 100
-                            return sum + valorTotal
+                            return sum + valorParcela
                         }, 0)
                         setTotalReceitas(totalRec)
 
                         // Calculate total receitas fixas/mensal (fixed only)
                         const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao?.toLowerCase() === 'receita' && s.tipo === 'fixo')
                         const totalRecFixas = receitasFixas.reduce((sum: number, s: any) => {
-                            return sum + Number(s.valor)
+                            const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
+                            return sum + valorParcela
                         }, 0)
                         setTotalReceitasFixasMes(totalRecFixas)
 
@@ -217,7 +216,8 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                             return tipo === 'fixo' || periodo === 'mensal'
                         })
                         const totalRetFixa = despesasFixas.reduce((sum: number, s: any) => {
-                            return sum + Number(s.valor)
+                            const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
+                            return sum + valorParcela
                         }, 0)
                         setTotalRetiradaFixaMes(totalRetFixa)
 

@@ -161,6 +161,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { to: '/cadastro/compromisso', label: 'Compromisso', icon: 'bookmark' },
         { to: '/cadastro/cost-centers', label: 'Centro de Custo', icon: 'account_balance_wallet' },
         { to: '/cadastro/clientes', label: 'Clientes', icon: 'people' },
+        { to: '/cadastro/servicos', label: 'Serviços', icon: 'app_registration' },
       ]
     },
     // Configurações: Only if Master User (ramon.naciff@gmail.com)

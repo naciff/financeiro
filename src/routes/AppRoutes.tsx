@@ -19,6 +19,7 @@ import Clients from '../pages/Clients'
 import ScheduleControl from '../pages/ScheduleControl'
 import AdminUsers from '../pages/AdminUsers'
 import { CostCenters } from '../pages/CostCenters'
+import Services from '../pages/Services'
 import DbManager from '../pages/DbManager'
 import { Help } from '../pages/Help'
 import SaldoDetalhado from '../pages/SaldoDetalhado'
@@ -38,6 +39,7 @@ export function AppRoutes() {
         <Route path="/cadastro/compromisso" element={<Commitments />} />
         <Route path="/cadastro/clientes" element={<Clients />} />
         <Route path="/cadastro/cost-centers" element={<CostCenters />} />
+        <Route path="/cadastro/servicos" element={<Services />} />
         <Route path="/ledger" element={<Ledger />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/transfers" element={<Transfers />} />

@@ -3,6 +3,7 @@ import { createAccount, listAccountBalances, listAccounts, deleteAccountValidate
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
 import { Icon } from '../components/ui/Icon'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 
 export default function Accounts() {
   const store = useAppStore()
@@ -26,6 +27,7 @@ export default function Accounts() {
   const [editId, setEditId] = useState<string>('')
   const [editOpen, setEditOpen] = useState(false)
   const [notice, setNotice] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' })
+  const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: '', message: '', onConfirm: () => { } })
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saldosCollapsed, setSaldosCollapsed] = useState(false)
@@ -140,19 +142,24 @@ export default function Accounts() {
     const a = accounts.find(acc => acc.id === selectedId)
     if (!a) return
 
-    if (!confirm('Tem certeza que deseja excluir este registro de caixa?')) return
-    console.log('Excluir click', a?.id)
-    if (hasBackend) {
-      deleteAccountValidated(a.id).then(r => {
-        console.log('deleteAccountValidated', r)
-        if ((r as any).error) setNotice({ type: 'error', text: (r as any).error.message })
-        else { setNotice({ type: 'success', text: 'Registro excluído' }); setSelectedId(null); load() }
-      })
-    } else {
-      const res = store.deleteAccount(a.id)
-      if (!res.ok) setNotice({ type: 'error', text: res.reason || 'Falha ao excluir' })
-      else { setNotice({ type: 'success', text: 'Registro excluído' }); setSelectedId(null); load() }
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Conta',
+      message: 'Tem certeza que deseja excluir este registro de caixa?',
+      onConfirm: () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+        if (hasBackend) {
+          deleteAccountValidated(a.id).then(r => {
+            if ((r as any).error) setNotice({ type: 'error', text: (r as any).error.message })
+            else { setNotice({ type: 'success', text: 'Registro excluído' }); setSelectedId(null); load() }
+          })
+        } else {
+          const res = store.deleteAccount(a.id)
+          if (!res.ok) setNotice({ type: 'error', text: res.reason || 'Falha ao excluir' })
+          else { setNotice({ type: 'success', text: 'Registro excluído' }); setSelectedId(null); load() }
+        }
+      }
+    })
   }
 
   function saveEdit(e: React.FormEvent) {
@@ -320,8 +327,19 @@ export default function Accounts() {
               <input id="observacoes" className="w-full border dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" value={observacoes} onChange={e => { setObservacoes(e.target.value); setDirty(true) }} />
               <div className="flex justify-end gap-2">
                 <button type="button" className="rounded border dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={() => {
-                  if (dirty && !confirm('Cancelar alterações pendentes?')) return
-                  setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setDiaBom(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
+                  if (dirty) {
+                    setConfirmConfig({
+                      isOpen: true,
+                      title: 'Cancelar Alterações',
+                      message: 'Cancelar alterações pendentes?',
+                      onConfirm: () => {
+                        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+                        setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setDiaBom(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
+                      }
+                    })
+                  } else {
+                    setNome(''); setTipo('banco'); setSaldoInicial(0); setObservacoes(''); setBancoCodigo(''); setAgencia(''); setConta(''); setSituacao('ativo'); setDiaVencimento(''); setDiaBom(''); setCor('#000000'); setPrincipal(false); setDirty(false); setShowForm(false)
+                  }
                 }}>Cancelar</button>
                 <button className="bg-black text-white rounded px-3 py-2 hover:bg-gray-800 dark:bg-gray-900 dark:hover:bg-black" type="submit">Salvar</button>
               </div>
@@ -550,6 +568,13 @@ export default function Accounts() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+      />
     </div>
   )
 }

@@ -13,6 +13,7 @@ BEGIN
     -- 2. Insert into Transactions
     INSERT INTO transactions (
         user_id,
+        organization_id,
         conta_id,
         cliente_id,
         compromisso_id,
@@ -24,11 +25,12 @@ BEGIN
         data_vencimento,
         valor_entrada,
         valor_saida,
-        status,
+        concluido_em,
         created_at
     )
     SELECT
         target_user_id,
+        t.organization_id,         -- Using the new organization_id column from temp table
         acc.id AS conta_id,        -- UUID from Accounts mapped by legacy caixa_id
         cli.id AS cliente_id,      -- UUID from Clients mapped by legacy clientes_id
         com.id AS compromisso_id,  -- UUID from Commitments mapped by legacy compromisso_id
@@ -36,22 +38,22 @@ BEGIN
         
         -- Operation Mapping (Restored Mapping logic to handle 'a', 'd', 'r' etc)
         CASE 
-            WHEN lower(t.operacao) IN ('despesa', 'd', 'pagamento') THEN 'despesa'
-            WHEN lower(t.operacao) IN ('receita', 'c', 'r') THEN 'receita'
-            WHEN lower(t.operacao) IN ('aporte', 'ar', 'a') THEN 'aporte'
-            WHEN lower(t.operacao) IN ('retirada') THEN 'retirada'
+            WHEN lower(t.operacao) IN ('despesa', 'd') THEN 'despesa'
+            WHEN lower(t.operacao) IN ('receita', 'r') THEN 'receita'
+            WHEN lower(t.operacao) IN ('retirada', 'ad') THEN 'retirada'
+            WHEN lower(t.operacao) IN ('aporte', 'ar') THEN 'aporte'
             WHEN lower(t.operacao) IN ('transferencia', 't', 'tr') THEN 'transferencia'
             ELSE 'despesa' -- Default/Fallback if unknown
         END,
 
         -- Payment Method Mapping (Using provided list)
         CASE 
-            WHEN lower(t.especie) LIKE '%cartão%' OR lower(t.especie) LIKE '%cartao%' THEN 'cartao_credito'
-            WHEN lower(t.especie) LIKE '%debito automático%' OR lower(t.especie) LIKE '%debito automatico%' THEN 'debito_automatico'
-            WHEN lower(t.especie) LIKE '%transferência%' OR lower(t.especie) LIKE '%transferencia%' THEN 'transferencia'
-            WHEN lower(t.especie) LIKE '%boleto%' THEN 'boleto'
-            WHEN lower(t.especie) LIKE '%dinheiro%' THEN 'dinheiro'
-            WHEN lower(t.especie) LIKE '%pix%' THEN 'pix'
+            WHEN lower(t.especie) IN ('c', 'cartao', 'cartão') THEN 'cartao_credito'
+            WHEN lower(t.especie) IN ('a', 'debito automático', 'debito automatico') THEN 'debito_automatico'
+            WHEN lower(t.especie) IN ('t', 'transferencia', 'transferência') THEN 'transferencia'
+            WHEN lower(t.especie) IN ('b', 'boleto') THEN 'boleto'
+            WHEN lower(t.especie) IN ('d', 's', 'dinheiro') THEN 'dinheiro'
+            WHEN lower(t.especie) = 'pix' THEN 'pix'
             ELSE 'dinheiro' -- Default Fallback
         END,
 
@@ -75,15 +77,15 @@ BEGIN
             ELSE 0 
         END,
 
-        'pago', -- Status default as TEXT
-        NOW()
+        NOW(), -- concluido_em
+        NOW()  -- created_at
 
-    FROM temp_import_caixa t
-    -- Left Joins to resolve Legacy IDs
-    LEFT JOIN accounts acc ON acc.legacy_id = t.caixa_id
-    LEFT JOIN clients cli ON cli.legacy_id = t.clientes_id
-    LEFT JOIN commitments com ON com.legacy_id = t.compromisso_id
-    LEFT JOIN commitment_groups grp ON grp.legacy_id = t.grupo_compromisso_id
+    FROM temp_import_caixa_fourtek t
+    -- Left Joins to resolve Legacy IDs, ENSURING they belong to the same organization
+    LEFT JOIN accounts acc ON acc.legacy_id = t.caixa_id AND acc.organization_id = t.organization_id
+    LEFT JOIN clients cli ON cli.legacy_id = t.clientes_id AND cli.organization_id = t.organization_id
+    LEFT JOIN commitments com ON com.legacy_id = t.compromisso_id AND com.organization_id = t.organization_id
+    LEFT JOIN commitment_groups grp ON grp.legacy_id = t.grupo_compromisso_id AND grp.organization_id = t.organization_id
     ;
 
     GET DIAGNOSTICS imported_count = ROW_COUNT;
