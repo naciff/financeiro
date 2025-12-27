@@ -17,6 +17,13 @@ export interface ExpenseByGroup {
     items: any[]
 }
 
+export interface ServiceData {
+    name: string
+    count: number
+    percentual: number
+    cor: string
+}
+
 // Cores predefinidas para os grupos
 const COLORS = [
     '#3B82F6', // blue
@@ -32,6 +39,7 @@ const COLORS = [
 export function useChartData(orgId?: string | null) {
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
     const [expensesByGroup, setExpensesByGroup] = useState<ExpenseByGroup[]>([])
+    const [servicesData, setServicesData] = useState<ServiceData[]>([])
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -156,6 +164,40 @@ export function useChartData(orgId?: string | null) {
 
                         setExpensesByGroup(expensesData)
                     }
+
+                    // Fetch revenue services from AGENDAMENTOS
+                    const { data: revenueSchedules } = await supabase
+                        .from('schedules')
+                        .select('contract_items')
+                        .eq('organization_id', orgId)
+                        .eq('operacao', 'receita')
+                        .neq('situacao', 2)
+
+                    if (revenueSchedules) {
+                        const serviceCountMap = new Map<string, number>()
+                        let totalServiceCount = 0
+
+                        revenueSchedules.forEach((s: any) => {
+                            if (s.contract_items && Array.isArray(s.contract_items)) {
+                                s.contract_items.forEach((item: any) => {
+                                    const name = item.name || 'Outros'
+                                    serviceCountMap.set(name, (serviceCountMap.get(name) || 0) + 1)
+                                    totalServiceCount++
+                                })
+                            }
+                        })
+
+                        const servicesStats: ServiceData[] = Array.from(serviceCountMap.entries())
+                            .map(([name, count], index) => ({
+                                name,
+                                count,
+                                percentual: totalServiceCount > 0 ? Math.round((count / totalServiceCount) * 100) : 0,
+                                cor: COLORS[index % COLORS.length]
+                            }))
+                            .sort((a, b) => b.count - a.count)
+
+                        setServicesData(servicesStats)
+                    }
                 }
             } catch (error) {
                 console.error('Error loading chart data:', error)
@@ -167,5 +209,5 @@ export function useChartData(orgId?: string | null) {
         loadChartData()
     }, [orgId])
 
-    return { monthlyData, expensesByGroup, loading }
+    return { monthlyData, expensesByGroup, servicesData, loading }
 }

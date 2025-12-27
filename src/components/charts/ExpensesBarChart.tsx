@@ -42,9 +42,8 @@ export function ExpensesBarChart({ data, onGroupClick }: ExpensesBarChartProps) 
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Despesas por Grupo de Compromisso</h2>
-            <ResponsiveContainer width="100%" height={300}>
+        <div className="h-full min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                     data={data}
                     layout="vertical"
@@ -70,8 +69,6 @@ export function ExpensesBarChart({ data, onGroupClick }: ExpensesBarChartProps) 
                     </Bar>
                 </BarChart>
             </ResponsiveContainer>
-
-            {/* Optional Summary/Legend if needed, but Bar Chart usually self-explanatory with Axis */}
         </div>
     )
 }

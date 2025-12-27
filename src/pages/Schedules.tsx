@@ -357,6 +357,8 @@ export default function Schedules() {
         parcial: s.parcial || false,
         qtd_restante: s.tipo === 'fixo' ? '' : (s.parcelas - cur + 1),
         contract_items: s.contract_items || [],
+        contract_start: s.contract_start,
+        contract_end: s.contract_end,
       }
     })
     const byTab = arr.filter(r => {
@@ -1703,10 +1705,25 @@ export default function Schedules() {
                                       <td className="p-2 text-right">R$ {formatMoneyBr(item.value)}</td>
                                       <td className="p-2 text-right text-red-500">{item.discount > 0 ? `- R$ ${formatMoneyBr(item.discount)}` : '-'}</td>
                                       <td className="p-2 text-right font-bold text-gray-900 dark:text-gray-100">R$ {formatMoneyBr((item.qty * item.value) - item.discount)}</td>
-                                      <td className="p-2 text-center">
+                                      <td className="p-2 text-center flex items-center justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          className="text-blue-500 hover:text-blue-700 transition-colors p-1"
+                                          title="Editar"
+                                          onClick={() => {
+                                            setServiceForm({ ...item })
+                                            const nextItems = contractItems.filter((_, i) => i !== idx)
+                                            setContractItems(nextItems)
+                                            const sum = nextItems.reduce((acc, current) => acc + (current.qty * current.value) - current.discount, 0)
+                                            setValor(sum)
+                                          }}
+                                        >
+                                          <Icon name="edit" className="w-4 h-4" />
+                                        </button>
                                         <button
                                           type="button"
                                           className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                          title="Remover"
                                           onClick={() => {
                                             const nextItems = contractItems.filter((_, i) => i !== idx)
                                             setContractItems(nextItems)
@@ -1714,7 +1731,7 @@ export default function Schedules() {
                                             setValor(sum)
                                           }}
                                         >
-                                          Remover
+                                          <Icon name="trash" className="w-4 h-4" />
                                         </button>
                                       </td>
                                     </tr>
@@ -1958,27 +1975,36 @@ export default function Schedules() {
                                     <td className="p-2 w-[110px] text-right font-semibold">R$ {formatMoneyBr(Number(r.valor_total))}</td>
                                   </tr>
                                   {expandedRows.has(r.id) && Array.isArray(r.contract_items) && r.contract_items.length > 0 && (
-                                    <tr className="bg-blue-50/10 dark:bg-blue-900/5 animate-in fade-in slide-in-from-top-1">
-                                      <td colSpan={12} className="p-0">
-                                        <table className="w-full text-[10px] md:text-xs table-fixed">
-                                          <tbody className="divide-y dark:divide-gray-800">
-                                            {r.contract_items.map((item: any, idx: number) => (
-                                              <tr key={idx} className="hover:bg-blue-50/20 dark:hover:bg-blue-900/10">
-                                                <td className="w-[30px]"></td>
-                                                <td className="w-[100px]"></td>
-                                                <td className="w-[180px]"></td>
-                                                <td className="w-[630px] p-2 text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                                                  <Icon name="subdirectory_arrow_right" className="w-3 h-3 opacity-50" />
-                                                  <span className="truncate" title={item.name}>{item.name}</span>
-                                                </td>
-                                                <td className="w-[60px] p-2 text-right text-gray-600 dark:text-gray-400">{item.qty}</td>
-                                                <td className="w-[100px] p-2 text-right text-gray-600 dark:text-gray-400">R$ {formatMoneyBr(item.value)}</td>
-                                                <td className="w-[100px] p-2 text-right text-red-400">{item.discount > 0 ? `- R$ ${formatMoneyBr(item.discount)}` : '-'}</td>
-                                                <td className="w-[110px] p-2 text-right font-bold text-blue-600/70 dark:text-blue-400/70">R$ {formatMoneyBr((item.qty * item.value) - item.discount)}</td>
+                                    <tr className="bg-blue-50/30 dark:bg-blue-900/10 animate-in fade-in slide-in-from-top-1">
+                                      <td colSpan={12} className="p-4">
+                                        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-sm overflow-hidden max-w-2xl">
+                                          <table className="w-full text-xs">
+                                            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-500">
+                                              <tr>
+                                                <th className="p-2 text-left">Serviço</th>
+                                                <th className="p-2 text-center">Início</th>
+                                                <th className="p-2 text-center">Término</th>
+                                                <th className="p-2 text-center">Qtd</th>
+                                                <th className="p-2 text-right">Preço</th>
+                                                <th className="p-2 text-right">Desc.</th>
+                                                <th className="p-2 text-right">Total</th>
                                               </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
+                                            </thead>
+                                            <tbody className="divide-y dark:divide-gray-700">
+                                              {r.contract_items.map((item: any, idx: number) => (
+                                                <tr key={idx}>
+                                                  <td className="p-2 font-medium">{item.name}</td>
+                                                  <td className="p-2 text-center">{toBr(r.contract_start)}</td>
+                                                  <td className="p-2 text-center">{toBr(r.contract_end)}</td>
+                                                  <td className="p-2 text-center">{item.qty}</td>
+                                                  <td className="p-2 text-right">R$ {formatMoneyBr(item.value)}</td>
+                                                  <td className="p-2 text-right text-red-500">{item.discount > 0 ? `- R$ ${formatMoneyBr(item.discount)}` : '-'}</td>
+                                                  <td className="p-2 text-right font-bold">R$ {formatMoneyBr((item.qty * item.value) - item.discount)}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
                                       </td>
                                     </tr>
                                   )}

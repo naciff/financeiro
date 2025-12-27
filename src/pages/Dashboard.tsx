@@ -3,6 +3,7 @@ import { useChartData } from '../hooks/useChartData'
 import { formatCurrency } from '../utils/formatCurrency'
 import { MonthlyEvolutionChart } from '../components/charts/MonthlyEvolutionChart'
 import { ExpensesBarChart } from '../components/charts/ExpensesBarChart'
+import { ServicesPieChart } from '../components/charts/ServicesPieChart'
 import { useState, useEffect, useRef } from 'react'
 import { getProfile } from '../services/db'
 import { useAppStore } from '../store/AppStore'
@@ -35,6 +36,11 @@ export default function Dashboard() {
     { id: 'divisao_lucro', label: 'Previsão divisão de lucro (Anual)', icon: 'savings', color: 'text-green-600', countUp: (data: any) => data?.totalReceitasDivisaoLucro || 0, textColor: 'text-profit', isCurrency: true },
   ]
 
+  const CHARTS = [
+    { id: 'expenses', label: 'Gráfico: Despesas por Grupo' },
+    { id: 'evolution', label: 'Gráfico: Evolução Mensal' },
+    { id: 'services', label: 'Gráfico: Distribuição de Serviços' },
+  ]
   const [selectedWidgets, setSelectedWidgets] = useState<string[]>(() => {
     const saved = localStorage.getItem('dashboard_widgets')
     if (saved) {
@@ -47,10 +53,24 @@ export default function Dashboard() {
     return WIDGETS.map(w => w.id)
   })
 
+  const [selectedCharts, setSelectedCharts] = useState<string[]>(() => {
+    const saved = localStorage.getItem('dashboard_charts')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        console.error('Error parsing saved charts', e)
+      }
+    }
+    return ['expenses', 'services'] // Default: 2 charts
+  })
+
   // Save changes to localStorage
-  const handleSaveWidgets = (newSelection: string[]) => {
-    setSelectedWidgets(newSelection)
-    localStorage.setItem('dashboard_widgets', JSON.stringify(newSelection))
+  const handleSaveCustomization = (widgets: string[], charts: string[]) => {
+    setSelectedWidgets(widgets)
+    setSelectedCharts(charts)
+    localStorage.setItem('dashboard_widgets', JSON.stringify(widgets))
+    localStorage.setItem('dashboard_charts', JSON.stringify(charts))
   }
 
   useEffect(() => {
@@ -83,7 +103,7 @@ export default function Dashboard() {
     loading: metricsLoading
   } = dashboardData
 
-  const { monthlyData, expensesByGroup, loading: chartsLoading } = useChartData(store.activeOrganization)
+  const { monthlyData, expensesByGroup, servicesData, loading: chartsLoading } = useChartData(store.activeOrganization)
 
   if (metricsLoading) {
     return <LoadingSpinner />
@@ -150,18 +170,35 @@ export default function Dashboard() {
         <div className="text-center py-8 text-gray-500">Carregando gráficos...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
-          {/* Despesas por Grupo - Restored Recharts */}
-          <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex flex-col">
-            <ExpensesBarChart data={expensesByGroup} onGroupClick={setDetailGroup} />
-          </div>
+          {/* Despesas por Grupo */}
+          {selectedCharts.includes('expenses') && (
+            <div className={`bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex flex-col ${selectedCharts.length === 1 ? 'lg:col-span-2' : ''}`}>
+              <h3 className="text-lg font-semibold text-text-main-light dark:text-text-main-dark mb-4">Despesas por Grupo de Compromisso</h3>
+              <div className="flex-1">
+                <ExpensesBarChart data={expensesByGroup} onGroupClick={setDetailGroup} />
+              </div>
+            </div>
+          )}
 
           {/* Evolução Mensal */}
-          <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex flex-col">
-            <h3 className="text-lg font-medium text-text-main-light dark:text-text-main-dark mb-6">Evolução Mensal</h3>
-            <div className="flex-1 min-h-[300px]">
-              <MonthlyEvolutionChart data={monthlyData} />
+          {selectedCharts.includes('evolution') && (
+            <div className={`bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex flex-col ${selectedCharts.length === 1 ? 'lg:col-span-2' : ''}`}>
+              <h3 className="text-lg font-semibold text-text-main-light dark:text-text-main-dark mb-4">Evolução Mensal</h3>
+              <div className="flex-1 min-h-[300px]">
+                <MonthlyEvolutionChart data={monthlyData} />
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Distribuição de Serviços (Receitas) */}
+          {selectedCharts.includes('services') && (
+            <div className={`bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex flex-col ${selectedCharts.length === 1 ? 'lg:col-span-2' : ''}`}>
+              <h3 className="text-lg font-semibold text-text-main-light dark:text-text-main-dark mb-4">Serviços (Receitas)</h3>
+              <div className="flex-1">
+                <ServicesPieChart data={servicesData} />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -219,8 +256,10 @@ export default function Dashboard() {
         isOpen={showCustomizeModal}
         onClose={() => setShowCustomizeModal(false)}
         initialSelection={selectedWidgets}
-        onSave={handleSaveWidgets}
+        initialCharts={selectedCharts}
+        onSave={handleSaveCustomization}
         availableWidgets={WIDGETS.map(w => ({ id: w.id, label: w.label }))}
+        availableCharts={CHARTS}
       />
     </div>
   )

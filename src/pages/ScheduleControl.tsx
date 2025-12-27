@@ -1037,7 +1037,7 @@ export default function ScheduleControl() {
                               <thead className="hidden md:table-header-group bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
                                 <tr>
                                   {[
-                                    ['vencimento', 'Data Vencimento'],
+                                    ['vencimento', 'Vencimento'],
                                     ['caixa', 'Caixa de Lançamento'],
                                     ['cliente', 'Cliente'],
                                     ['compromisso', 'Compromisso'],
@@ -1237,7 +1237,7 @@ export default function ScheduleControl() {
                           <thead className="bg-gray-50 dark:bg-gray-900 text-slate-700 dark:text-gray-300 font-semibold border-b dark:border-gray-700">
                             <tr>
                               {[
-                                ['vencimento', 'Data Vencimento'],
+                                ['vencimento', 'Vencimento'],
                                 ['caixa', 'Caixa de Lançamento'],
                                 ['cliente', 'Cliente'],
                                 ['compromisso', 'Compromisso'],

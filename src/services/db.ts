@@ -252,7 +252,7 @@ export async function confirmProvision(itemId: string, info: {
   // 1. Get the financial item to copy data from
   const { data: item, error: fetchError } = await supabase
     .from('financials')
-    .select('*, agendamento:id_agendamento(compromisso_id, grupo_compromisso_id, cost_center_id)')
+    .select('*, agendamento:id_agendamento(compromisso_id, grupo_compromisso_id, cost_center_id, favorecido_id)')
     .eq('id', itemId)
     .single()
 
@@ -273,7 +273,7 @@ export async function confirmProvision(itemId: string, info: {
       conta_id: info.cuentaId,
       compromisso_id: info.compromisso_id || item.compromisso_id || item.agendamento?.compromisso_id,
       grupo_compromisso_id: info.grupo_compromisso_id || item.grupo_compromisso_id || item.agendamento?.grupo_compromisso_id, // Copy group
-      cliente_id: item.cliente_id || item.favorecido_id, // Handle aliasing if needed, schema usually uses cliente_id in transactions
+      cliente_id: item.cliente_id || item.favorecido_id || item.agendamento?.favorecido_id, // Handle aliasing if needed, schema usually uses cliente_id in transactions
       cost_center_id: info.cost_center_id || item.cost_center_id || item.agendamento?.cost_center_id, // Copy cost center
       financial_id: itemId, // Link back
       data_vencimento: item.vencimento || item.data_vencimento, // Preserve original due date
