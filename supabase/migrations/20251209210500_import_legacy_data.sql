@@ -25,8 +25,11 @@ BEGIN
         data_vencimento,
         valor_entrada,
         valor_saida,
+        multa,
+        juros,
         concluido_em,
-        created_at
+        created_at,
+        legacy_id
     )
     SELECT
         target_user_id,
@@ -76,9 +79,15 @@ BEGIN
             WHEN lower(t.operacao) IN ('despesa', 'retirada', 'transferencia', 'd', 't', 'tr') THEN t.valor 
             ELSE 0 
         END,
+        
+        -- Multa and Juros (mapped from temp table)
+        COALESCE(t.multa, 0),
+        COALESCE(t.juros, 0),
 
         NOW(), -- concluido_em
-        NOW()  -- created_at
+        NOW(), -- created_at
+        
+        t.legacy_id   -- legacy_id (MAPPED FROM TEMP legacy_id)
 
     FROM temp_import_caixa_fourtek t
     -- Left Joins to resolve Legacy IDs, ENSURING they belong to the same organization
@@ -86,6 +95,9 @@ BEGIN
     LEFT JOIN clients cli ON cli.legacy_id = t.clientes_id AND cli.organization_id = t.organization_id
     LEFT JOIN commitments com ON com.legacy_id = t.compromisso_id AND com.organization_id = t.organization_id
     LEFT JOIN commitment_groups grp ON grp.legacy_id = t.grupo_compromisso_id AND grp.organization_id = t.organization_id
+    
+    -- SAFETY FILTER: Only import for the specific organization
+    WHERE t.organization_id = 'aa4b50ff-cc0f-4efe-9239-9fd83918ff68'
     ;
 
     GET DIAGNOSTICS imported_count = ROW_COUNT;

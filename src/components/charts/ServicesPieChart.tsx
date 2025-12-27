@@ -1,11 +1,13 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { ServiceData } from '../../hooks/useChartData'
+import { formatCurrency } from '../../utils/formatCurrency'
 
 interface ServicesPieChartProps {
     data: ServiceData[]
+    onSliceClick?: (slice: ServiceData) => void
 }
 
-export function ServicesPieChart({ data }: ServicesPieChartProps) {
+export function ServicesPieChart({ data, onSliceClick }: ServicesPieChartProps) {
     // Custom tooltip
     const CustomTooltip = ({ active, payload }: any) => {
         if (active && payload && payload.length) {
@@ -18,6 +20,9 @@ export function ServicesPieChart({ data }: ServicesPieChartProps) {
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-300">
                         Percentual: <span className="font-bold">{item.percentual}%</span>
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Valor: <span className="font-bold">{formatCurrency(item.value)}</span>
                     </p>
                 </div>
             )
@@ -65,20 +70,26 @@ export function ServicesPieChart({ data }: ServicesPieChartProps) {
                         data={data}
                         cx="50%"
                         cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
+                        innerRadius={50}
+                        outerRadius={80}
                         fill="#8884d8"
                         paddingAngle={5}
                         dataKey="count"
                         label={renderCustomizedLabel}
                         labelLine={{ stroke: '#ccc', strokeWidth: 1 }}
+                        onClick={(data) => {
+                            if (onSliceClick && data && data.payload) {
+                                onSliceClick(data.payload)
+                            }
+                        }}
+                        style={{ cursor: onSliceClick ? 'pointer' : 'default' }}
                     >
                         {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.cor} strokeWidth={0} />
+                            <Cell key={`cell-${index}`} fill={entry.cor} strokeWidth={0} cursor={onSliceClick ? "pointer" : "default"} />
                         ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend verticalAlign="bottom" height={36} />
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px' }} />
                 </PieChart>
             </ResponsiveContainer>
         </div>

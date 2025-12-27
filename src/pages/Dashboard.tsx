@@ -9,7 +9,11 @@ import { getProfile } from '../services/db'
 import { useAppStore } from '../store/AppStore'
 import { CountUp } from '../components/ui/CountUp'
 import { DashboardCustomizeModal } from '../components/modals/DashboardCustomizeModal'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
+import { getDashboardPreferences, saveDashboardPreferences } from '../services/db'
 
 export default function Dashboard() {
   const store = useAppStore()
@@ -41,36 +45,105 @@ export default function Dashboard() {
     { id: 'evolution', label: 'Gráfico: Evolução Mensal' },
     { id: 'services', label: 'Gráfico: Distribuição de Serviços' },
   ]
-  const [selectedWidgets, setSelectedWidgets] = useState<string[]>(() => {
-    const saved = localStorage.getItem('dashboard_widgets')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        console.error('Error parsing saved widgets', e)
+  const [selectedWidgets, setSelectedWidgets] = useState<string[]>(WIDGETS.map(w => w.id))
+  const [selectedCharts, setSelectedCharts] = useState<string[]>(['expenses', 'services'])
+
+  // Load preferences from DB
+  useEffect(() => {
+    async function loadPrefs() {
+      if (store.activeOrganization) {
+        const { data } = await getDashboardPreferences(store.activeOrganization)
+        if (data) {
+          if (data.visible_widgets && Array.isArray(data.visible_widgets) && data.visible_widgets.length > 0) {
+            setSelectedWidgets(data.visible_widgets)
+          }
+          if (data.visible_charts && Array.isArray(data.visible_charts) && data.visible_charts.length > 0) {
+            setSelectedCharts(data.visible_charts)
+          }
+        }
       }
     }
-    return WIDGETS.map(w => w.id)
-  })
+    loadPrefs()
+  }, [store.activeOrganization])
 
-  const [selectedCharts, setSelectedCharts] = useState<string[]>(() => {
-    const saved = localStorage.getItem('dashboard_charts')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        console.error('Error parsing saved charts', e)
-      }
-    }
-    return ['expenses', 'services'] // Default: 2 charts
-  })
-
-  // Save changes to localStorage
-  const handleSaveCustomization = (widgets: string[], charts: string[]) => {
+  // Save changes to DB
+  const handleSaveCustomization = async (widgets: string[], charts: string[]) => {
     setSelectedWidgets(widgets)
     setSelectedCharts(charts)
-    localStorage.setItem('dashboard_widgets', JSON.stringify(widgets))
-    localStorage.setItem('dashboard_charts', JSON.stringify(charts))
+    if (store.activeOrganization) {
+      await saveDashboardPreferences(store.activeOrganization, widgets, charts)
+    }
+  }
+
+  const handleExportCSV = () => {
+    if (!detailGroup || !detailGroup.items) return
+
+    // Header
+    const headers = ['Vencimento', 'Cliente', 'Descrição/Compromisso', 'Valor Parcela', 'Parcelas']
+    const csvRows = [headers.join(';')]
+
+    // Rows
+    detailGroup.items.forEach((item: any) => {
+      const date = new Date(item.proxima_vencimento || item.ano_mes_inicial).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+      const client = item.cliente_nome || item.cliente?.nome || '-'
+      const desc = item.compromisso?.nome || item.descricao || 'Sem descrição'
+      const valor = (typeof item.valor_calculado === 'number' ? item.valor_calculado : 0).toFixed(2).replace('.', ',')
+      const parcelas = item.parcelas || 1
+
+      // Escape quotes
+      const escape = (t: string) => `"${String(t).replace(/"/g, '""')}"`
+
+      csvRows.push([
+        escape(date),
+        escape(client),
+        escape(desc),
+        escape(valor),
+        escape(parcelas)
+      ].join(';'))
+    })
+
+    // Download
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `detalhes_${detailGroup.grupo || detailGroup.name}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleExportPDF = () => {
+    if (!detailGroup || !detailGroup.items) return
+    const doc = new jsPDF()
+
+    // Title
+    doc.setFontSize(14)
+    doc.text(`Detalhes: ${detailGroup.grupo || detailGroup.name}`, 14, 20)
+
+    // Table
+    const tableColumn = ['Vencimento', 'Cliente', 'Descrição', 'Valor', 'Parcelas']
+    const tableRows: any[] = []
+
+    detailGroup.items.forEach((item: any) => {
+      const date = new Date(item.proxima_vencimento || item.ano_mes_inicial).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+      const client = item.cliente_nome || item.cliente?.nome || '-'
+      const desc = item.compromisso?.nome || item.descricao || 'Sem descrição'
+      const valor = formatCurrency(item.valor_calculado)
+      const parcelas = item.parcelas || 1
+
+      tableRows.push([date, client, desc, valor, parcelas])
+    })
+
+    autoTable(doc, {
+      startY: 25,
+      head: [tableColumn],
+      body: tableRows,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] } // Blue-500
+    })
+
+    doc.save(`detalhes_${detailGroup.grupo || detailGroup.name}.pdf`)
   }
 
   useEffect(() => {
@@ -195,7 +268,7 @@ export default function Dashboard() {
             <div className={`bg-surface-light dark:bg-surface-dark p-6 rounded-lg border border-border-light dark:border-border-dark shadow-sm flex flex-col ${selectedCharts.length === 1 ? 'lg:col-span-2' : ''}`}>
               <h3 className="text-lg font-semibold text-text-main-light dark:text-text-main-dark mb-4">Serviços (Receitas)</h3>
               <div className="flex-1">
-                <ServicesPieChart data={servicesData} />
+                <ServicesPieChart data={servicesData} onSliceClick={(slice) => setDetailGroup(slice)} />
               </div>
             </div>
           )}
@@ -208,14 +281,30 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: detailGroup.cor }}></span>
-              Detalhes: {detailGroup.grupo}
+              Detalhes: {detailGroup.grupo || detailGroup.name}
             </h3>
-            <button
-              onClick={() => setDetailGroup(null)}
-              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            >
-              <span className="material-icons-outlined">close</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportCSV}
+                className="p-1 text-gray-500 hover:text-primary transition-colors rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Exportar CSV"
+              >
+                <span className="material-icons-outlined text-xl">file_download</span>
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="p-1 text-gray-500 hover:text-primary transition-colors rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Exportar PDF"
+              >
+                <span className="material-icons-outlined text-xl">picture_as_pdf</span>
+              </button>
+              <button
+                onClick={() => setDetailGroup(null)}
+                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 ml-2"
+              >
+                <span className="material-icons-outlined">close</span>
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -223,6 +312,7 @@ export default function Dashboard() {
               <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                 <tr>
                   <th className="px-4 py-2">Vencimento</th>
+                  <th className="px-4 py-2">Cliente</th>
                   <th className="px-4 py-2">Descrição / Compromisso</th>
                   <th className="px-4 py-2 text-right">Valor Parcela</th>
                   <th className="px-4 py-2 text-right">Parcelas</th>
@@ -235,6 +325,9 @@ export default function Dashboard() {
                       {new Date(item.proxima_vencimento || item.ano_mes_inicial).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
                     </td>
                     <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">
+                      {item.cliente_nome || item.cliente?.nome || '-'}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 dark:text-gray-400">
                       {item.compromisso?.nome || item.descricao || 'Sem descrição'}
                     </td>
                     <td className="px-4 py-2 text-right text-red-600 font-medium">

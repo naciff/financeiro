@@ -158,14 +158,36 @@ export function TransactionModal({ onClose, onSuccess, initialData, title, finan
     }, [initialData?.id])
 
     // Fix: If formCliente is set (ID) but we don't have the name (clienteBusca is empty or is the ID itself),
-    // try to find it in the loaded clients list.
+    // try to find it in the loaded clients list OR fetch directly.
     useEffect(() => {
-        if (clients.length > 0 && formCliente) {
-            const client = clients.find(c => c.id === formCliente)
-            if (client && (clienteBusca === client.id || !clienteBusca)) {
-                setClienteBusca(client.nome)
+        async function fetchClientName() {
+            if (!formCliente) return
+
+            // 1. Try to find in local list
+            if (clients.length > 0) {
+                const client = clients.find(c => c.id === formCliente)
+                if (client && (clienteBusca === client.id || !clienteBusca)) {
+                    setClienteBusca(client.nome)
+                    return
+                }
+            }
+
+            // 2. If not found locally and backend is available, fetch explicit
+            if (hasBackend && supabase && (!clienteBusca || clienteBusca === formCliente)) {
+                // Check if we already have it from initialData to avoid network?
+                // initialData check is done on mount. logic here handles subsequent updates or missing initial.
+
+                try {
+                    const { data, error } = await supabase.from('clients').select('nome').eq('id', formCliente).single()
+                    if (data && data.nome) {
+                        setClienteBusca(data.nome)
+                    }
+                } catch (err) {
+                    console.error('Error fetching client name', err)
+                }
             }
         }
+        fetchClientName()
     }, [clients, formCliente, clienteBusca])
 
 

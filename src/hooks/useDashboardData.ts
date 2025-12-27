@@ -129,9 +129,19 @@ export function useDashboardData(selectedMonth?: number, selectedYear?: number, 
                         }, 0)
                         setTotalReceitas(totalRec)
 
-                        // Calculate total receitas fixas/mensal (fixed only)
-                        const receitasFixas = currentMonthSchedules.filter((s: any) => s.operacao?.toLowerCase() === 'receita' && s.tipo === 'fixo')
+                        // Calculate total receitas fixas/mensal (fixed only OR contract variable)
+                        const receitasFixas = currentMonthSchedules.filter((s: any) => {
+                            if (s.operacao?.toLowerCase() !== 'receita') return false
+                            if (s.tipo === 'fixo') return true
+
+                            // Include Contracts as Fixed Income even if variable
+                            const cc = s.cost_center?.descricao || ''
+                            if (s.tipo === 'variavel' && cc.toLowerCase().includes('contrato')) return true
+
+                            return false
+                        })
                         const totalRecFixas = receitasFixas.reduce((sum: number, s: any) => {
+                            // Logic matches general total: if parcels > 1, use monthly value.
                             const valorParcela = Number(s.parcelas || 1) > 1 ? Math.round((Number(s.valor) / Number(s.parcelas)) * 100) / 100 : Number(s.valor)
                             return sum + valorParcela
                         }, 0)

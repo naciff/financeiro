@@ -113,6 +113,14 @@ export default function Ledger() {
       const c = await listClients(orgId)
       const g = await listCommitmentGroups(orgId)
       setTxs(t.data || [])
+      if (t.data && t.data.length > 0) {
+        console.log('DEBUG TX[0] Join:', {
+          id: t.data[0].id,
+          cliente_id: t.data[0].cliente_id,
+          cliente_obj: t.data[0].cliente,
+          full_tx: t.data[0]
+        })
+      }
       setAccounts(a.data || [])
       setClients(c.data || [])
       setGroups(g.data || [])

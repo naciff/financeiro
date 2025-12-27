@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { formatIntBr, formatMoneyBr } from '../utils/format'
-import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters, saveScheduleCostCenters, getScheduleCostCenters, listServices } from '../services/db'
+import { createSchedule, generateSchedule, listClients, createClient, listCommitmentGroups, listCommitmentsByGroup, listCashboxes, listSchedules, updateSchedule as updateSched, deleteSchedule as deleteSched, listAccounts, searchAccounts, checkScheduleDependencies, deactivateSchedule, saveClientDefault, getClientDefault, listAllCommitments, listCostCenters, saveScheduleCostCenters, getScheduleCostCenters, listServices, checkActiveContract } from '../services/db'
 import { supabase } from '../lib/supabase'
 import { hasBackend } from '../lib/runtime'
 import { useAppStore } from '../store/AppStore'
@@ -73,6 +73,7 @@ export default function Schedules() {
   const [allCommitmentGroups, setAllCommitmentGroups] = useState<{ id: string; nome: string }[]>([])
   const [allCommitments, setAllCommitments] = useState<{ id: string; nome: string }[]>([])
   const [compromissos, setCompromissos] = useState<{ id: string; nome: string; grupo_id?: string }[]>([])
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ isOpen: boolean; onConfirm: () => void }>({ isOpen: false, onConfirm: () => { } })
 
   // Auto-select Principal Account
 
@@ -124,6 +125,26 @@ export default function Schedules() {
       setContractEnd(toIso(end))
     }
   }, [costCenterId, costCenters, showForm])
+
+  // Auto-calculate installments based on contract duration
+  useEffect(() => {
+    if (isContractMode && contractStart && contractEnd) {
+      if (tipo !== 'variavel') setTipo('variavel')
+
+      const [y1, m1] = contractStart.split('-').map(Number)
+      const [y2, m2] = contractEnd.split('-').map(Number)
+
+      if (y1 && m1 && y2 && m2) {
+        const startMonthIndex = (y1 * 12) + m1
+        const endMonthIndex = (y2 * 12) + m2
+        const diff = endMonthIndex - startMonthIndex + 1 // Inclusive
+
+        if (diff > 0) {
+          setParcelas(diff)
+        }
+      }
+    }
+  }, [isContractMode, contractStart, contractEnd, tipo])
 
   // Auto-select Principal Account
   useEffect(() => {
@@ -588,10 +609,20 @@ export default function Schedules() {
         rows.push({ date: d.toISOString().slice(0, 10), valor: v })
       }
       setPreview(rows)
+    } else if (tipo === 'variavel' && operacao === 'despesa' && valor > 0 && parcelas >= 1 && proxima && isContractMode) {
+      // Contract Mode: valor is Monthly Value. Total is valor * parcelas.
+      const rows: Array<{ date: string; valor: number }> = []
+      const start = new Date(proxima)
+      for (let i = 0; i < parcelas; i++) {
+        const d = new Date(start)
+        d.setMonth(d.getMonth() + i)
+        rows.push({ date: d.toISOString().slice(0, 10), valor: valor })
+      }
+      setPreview(rows)
     } else {
       setPreview([])
     }
-  }, [tipo, operacao, valor, parcelas, proxima])
+  }, [tipo, operacao, valor, parcelas, proxima, isContractMode])
 
   useEffect(() => {
     async function loadCommitments() {
@@ -601,7 +632,6 @@ export default function Schedules() {
     }
     loadCommitments()
   }, [grupoId])
-
   const operacaoRef = useRef<HTMLSelectElement>(null)
 
   async function onCreate(e: React.FormEvent) {
@@ -616,12 +646,45 @@ export default function Schedules() {
       return
     }
 
-    if (!valor || valor <= 0 || !Number.isFinite(valor)) { setMsg('Valor deve ser maior que 0'); setMsgType('error'); return }
+    if (!valor || valor <= 0 || !Number.isFinite(valor)) {
+      setMsg('Valor deve ser maior que 0');
+      setMsgType('error');
+      return
+    }
+
+    // Check key requirements for Contract Duplicate Check
+    // Rules: Has Backend, Active Org, Contract Mode, Create Mode (implied), Creating for a Client
+    if (hasBackend && store.activeOrganization && isContractMode && clienteId) {
+      try {
+        const { count, error } = await checkActiveContract(clienteId, store.activeOrganization)
+        if (count > 0) {
+          setDuplicateConfirm({
+            isOpen: true,
+            onConfirm: () => {
+              executeCreate()
+            }
+          })
+          return
+        }
+      } catch (err) {
+        console.error('Check active contract failed:', err)
+        // Fail open: if check fails, allow creation to proceed
+        await executeCreate()
+        return
+      }
+    }
+
+    await executeCreate()
+  }
+
+  async function executeCreate() {
     const todayIso = (() => { const d = new Date(); const yyyy = d.getFullYear(); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${yyyy}-${mm}-${dd}` })()
     if (hasBackend) {
       if (!store.activeOrganization) { setMsg('Para salvar, selecione uma organização'); setMsgType('error'); return }
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
-      const valor2 = Math.round(valor * 100) / 100
+      // Contract Mode: Input Valor = Monthly. Store Total = Monthly * Parcelas.
+      const valorToSave = isContractMode ? valor * parcelas : valor
+      const valor2 = Math.round(valorToSave * 100) / 100
 
       const r = await createSchedule({
         operacao, tipo, especie, ano_mes_inicial: todayIso,
@@ -635,6 +698,7 @@ export default function Schedules() {
         contract_end: contractEnd || null,
         contract_items: contractItems
       }, store.activeOrganization)
+
       if (r.error) {
         setMsg(`Erro ao salvar: ${r.error.message}`)
         setMsgType('error')
@@ -665,6 +729,19 @@ export default function Schedules() {
     setClienteNome(cliName); setClienteBusca(cliName); setClientes([]);
 
     setHistorico(s.historico || ''); setValor(s.valor); setProxima(s.proxima_vencimento);
+
+    // If it's a contract with installments, display the monthly value instead of total
+    if (s.cost_center_id) {
+      // We can't rely on 'isContractMode' state here because it might update later
+      // But we have costCenters loaded?
+      // Wait, costCenters state is available.
+      const cc = costCenters.find(c => c.id === s.cost_center_id)
+      if (cc?.descricao.toLowerCase().includes('contrato') && s.parcelas > 1) {
+        const monthly = s.valor / s.parcelas
+        setValor(monthly)
+      }
+    }
+
     if (s.proxima_vencimento) {
       // Fix date display to avoid timezone issues
       const dateStr = s.proxima_vencimento.split('T')[0] // Get YYYY-MM-DD
@@ -874,7 +951,9 @@ export default function Schedules() {
     if (!validate()) return
     if (hasBackend) {
       const periodo = tipo === 'fixo' ? periodoFix : 'mensal'
-      const valor2 = Math.round(valor * 100) / 100
+      // Contract Mode: Input Valor = Monthly. Store Total = Monthly * Parcelas.
+      const valorToSave = isContractMode ? valor * parcelas : valor
+      const valor2 = Math.round(valorToSave * 100) / 100
       updateSched(selectedId, {
         operacao, tipo, especie, ano_mes_inicial: anoMesInicial,
         favorecido_id: clienteId, grupo_compromisso_id: grupoId,
@@ -1948,11 +2027,11 @@ export default function Schedules() {
                                   <tr className={`border-t border-gray-200 dark:border-gray-700 cursor-pointer ${selectedIds.has(r.id) ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}`} onClick={(e) => { handleSelect(e, r.id); setSelectedId(r.id) }} onDoubleClick={() => { setSelectedId(r.id); onEditOpen() }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, id: r.id }) }} title="Clique com botão direito para opções">
                                     <td className="p-2 w-[30px]" onClick={(e) => { e.stopPropagation(); toggleRowExpansion(r.id) }}>
                                       {Array.isArray(r.contract_items) && r.contract_items.length > 0 && (
-                                        <Icon name={expandedRows.has(r.id) ? 'keyboard_arrow_down' : 'keyboard_arrow_right'} className="w-5 h-5 text-blue-600" />
+                                        <Icon name={expandedRows.has(r.id) ? 'keyboard_arrow_down' : 'play'} className={`w-3 h-3 ${expandedRows.has(r.id) ? '' : 'text-gray-900 dark:text-gray-100'}`} />
                                       )}
                                     </td>
                                     <td className="p-2 w-[100px]">{r.data_referencia}</td>
-                                    <td className="p-2 w-[180px] break-words whitespace-normal" title={r.cliente}>{r.cliente}</td>
+                                    <td className="p-2 w-[180px] whitespace-nowrap truncate" title={r.cliente}>{r.cliente}</td>
                                     <td className="p-2 w-[200px] break-words whitespace-normal" title={r.historico}>{r.historico}</td>
                                     <td className="p-2 w-[100px]">{r.vencimento}</td>
                                     <td className="p-2 w-[120px]">
@@ -2251,6 +2330,16 @@ export default function Schedules() {
           </>
         )
       }
-    </div>
+      <ConfirmModal
+        isOpen={duplicateConfirm.isOpen}
+        title="Contrato Existente"
+        message="Atenção: Este cliente já possui um contrato ativo registrado. Deseja incluir um novo contrato mesmo assim?"
+        onConfirm={() => {
+          setDuplicateConfirm({ ...duplicateConfirm, isOpen: false })
+          duplicateConfirm.onConfirm()
+        }}
+        onClose={() => setDuplicateConfirm({ ...duplicateConfirm, isOpen: false })}
+      />
+    </div >
   )
 }

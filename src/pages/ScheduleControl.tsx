@@ -1088,7 +1088,7 @@ export default function ScheduleControl() {
                                       <td className="px-4 py-2 align-top truncate text-gray-500 dark:text-gray-400" title={item.caixa}>
                                         {item.caixa}
                                       </td>
-                                      <td className="px-4 py-2 align-top truncate font-medium text-slate-700 dark:text-gray-300 transform transition-transform hover:scale-[1.02] origin-left" title={item.cliente}>
+                                      <td className="px-4 py-2 align-top whitespace-nowrap font-medium text-slate-700 dark:text-gray-300 transform transition-transform hover:scale-[1.02] origin-left" title={item.cliente}>
                                         {item.cliente}
                                       </td>
                                       <td className="px-4 py-2 align-top truncate text-gray-600 dark:text-gray-400" title={item.compromisso}>

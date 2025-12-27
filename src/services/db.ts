@@ -164,10 +164,52 @@ export async function deactivateSchedule(id: string) {
   return supabase.rpc('fn_deactivate_schedule', { p_schedule_id: id })
 }
 
+export async function checkActiveContract(clientId: string, orgId: string) {
+  if (!supabase) return { count: 0, error: null }
+  const { count, error } = await supabase
+    .from('schedules')
+    .select('id, cost_center:cost_centers!inner(descricao)', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
+    .eq('favorecido_id', clientId)
+    .neq('situacao', 2)
+    .neq('situacao', 4)
+    .ilike('cost_centers.descricao', '%contrato%')
+
+  return { count: count || 0, error }
+}
+
+export async function getDashboardPreferences(orgId: string) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+  return supabase
+    .from('user_dashboard_preferences')
+    .select('*')
+    .eq('user_id', userId as any)
+    .eq('organization_id', orgId)
+    .maybeSingle()
+}
+
+export async function saveDashboardPreferences(orgId: string, widgets: string[], charts: string[]) {
+  if (!supabase) return { data: null, error: null }
+  const userId = (await supabase.auth.getUser()).data.user?.id
+
+  // Upsert
+  return supabase
+    .from('user_dashboard_preferences')
+    .upsert({
+      user_id: userId,
+      organization_id: orgId,
+      visible_widgets: widgets,
+      visible_charts: charts,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+}
+
 export async function listTransactions(limit = 1000, orgId: string) {
   if (!supabase) return { data: [], error: null }
   return supabase.from('transactions')
-    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome), cost_center:cost_center_id(id, descricao)')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:clients(id, nome), cost_center:cost_center_id(id, descricao)')
     .eq('organization_id', orgId)
     .order('data_lancamento', { ascending: false })
     .limit(limit)
@@ -176,7 +218,7 @@ export async function listTransactions(limit = 1000, orgId: string) {
 export async function searchTransactions(startDate: string, endDate: string, field: 'data_vencimento' | 'data_lancamento', orgId: string) {
   if (!supabase) return { data: [], error: null }
   return supabase.from('transactions')
-    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome), cost_center:cost_center_id(id, descricao)')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:clients(id, nome), cost_center:cost_center_id(id, descricao)')
     .eq('organization_id', orgId)
     .gte(field, startDate)
     .lte(field, endDate)
@@ -357,7 +399,7 @@ export async function getTransaction(id: string, orgId?: string) {
   if (!supabase) return { data: null, error: null }
   const userId = orgId || (await supabase.auth.getUser()).data.user?.id
   return supabase.from('transactions')
-    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:cliente_id(id, nome)')
+    .select('*, compromisso:compromisso_id(id, nome), grupo:grupo_compromisso_id(id, nome), cliente:clients(id, nome)')
     .eq('id', id)
     .eq('user_id', userId as any)
     .single()
@@ -380,7 +422,7 @@ export async function updateTransaction(id: string, payload: any, orgId?: string
 
 export async function listClients(orgId: string) {
   if (!supabase) return { data: [], error: null }
-  return supabase.from('clients').select('*').eq('organization_id', orgId).order('nome', { ascending: true })
+  return supabase.from('clients').select('*').eq('organization_id', orgId).order('nome', { ascending: true }).limit(10000)
 }
 
 export async function searchClients(term: string, orgId: string, limit = 10) {

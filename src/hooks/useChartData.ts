@@ -22,6 +22,8 @@ export interface ServiceData {
     count: number
     percentual: number
     cor: string
+    value: number
+    items: any[]
 }
 
 // Cores predefinidas para os grupos
@@ -109,6 +111,8 @@ export function useChartData(orgId?: string | null) {
                         .select(`
                 valor,
                 parcelas,
+                favorecido_id,
+                cliente:clients(id, nome),
                 compromisso:compromisso_id (
                   id,
                   nome,
@@ -139,6 +143,7 @@ export function useChartData(orgId?: string | null) {
                             current.total += valor
                             current.items.push({
                                 ...item,
+                                cliente_nome: (item.cliente && item.cliente.nome) ? item.cliente.nome : (item.favorecido_id ? 'ID: ' + item.favorecido_id : 'Sem Cliente'),
                                 valor_calculado: valor // Store calculated monthly value
                             })
                             groupMap.set(groupName, current)
@@ -168,13 +173,15 @@ export function useChartData(orgId?: string | null) {
                     // Fetch revenue services from AGENDAMENTOS
                     const { data: revenueSchedules } = await supabase
                         .from('schedules')
-                        .select('contract_items')
+                        .select('*, cliente:clients(id, nome), contract_items')
                         .eq('organization_id', orgId)
                         .eq('operacao', 'receita')
                         .neq('situacao', 2)
 
                     if (revenueSchedules) {
                         const serviceCountMap = new Map<string, number>()
+                        const serviceValueMap = new Map<string, number>()
+                        const serviceItemsMap = new Map<string, any[]>()
                         let totalServiceCount = 0
 
                         revenueSchedules.forEach((s: any) => {
@@ -182,6 +189,22 @@ export function useChartData(orgId?: string | null) {
                                 s.contract_items.forEach((item: any) => {
                                     const name = item.name || 'Outros'
                                     serviceCountMap.set(name, (serviceCountMap.get(name) || 0) + 1)
+
+                                    // Calculate value: using item value (unit) * qty - discount
+                                    // Assumption based on Schedules.tsx form logic
+                                    const val = (Number(item.value || 0) * Number(item.qty || 1)) - Number(item.discount || 0)
+                                    serviceValueMap.set(name, (serviceValueMap.get(name) || 0) + val)
+
+                                    const currentItems = serviceItemsMap.get(name) || []
+                                    currentItems.push({
+                                        ...s,
+                                        descricao: item.name + (item.qty > 1 ? ` (${item.qty}x)` : ''), // Item detail
+                                        cliente_nome: s.cliente?.nome || 'Cliente não identificado', // Client Name
+                                        valor_calculado: val, // Value of THIS service item
+                                        proxima_vencimento: s.proxima_vencimento || s.ano_mes_inicial
+                                    })
+                                    serviceItemsMap.set(name, currentItems)
+
                                     totalServiceCount++
                                 })
                             }
@@ -192,7 +215,13 @@ export function useChartData(orgId?: string | null) {
                                 name,
                                 count,
                                 percentual: totalServiceCount > 0 ? Math.round((count / totalServiceCount) * 100) : 0,
-                                cor: COLORS[index % COLORS.length]
+                                cor: COLORS[index % COLORS.length],
+                                value: serviceValueMap.get(name) || 0,
+                                items: (serviceItemsMap.get(name) || []).sort((a, b) => {
+                                    const dateA = new Date(a.proxima_vencimento || a.ano_mes_inicial).getTime()
+                                    const dateB = new Date(b.proxima_vencimento || b.ano_mes_inicial).getTime()
+                                    return dateA - dateB
+                                })
                             }))
                             .sort((a, b) => b.count - a.count)
 
